@@ -276,7 +276,7 @@ class _ManageChaptersScreenState extends State<ManageChaptersScreen>
 
   Future<void> _importFromEpub() async {
     try {
-      FilePickerResult? result = await FilePicker.platform.pickFiles(
+      FilePickerResult? result = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['epub'],
       );

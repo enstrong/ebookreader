@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:ebookreader/services/auth_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ebookreader/screens/user/user_home.dart';
-import 'package:ebookreader/screens/admin/admin_home.dart';
 import 'package:ebookreader/screens/auth/register_screen.dart';
 
 /// Экран входа в систему.

@@ -6,7 +6,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
 import 'screens/home/home_screen.dart';
-import 'screens/admin/admin_home.dart';
 import 'screens/bookmarks/bookmarks_screen.dart';
 import 'screens/user/user_home.dart';
 
