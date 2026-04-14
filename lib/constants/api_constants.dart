@@ -22,7 +22,7 @@ class ApiConstants {
   /// Если [coverPath] начинается с `/`, URL формируется как `{host}{coverPath}`.
   /// В противном случае добавляется разделитель `/`.
   static String getCoverUrl(String coverPath) {
-    final apiBase = dotenv.env['API_BASE_URL'] ?? 'http://172.28.59.182:8080';
+    final apiBase = dotenv.env['API_BASE_URL'] ?? 'http://192.168.1.90:8080';
     
     // Если это уже полный URL
     if (coverPath.startsWith('http')) return coverPath;
