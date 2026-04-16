@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:ebookreader/constants/api_constants.dart';
 
 /// Сервис для работы с профилем пользователя и пользовательскими данными.
 ///
@@ -8,7 +9,7 @@ import 'package:http/http.dart' as http;
 /// Методы раздела «ADMIN» требуют прав администратора.
 class UserService {
   /// Базовый URL серверного API.
-  final String baseUrl = 'http://192.168.1.90:8080/api';
+  final String baseUrl = ApiConstants.baseUrl;
 
   // ========================================
   // ПРОФИЛЬ ПОЛЬЗОВАТЕЛЯ
@@ -64,24 +65,24 @@ class UserService {
 
   /// Обновляет никнейм текущего пользователя.
   ///
-  /// Отправляет PUT-запрос на `/api/user/nickname`.
+  /// Отправляет PUT-запрос на `/user/nickname`.
   /// Возвращает ответ сервера, который может содержать обновлённый JWT-токен.
   /// Выбрасывает [Exception] при ошибке.
   Future<Map<String, dynamic>> updateNickname(String token, String nickname) async {
-  final response = await http.put(
-    Uri.parse('$baseUrl/api/user/nickname'),
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer $token',
-    },
-    body: json.encode({'nickname': nickname}),
-  );
+    final response = await http.put(
+      Uri.parse('$baseUrl/user/nickname'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: json.encode({'nickname': nickname}),
+    );
 
-  if (response.statusCode == 200) {
-    return json.decode(response.body);
-  } else {
-    throw Exception(json.decode(response.body)['message'] ?? 'Ошибка обновления никнейма');
-  }
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    } else {
+      throw Exception(json.decode(response.body)['message'] ?? 'Ошибка обновления никнейма');
+    }
   }
 
   /// Псевдоним для [updateNickname] — для совместимости со старым кодом.

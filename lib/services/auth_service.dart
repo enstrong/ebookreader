@@ -1,8 +1,9 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:ebookreader/constants/api_constants.dart';
 
 class AuthService {
-  final String baseUrl = 'http://192.168.1.90:8080/api';
+  final String baseUrl = ApiConstants.baseUrl;
 
   Future<Map<String, dynamic>> register(
       String username, String email, String password) async {
