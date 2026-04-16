@@ -33,6 +33,13 @@ migrate_working_dir/
 /build/
 /coverage/
 
+# Local SDK / runtime
+oracleJdk-26.jdk/
+
+# Maven/Gradle build outputs
+backend/target/
+postgres_data/
+
 # Symbolication related
 app.*.symbols
 
