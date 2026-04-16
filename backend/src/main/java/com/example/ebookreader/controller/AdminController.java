@@ -81,9 +81,10 @@ public class AdminController {
             @RequestPart("title") String title,
             @RequestPart("author") String author,
             @RequestPart(value = "description", required = false) String description,
+            @RequestPart(value = "genres", required = false) List<String> genres,
             @RequestPart(value = "cover", required = false) MultipartFile cover
     ) throws IOException {
-        Book newBook = adminService.createBook(title, author, description, cover);
+        Book newBook = adminService.createBook(title, author, description, genres, cover);
         return ResponseEntity.status(HttpStatus.CREATED).body(newBook);
     }
 

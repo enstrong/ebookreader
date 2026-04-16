@@ -5,8 +5,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
@@ -19,9 +21,11 @@ import com.example.ebookreader.dto.ChapterDTO;
 import com.example.ebookreader.exception.ResourceNotFoundException;
 import com.example.ebookreader.model.Book;
 import com.example.ebookreader.model.Chapter;
+import com.example.ebookreader.model.Genre;
 import com.example.ebookreader.model.User;
 import com.example.ebookreader.repository.BookRepository;
 import com.example.ebookreader.repository.ChapterRepository;
+import com.example.ebookreader.repository.GenreRepository;
 import com.example.ebookreader.repository.UserBookRepository;
 import com.example.ebookreader.repository.UserRepository;
 import com.example.ebookreader.service.AdminService;
@@ -31,13 +35,15 @@ public class AdminServiceImpl implements AdminService {
 
     private final BookRepository bookRepository;
     private final ChapterRepository chapterRepository;
+    private final GenreRepository genreRepository;
     private final UserRepository userRepository;
     private final UserBookRepository userBookRepository;
 
     @Autowired
-    public AdminServiceImpl(BookRepository bookRepository, ChapterRepository chapterRepository, UserRepository userRepository, UserBookRepository userBookRepository) {
+    public AdminServiceImpl(BookRepository bookRepository, ChapterRepository chapterRepository, GenreRepository genreRepository, UserRepository userRepository, UserBookRepository userBookRepository) {
         this.bookRepository = bookRepository;
         this.chapterRepository = chapterRepository;
+        this.genreRepository = genreRepository;
         this.userRepository = userRepository;
         this.userBookRepository = userBookRepository;
     }
@@ -56,7 +62,7 @@ public class AdminServiceImpl implements AdminService {
 
     @Override
     @Transactional
-    public Book createBook(String title, String author, String description, MultipartFile cover) throws IOException {
+    public Book createBook(String title, String author, String description, List<String> genres, MultipartFile cover) throws IOException {
         if (title == null || title.trim().isEmpty()) {
             throw new IllegalArgumentException("Название книги обязательно");
         }
@@ -68,6 +74,10 @@ public class AdminServiceImpl implements AdminService {
         newBook.setTitle(title);
         newBook.setAuthor(author);
         newBook.setDescription(description != null ? description : "");
+
+        if (genres != null && !genres.isEmpty()) {
+            newBook.setGenres(resolveGenres(genres));
+        }
 
         if (cover != null && !cover.isEmpty()) {
             Path uploadPath = Paths.get("assets/covers");
@@ -89,11 +99,20 @@ public class AdminServiceImpl implements AdminService {
         Book existingBook = bookRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Книга не найдена"));
 
-        existingBook.setTitle(bookDetails.getTitle());
-        existingBook.setAuthor(bookDetails.getAuthor());
-        existingBook.setDescription(bookDetails.getDescription());
+        if (bookDetails.getTitle() != null) {
+            existingBook.setTitle(bookDetails.getTitle());
+        }
+        if (bookDetails.getAuthor() != null) {
+            existingBook.setAuthor(bookDetails.getAuthor());
+        }
+        if (bookDetails.getDescription() != null) {
+            existingBook.setDescription(bookDetails.getDescription());
+        }
         if (bookDetails.getCoverUrl() != null) {
             existingBook.setCoverUrl(bookDetails.getCoverUrl());
+        }
+        if (bookDetails.getGenres() != null) {
+            existingBook.setGenres(resolveGenres(bookDetails.getGenres().stream().map(Genre::getName).toList()));
         }
 
         return bookRepository.save(existingBook);
@@ -149,6 +168,20 @@ public class AdminServiceImpl implements AdminService {
     @Transactional(readOnly = true)
     public List<Chapter> getChapters(Long bookId) {
         return chapterRepository.findByBookIdOrderByChapterOrderAsc(bookId);
+    }
+
+    private Set<Genre> resolveGenres(List<String> genreNames) {
+        Set<Genre> genreSet = new HashSet<>();
+        for (String rawName : genreNames) {
+            if (rawName == null || rawName.trim().isEmpty()) {
+                continue;
+            }
+            String normalized = rawName.trim();
+            Genre genre = genreRepository.findByName(normalized)
+                    .orElseGet(() -> new Genre(normalized));
+            genreSet.add(genre);
+        }
+        return genreSet;
     }
 
     @Override

@@ -15,7 +15,7 @@ import com.example.ebookreader.model.User;
 public interface AdminService {
     List<Book> getAllBooks();
     Optional<Book> getBookById(Long id);
-    Book createBook(String title, String author, String description, MultipartFile cover) throws IOException;
+    Book createBook(String title, String author, String description, List<String> genres, MultipartFile cover) throws IOException;
     Book updateBook(Long id, Book bookDetails);
     void deleteBook(Long id);
     Resource getCover(String filename) throws IOException;
