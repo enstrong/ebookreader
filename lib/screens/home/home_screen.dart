@@ -3,6 +3,9 @@ import 'package:ebookreader/services/book_service.dart';
 import 'package:ebookreader/screens/book/book_detail_screen.dart';
 import 'package:ebookreader/constants/api_constants.dart';
 
+enum SortOption { title, rating, popularity, language }
+enum SortDirection { ascending, descending }
+
 /// Домашний экран библиотеки.
 ///
 /// Отображает полный каталог доступных книг с поддержкой поиска
@@ -23,6 +26,14 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   
   List<dynamic> _books = [];
   List<dynamic> _filteredBooks = [];
+  Set<String> _availableGenres = {};
+  Set<String> _availableLanguages = {};
+  String? _selectedGenre;
+  Set<String> _selectedLanguages = {};
+  double? _selectedMinRating;
+  SortOption _sortOption = SortOption.title;
+  SortDirection _sortDirection = SortDirection.ascending;
+  String _searchQuery = '';
   bool _isLoading = true;
   bool _isSearching = false;
   late AnimationController _animController;
@@ -48,9 +59,12 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     setState(() => _isLoading = true);
     try {
       final books = await _bookService.getAllBooks(widget.token);
+      final cleanBooks = books.cast<dynamic>().toList();
       setState(() {
-        _books = books;
-        _filteredBooks = books;
+        _books = cleanBooks;
+        _availableGenres = _extractGenres(cleanBooks);
+        _availableLanguages = _extractLanguages(cleanBooks);
+        _applyFilters();
         _isLoading = false;
       });
       _animController.forward();
@@ -58,6 +72,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       setState(() {
         _books = [];
         _filteredBooks = [];
+        _availableGenres = {};
+        _availableLanguages = {};
         _isLoading = false;
       });
       if (mounted) {
@@ -79,33 +95,12 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     }
   }
 
-  Future<void> _searchBooks(String query) async {
-    if (query.isEmpty) {
-      setState(() {
-        _filteredBooks = _books;
-        _isSearching = false;
-      });
-      return;
-    }
-
-    setState(() => _isSearching = true);
-    try {
-      final results = await _bookService.searchBooks(widget.token, query);
-      setState(() {
-        _filteredBooks = results;
-        _isSearching = false;
-      });
-    } catch (e) {
-      setState(() {
-        _filteredBooks = _books.where((book) {
-          final title = (book['title'] ?? '').toLowerCase();
-          final author = (book['author'] ?? '').toLowerCase();
-          final q = query.toLowerCase();
-          return title.contains(q) || author.contains(q);
-        }).toList();
-        _isSearching = false;
-      });
-    }
+  void _searchBooks(String query) {
+    setState(() {
+      _searchQuery = query;
+      _isSearching = query.isNotEmpty;
+      _applyFilters();
+    });
   }
 
   void _openBookDetail(int bookId) {
@@ -190,7 +185,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                         ),
                       ],
                     ),
-                    const SizedBox(height: 18),
+                          const SizedBox(height: 18),
                     // Search bar
                     Container(
                       decoration: BoxDecoration(
@@ -239,6 +234,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                         ),
                       ),
                     ),
+                    const SizedBox(height: 14),
+                    _buildFilterBar(),
                   ],
                 ),
               ),
@@ -261,6 +258,383 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         ),
       ),
     );
+  }
+
+  Widget _buildFilterBar() {
+    final genres = _availableGenres.toList()..sort();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                '${_filteredBooks.length} результатов • ${_sortLabel()}',
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.75),
+                  fontSize: 13,
+                ),
+              ),
+            ),
+            IconButton(
+              onPressed: _openFilterScreen,
+              icon: const Icon(Icons.filter_list_rounded, color: Color(0xFF14FFEC)),
+              tooltip: 'Фильтры',
+            ),
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.sort_rounded, color: Color(0xFF14FFEC)),
+              tooltip: 'Сортировать',
+              color: Colors.black,
+              elevation: 5,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              onSelected: (value) {
+                setState(() {
+                  switch (value) {
+                    case 'title_asc':
+                      _sortOption = SortOption.title;
+                      _sortDirection = SortDirection.ascending;
+                      break;
+                    case 'title_desc':
+                      _sortOption = SortOption.title;
+                      _sortDirection = SortDirection.descending;
+                      break;
+                    case 'rating_asc':
+                      _sortOption = SortOption.rating;
+                      _sortDirection = SortDirection.ascending;
+                      break;
+                    case 'rating_desc':
+                      _sortOption = SortOption.rating;
+                      _sortDirection = SortDirection.descending;
+                      break;
+                    case 'popularity_asc':
+                      _sortOption = SortOption.popularity;
+                      _sortDirection = SortDirection.ascending;
+                      break;
+                    case 'popularity_desc':
+                      _sortOption = SortOption.popularity;
+                      _sortDirection = SortDirection.descending;
+                      break;
+                    case 'language_asc':
+                      _sortOption = SortOption.language;
+                      _sortDirection = SortDirection.ascending;
+                      break;
+                    case 'language_desc':
+                      _sortOption = SortOption.language;
+                      _sortDirection = SortDirection.descending;
+                      break;
+                    case 'rating_all':
+                      _selectedMinRating = null;
+                      break;
+                    case 'rating_gt_4':
+                      _selectedMinRating = 4.0;
+                      break;
+                    case 'rating_gt_45':
+                      _selectedMinRating = 4.5;
+                      break;
+                    case 'rating_gt_35':
+                      _selectedMinRating = 3.5;
+                      break;
+                    case 'rating_gt_35_5':
+                      _selectedMinRating = 3.5;
+                      break;
+                    case 'rating_gt_475':
+                      _selectedMinRating = 4.75;
+                      break;
+                  }
+                  _applyFilters();
+                });
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'title_asc',
+                  child: Text('Название A → Z', style: TextStyle(color: Colors.white, fontSize: 14)),
+                ),
+                const PopupMenuItem(
+                  value: 'title_desc',
+                  child: Text('Название Z → A', style: TextStyle(color: Colors.white, fontSize: 14)),
+                ),
+                const PopupMenuItem(
+                  value: 'rating_desc',
+                  child: Text('Рейтинг: высокий → низкий', style: TextStyle(color: Colors.white, fontSize: 14)),
+                ),
+                const PopupMenuItem(
+                  value: 'rating_asc',
+                  child: Text('Рейтинг: низкий → высокий', style: TextStyle(color: Colors.white, fontSize: 14)),
+                ),
+                const PopupMenuItem(
+                  value: 'popularity_desc',
+                  child: Text('Оценок: высокий → низкий', style: TextStyle(color: Colors.white, fontSize: 14)),
+                ),
+                const PopupMenuItem(
+                  value: 'popularity_asc',
+                  child: Text('Оценок: низкий → высокий', style: TextStyle(color: Colors.white, fontSize: 14)),
+                ),
+                const PopupMenuItem(
+                  value: 'language_asc',
+                  child: Text('Язык A → Z', style: TextStyle(color: Colors.white, fontSize: 14)),
+                ),
+                const PopupMenuItem(
+                  value: 'language_desc',
+                  child: Text('Язык Z → A', style: TextStyle(color: Colors.white, fontSize: 14)),
+                ),
+                const PopupMenuDivider(color: Color(0xFF2A3652)),
+                const PopupMenuItem(
+                  value: 'rating_all',
+                  child: Text('Все рейтинги', style: TextStyle(color: Colors.white, fontSize: 14)),
+                ),
+                const PopupMenuItem(
+                  value: 'rating_gt_35',
+                  child: Text('Рейтинг > 3.0', style: TextStyle(color: Colors.white, fontSize: 14)),
+                ),
+                const PopupMenuItem(
+                  value: 'rating_gt_35_5',
+                  child: Text('Рейтинг > 3.5', style: TextStyle(color: Colors.white, fontSize: 14)),
+                ),
+                const PopupMenuItem(
+                  value: 'rating_gt_4',
+                  child: Text('Рейтинг > 4.0', style: TextStyle(color: Colors.white, fontSize: 14)),
+                ),
+                const PopupMenuItem(
+                  value: 'rating_gt_45',
+                  child: Text('Рейтинг > 4.5', style: TextStyle(color: Colors.white, fontSize: 14)),
+                ),
+                const PopupMenuItem(
+                  value: 'rating_gt_475',
+                  child: Text('Рейтинг > 4.75', style: TextStyle(color: Colors.white, fontSize: 14)),
+                ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (genres.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: genres.take(8).map((genre) {
+              final selected = _selectedGenre == genre;
+              return ChoiceChip(
+                label: Text(genre),
+                selected: selected,
+                selectedColor: const Color(0xFF14FFEC),
+                backgroundColor: Colors.white.withValues(alpha: 0.07),
+                labelStyle: TextStyle(
+                  color: selected ? Colors.black : Colors.white.withValues(alpha: 0.8),
+                  fontSize: 12,
+                ),
+                onSelected: (_) {
+                  setState(() {
+                    _selectedGenre = selected ? null : genre;
+                    _applyFilters();
+                  });
+                },
+              );
+            }).toList(),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Future<void> _openFilterScreen() async {
+    final result = await Navigator.of(context).push<Map<String, dynamic>>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (context) => FilterScreen(
+          languages: _availableLanguages.toList()..sort(),
+          selectedLanguages: Set.of(_selectedLanguages),
+          selectedMinRating: _selectedMinRating,
+        ),
+      ),
+    );
+
+    if (result != null && mounted) {
+      setState(() {
+        _selectedLanguages = Set.of(result['selectedLanguages'] as Set<String>);
+        _selectedMinRating = result['selectedMinRating'] as double?;
+        _applyFilters();
+      });
+    }
+  }
+
+  void _applyFilters() {
+    final query = _searchQuery.toLowerCase();
+    final filtered = _books.where((book) {
+      final title = (book['title'] ?? '').toString().toLowerCase();
+      final author = (book['author'] ?? '').toString().toLowerCase();
+      final language = _bookLanguage(book).toLowerCase();
+      final genres = _bookGenres(book).map((genre) => genre.toLowerCase()).toList();
+      final textMatches = query.isEmpty ||
+          title.contains(query) ||
+          author.contains(query) ||
+          language.contains(query) ||
+          genres.any((genre) => genre.contains(query));
+      final selectedLanguages = _selectedLanguages.map((lang) => lang.toLowerCase()).toSet();
+      final selectedGenre = _selectedGenre?.toLowerCase();
+      final languageMatches = selectedLanguages.isEmpty || selectedLanguages.contains(language);
+      final genreMatches = selectedGenre == null || genres.contains(selectedGenre);
+      final rating = (book['average_rating'] ?? book['averageRating'] ?? 0) as num;
+      final ratingMatches = _selectedMinRating == null || rating >= _selectedMinRating!;
+      return textMatches && languageMatches && genreMatches && ratingMatches;
+    }).toList();
+
+    filtered.sort((a, b) {
+      int result;
+      switch (_sortOption) {
+        case SortOption.rating:
+          final aRating = (a['average_rating'] ?? a['averageRating'] ?? 0) as num;
+          final bRating = (b['average_rating'] ?? b['averageRating'] ?? 0) as num;
+          result = aRating.compareTo(bRating);
+          break;
+        case SortOption.popularity:
+          final aCount = (a['ratings_count'] ?? a['ratingsCount'] ?? 0) as num;
+          final bCount = (b['ratings_count'] ?? b['ratingsCount'] ?? 0) as num;
+          result = aCount.compareTo(bCount);
+          break;
+        case SortOption.language:
+          result = _bookLanguage(a).compareTo(_bookLanguage(b));
+          break;
+        case SortOption.title:
+          result = (a['title'] ?? '').toString().compareTo((b['title'] ?? '').toString());
+          break;
+      }
+      if (_sortDirection == SortDirection.descending) {
+        return -result;
+      }
+      return result;
+    });
+
+    setState(() {
+      _filteredBooks = filtered;
+    });
+  }
+
+  Set<String> _extractGenres(List<dynamic> books) {
+    final values = <String>{};
+    for (final book in books) {
+      values.addAll(_bookGenres(book));
+    }
+    return values;
+  }
+
+  Set<String> _extractLanguages(List<dynamic> books) {
+    final values = <String>{};
+    for (final book in books) {
+      final language = _bookLanguage(book);
+      if (language.isNotEmpty) values.add(language);
+    }
+    return values;
+  }
+
+  List<String> _bookGenres(dynamic book) {
+    final raw = book['genres'] ?? book['genre'];
+    if (raw == null) return [];
+    if (raw is String) {
+      return raw.split(';').map((value) => value.trim()).where((value) => value.isNotEmpty).toList();
+    }
+    if (raw is List) {
+      return raw
+          .map((item) {
+            if (item is String) return item;
+            if (item is Map && item.containsKey('name')) return item['name']?.toString() ?? '';
+            return item.toString();
+          })
+          .where((value) => value.isNotEmpty)
+          .toList();
+    }
+    return [raw.toString()];
+  }
+
+  String _bookLanguage(dynamic book) {
+    final raw = book['language'] ?? book['languageCode'] ?? book['language_code'];
+    if (raw == null) return '';
+    return _languageLabel(raw.toString());
+  }
+
+  String _languageLabel(String code) {
+    final normalized = code.trim().toLowerCase();
+    switch (normalized) {
+      case 'en':
+      case 'eng':
+      case 'english':
+        return 'English';
+      case 'ru':
+      case 'rus':
+      case 'русский':
+      case 'russian':
+        return 'Русский';
+      case 'es':
+      case 'spa':
+      case 'español':
+      case 'spanish':
+        return 'Español';
+      case 'fr':
+      case 'fra':
+      case 'français':
+      case 'french':
+        return 'Français';
+      case 'de':
+      case 'ger':
+      case 'deu':
+      case 'deutsch':
+      case 'german':
+        return 'Deutsch';
+      case 'it':
+      case 'ita':
+      case 'italiano':
+      case 'italian':
+        return 'Italiano';
+      case 'pt':
+      case 'por':
+      case 'português':
+      case 'portuguese':
+        return 'Português';
+      case 'ja':
+      case 'jpn':
+      case 'japanese':
+        return '日本語';
+      case 'ko':
+      case 'kor':
+      case 'korean':
+        return '한국어';
+      case 'zh':
+      case 'zho':
+      case 'chi':
+      case 'chinese':
+      case '中文':
+        return '中文';
+      default:
+        return normalized
+            .split(RegExp(r'[_\-\s]+'))
+            .map((word) => word.isEmpty ? word : '${word[0].toUpperCase()}${word.substring(1)}')
+            .join(' ');
+    }
+  }
+
+  String _sortLabel() {
+    String base;
+    switch (_sortOption) {
+      case SortOption.rating:
+        base = 'Рейтинг';
+        break;
+      case SortOption.popularity:
+        base = 'Оценки';
+        break;
+      case SortOption.language:
+        base = 'Язык';
+        break;
+      case SortOption.title:
+        base = 'Название';
+        break;
+    }
+    final dir = _sortDirection == SortDirection.descending ? '↓' : '↑';
+    return '$base $dir';
   }
 
   Widget _buildEmptyState() {
@@ -312,7 +686,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        childAspectRatio: 0.50,
+        childAspectRatio: 0.52,
         crossAxisSpacing: 14,
         mainAxisSpacing: 18,
       ),
@@ -337,12 +711,14 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
   Widget _buildBookCard(Map<String, dynamic> book) {
     final bookId = book['id'] as int;
-    
+    final rating = (book['average_rating'] ?? book['averageRating'] ?? 0).toString();
+
     return GestureDetector(
       onTap: () => _openBookDetail(bookId),
       child: Hero(
         tag: 'book-$bookId',
         child: Container(
+          clipBehavior: Clip.hardEdge,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(24),
             gradient: LinearGradient(
@@ -369,7 +745,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Cover image
-              Expanded(
+              Flexible(
                 flex: 5,
                 child: Container(
                   decoration: BoxDecoration(
@@ -399,7 +775,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                                 child: Center(
                                   child: CircularProgressIndicator(
                                     value: loadingProgress.expectedTotalBytes != null
-                                        ? loadingProgress.cumulativeBytesLoaded / 
+                                        ? loadingProgress.cumulativeBytesLoaded /
                                           loadingProgress.expectedTotalBytes!
                                         : null,
                                     color: const Color(0xFF14FFEC),
@@ -409,8 +785,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                               );
                             },
                             errorBuilder: (context, error, stackTrace) {
-                              print('❌ Ошибка загрузки обложки: $error');
-                              print('📍 URL: ${ApiConstants.getCoverUrl(book['coverUrl'])}');
+                              debugPrint('❌ Ошибка загрузки обложки: $error');
+                              debugPrint('📍 URL: ${ApiConstants.getCoverUrl(book['coverUrl'])}');
                               return _buildPlaceholder();
                             },
                           )
@@ -420,7 +796,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               ),
 
               // Book info
-              Expanded(
+              Flexible(
                 flex: 4,
                 child: Padding(
                   padding: const EdgeInsets.all(16),
@@ -454,6 +830,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
+                            const SizedBox(height: 10),
+                            if (rating != '0')
+                              _buildTag('${double.tryParse(rating)?.toStringAsFixed(1) ?? rating} ★'),
                           ],
                         ),
                       ),
@@ -506,6 +885,23 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     );
   }
 
+  Widget _buildTag(String text, {bool selected = false}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: selected ? const Color(0xFF14FFEC) : Colors.white.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 11,
+          color: selected ? Colors.black : Colors.white.withValues(alpha: 0.8),
+        ),
+      ),
+    );
+  }
+
   Widget _buildPlaceholder() {
     return Container(
       decoration: BoxDecoration(
@@ -524,5 +920,327 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         ),
       ),
     );
+  }
+}
+class FilterScreen extends StatefulWidget {
+  final List<String> languages;
+  final Set<String> selectedLanguages;
+  final double? selectedMinRating;
+
+  const FilterScreen({
+    super.key,
+    required this.languages,
+    required this.selectedLanguages,
+    this.selectedMinRating,
+  });
+
+  @override
+  State<FilterScreen> createState() => _FilterScreenState();
+}
+
+class _FilterScreenState extends State<FilterScreen> {
+  late Set<String> _selectedLanguages;
+  double? _selectedMinRating;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedLanguages = Set.of(widget.selectedLanguages);
+    _selectedMinRating = widget.selectedMinRating;
+  }
+
+  String? _languageFlag(String code) {
+    switch (code.trim().toLowerCase()) {
+      case 'en':
+      case 'eng':
+      case 'english':
+        return '🇬🇧';
+      case 'ru':
+      case 'rus':
+      case 'русский':
+      case 'russian':
+        return '🇷🇺';
+      case 'es':
+      case 'spa':
+      case 'español':
+      case 'spanish':
+        return '🇪🇸';
+      case 'fr':
+      case 'fra':
+      case 'français':
+      case 'french':
+        return '🇫🇷';
+      case 'de':
+      case 'ger':
+      case 'deu':
+      case 'deutsch':
+      case 'german':
+        return '🇩🇪';
+      case 'it':
+      case 'ita':
+      case 'italiano':
+      case 'italian':
+        return '🇮🇹';
+      case 'pt':
+      case 'por':
+      case 'português':
+      case 'portuguese':
+        return '🇵🇹';
+      case 'ja':
+      case 'jpn':
+      case 'japanese':
+        return '🇯🇵';
+      case 'ko':
+      case 'kor':
+      case 'korean':
+        return '🇰🇷';
+      case 'zh':
+      case 'zho':
+      case 'chi':
+      case 'chinese':
+      case '中文':
+        return '🇨🇳';
+      default:
+        return null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      resizeToAvoidBottomInset: false,
+      backgroundColor: const Color(0xFF080F23),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF101A37),
+        elevation: 0,
+        title: const Text('Фильтр'),
+        actions: [
+          TextButton(
+            onPressed: _clearFilters,
+            child: const Text('Сброс', style: TextStyle(color: Colors.white70)),
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: MediaQuery.of(context).padding.bottom + 20,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Язык',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: widget.languages.map((language) {
+                  final selected = _selectedLanguages.contains(language);
+                  final flag = _languageFlag(language);
+                  return ChoiceChip(
+                    label: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (flag != null) ...[
+                          Container(
+                            height: 18,
+                            width: 18,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white.withValues(alpha: 0.12),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              flag,
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                        ],
+                        Text(
+                          _languageLabel(language),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                    selected: selected,
+                                    selectedColor: const Color(0xFF14FFEC).withValues(alpha: 0.22),
+                    backgroundColor: Colors.white.withValues(alpha: 0.08),
+                    side: BorderSide(color: Colors.white.withValues(alpha: 0.14)),
+                    onSelected: (_) {
+                      setState(() {
+                        if (selected) {
+                          _selectedLanguages.remove(language);
+                        } else {
+                          _selectedLanguages.add(language);
+                        }
+                      });
+                    },
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                'Рейтинг',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  _buildFilterChip(null, 'Все рейтинги'),
+                  _buildFilterChip(3.0, '> 3.0'),
+                  _buildFilterChip(3.5, '> 3.5'),
+                  _buildFilterChip(4.0, '> 4.0'),
+                  _buildFilterChip(4.5, '> 4.5'),
+                  _buildFilterChip(4.75, '> 4.75'),
+                ],
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _clearFilters,
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                        foregroundColor: Colors.white,
+                      ),
+                      child: const Text('Очистить'),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _applyFilters,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF14FFEC),
+                      ),
+                      child: const Text('Применить'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilterChip(double? threshold, String label) {
+    final selected = _selectedMinRating == threshold;
+    return ChoiceChip(
+      label: Text(
+        label,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      selected: selected,
+      selectedColor: const Color(0xFF14FFEC),
+      backgroundColor: const Color(0xFF111A2B),
+      side: BorderSide(color: Colors.white.withValues(alpha: 0.16)),
+      onSelected: (_) {
+        setState(() {
+          _selectedMinRating = selected ? null : threshold;
+        });
+      },
+    );
+  }
+
+  void _applyFilters() {
+    Navigator.of(context).pop({
+      'selectedLanguages': _selectedLanguages,
+      'selectedMinRating': _selectedMinRating,
+    });
+  }
+
+  void _clearFilters() {
+    setState(() {
+      _selectedLanguages.clear();
+      _selectedMinRating = null;
+    });
+  }
+
+  String _languageLabel(String code) {
+    final normalized = code.trim().toLowerCase();
+    switch (normalized) {
+      case 'en':
+      case 'eng':
+      case 'english':
+        return 'English';
+      case 'ru':
+      case 'rus':
+      case 'русский':
+      case 'russian':
+        return 'Русский';
+      case 'es':
+      case 'spa':
+      case 'español':
+      case 'spanish':
+        return 'Español';
+      case 'fr':
+      case 'fra':
+      case 'français':
+      case 'french':
+        return 'Français';
+      case 'de':
+      case 'ger':
+      case 'deu':
+      case 'deutsch':
+      case 'german':
+        return 'Deutsch';
+      case 'it':
+      case 'ita':
+      case 'italiano':
+      case 'italian':
+        return 'Italiano';
+      case 'pt':
+      case 'por':
+      case 'português':
+      case 'portuguese':
+        return 'Português';
+      case 'ja':
+      case 'jpn':
+      case 'japanese':
+        return '日本語';
+      case 'ko':
+      case 'kor':
+      case 'korean':
+        return '한국어';
+      case 'zh':
+      case 'zho':
+      case 'chi':
+      case 'chinese':
+      case '中文':
+        return '中文';
+      default:
+        return normalized
+            .split(RegExp(r'[_\-\s]+'))
+            .map((word) => word.isEmpty ? word : '${word[0].toUpperCase()}${word.substring(1)}')
+            .join(' ');
+    }
   }
 }

@@ -57,6 +57,12 @@ public class Book {
     @Column
     private String externalUrl;
 
+    @Column(name = "language")
+    private String languageCode;
+
+    @Column(name = "page_count")
+    private Integer pageCount;
+
     // Getters and Setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -90,4 +96,10 @@ public class Book {
 
     public String getExternalUrl() { return externalUrl; }
     public void setExternalUrl(String externalUrl) { this.externalUrl = externalUrl; }
+
+    public String getLanguageCode() { return languageCode; }
+    public void setLanguageCode(String languageCode) { this.languageCode = languageCode; }
+
+    public Integer getPageCount() { return pageCount; }
+    public void setPageCount(Integer pageCount) { this.pageCount = pageCount; }
 }

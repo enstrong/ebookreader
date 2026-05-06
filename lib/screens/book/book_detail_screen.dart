@@ -279,8 +279,8 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                                       );
                                     },
                                     errorBuilder: (context, error, stackTrace) {
-                                      print('❌ Ошибка загрузки обложки: $error');
-                                      print('📍 URL: ${ApiConstants.getCoverUrl(_book!['coverUrl'])}');
+                                      debugPrint('❌ Ошибка загрузки обложки: $error');
+                                      debugPrint('📍 URL: ${ApiConstants.getCoverUrl(_book!['coverUrl'])}');
                                       return _buildPlaceholder();
                                     },
                                   )
@@ -312,6 +312,26 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                                 color: Colors.white.withValues(alpha: 0.6),
                                 fontSize: 16,
                               ),
+                            ),
+                            const SizedBox(height: 12),
+                            Wrap(
+                              alignment: WrapAlignment.center,
+                              spacing: 10,
+                              runSpacing: 10,
+                              children: [
+                                if (_detailGenres().isNotEmpty)
+                                  for (final genre in _detailGenres().take(2))
+                                    _buildInfoChip(genre),
+                                if (_bookLanguage().isNotEmpty)
+                                  _buildLanguageChip(_bookLanguage()),
+                                if (_bookPages() > 0)
+                                  _buildInfoChip('${_bookPages()} стр.'),
+                                if ((_book!['average_rating'] ?? _book!['averageRating'] ?? 0) != 0)
+                                  _buildInfoChip('${(_book!['average_rating'] ?? _book!['averageRating']).toString()} ★'),
+                                if ((_book!['ratings_count'] ?? _book!['ratingsCount'] ?? 0) != 0)
+                                  _buildInfoChip('${(_book!['ratings_count'] ?? _book!['ratingsCount']).toString()} оценок'),
+                                _buildInfoChip(_chapters.isEmpty ? 'Нет глав' : '${_chapters.length} глав'),
+                              ],
                             ),
                           ],
                         ),
@@ -632,14 +652,230 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                       ),
                     ),
 
-              const SliverToBoxAdapter(
-                child: SizedBox(height: 40),
+              SliverToBoxAdapter(
+                child: SizedBox(height: MediaQuery.of(context).padding.bottom + 40),
               ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  List<String> _detailGenres() {
+    final raw = _book!['genres'] ?? _book!['genre'];
+    if (raw == null) return [];
+    if (raw is String) {
+      return raw
+          .split(';')
+          .map((value) => value.trim())
+          .where((value) => value.isNotEmpty)
+          .toList();
+    }
+    if (raw is List) {
+      return raw
+          .map((item) {
+            if (item is String) return item;
+            if (item is Map && item.containsKey('name')) return item['name']?.toString() ?? '';
+            return item.toString();
+          })
+          .where((value) => value.isNotEmpty)
+          .toList();
+    }
+    return [raw.toString()];
+  }
+
+  String _bookLanguage() {
+    final raw = _book!['language'] ?? _book!['languageCode'] ?? _book!['language_code'];
+    if (raw == null) return '';
+    return _languageLabel(raw.toString());
+  }
+
+  String _languageLabel(String code) {
+    final normalized = code.trim().toLowerCase();
+    switch (normalized) {
+      case 'en':
+      case 'eng':
+      case 'english':
+        return 'English';
+      case 'ru':
+      case 'rus':
+      case 'русский':
+      case 'russian':
+        return 'Русский';
+      case 'es':
+      case 'spa':
+      case 'español':
+      case 'spanish':
+        return 'Español';
+      case 'fr':
+      case 'fra':
+      case 'français':
+      case 'french':
+        return 'Français';
+      case 'de':
+      case 'ger':
+      case 'deu':
+      case 'deutsch':
+      case 'german':
+        return 'Deutsch';
+      case 'it':
+      case 'ita':
+      case 'italiano':
+      case 'italian':
+        return 'Italiano';
+      case 'pt':
+      case 'por':
+      case 'português':
+      case 'portuguese':
+        return 'Português';
+      case 'ja':
+      case 'jpn':
+      case 'japanese':
+        return '日本語';
+      case 'ko':
+      case 'kor':
+      case 'korean':
+        return '한국어';
+      case 'zh':
+      case 'zho':
+      case 'chi':
+      case 'chinese':
+      case '中文':
+        return '中文';
+      default:
+        return normalized
+            .split(RegExp(r'[_\-\s]+'))
+            .map((word) => word.isEmpty ? word : '${word[0].toUpperCase()}${word.substring(1)}')
+            .join(' ');
+    }
+  }
+
+  int _bookPages() {
+    final raw = _book!['page_count'] ?? _book!['pageCount'] ?? _book!['num_pages'];
+    if (raw == null) return 0;
+    if (raw is int) return raw;
+    return int.tryParse(raw.toString()) ?? 0;
+  }
+
+  Widget _buildInfoChip(String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: Colors.white.withValues(alpha: 0.85),
+          fontSize: 13,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLanguageChip(String language) {
+    final flag = _languageFlag(_bookLanguageCode());
+    final display = language;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (flag != null) ...[
+            Container(
+              height: 18,
+              width: 18,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withValues(alpha: 0.15),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                flag,
+                style: const TextStyle(fontSize: 12),
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
+          Text(
+            display,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.85),
+              fontSize: 13,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String? _languageFlag(String code) {
+    switch (code.toLowerCase()) {
+      case 'en':
+      case 'eng':
+      case 'english':
+        return '🇬🇧';
+      case 'ru':
+      case 'rus':
+      case 'русский':
+      case 'russian':
+        return '🇷🇺';
+      case 'es':
+      case 'spa':
+      case 'español':
+      case 'spanish':
+        return '🇪🇸';
+      case 'fr':
+      case 'fra':
+      case 'français':
+      case 'french':
+        return '🇫🇷';
+      case 'de':
+      case 'ger':
+      case 'deu':
+      case 'deutsch':
+      case 'german':
+        return '🇩🇪';
+      case 'it':
+      case 'ita':
+      case 'italiano':
+      case 'italian':
+        return '🇮🇹';
+      case 'pt':
+      case 'por':
+      case 'português':
+      case 'portuguese':
+        return '🇵🇹';
+      case 'ja':
+      case 'jpn':
+      case 'japanese':
+        return '🇯🇵';
+      case 'ko':
+      case 'kor':
+      case 'korean':
+        return '🇰🇷';
+      case 'zh':
+      case 'zho':
+      case 'chi':
+      case 'chinese':
+      case '中文':
+        return '🇨🇳';
+      default:
+        return null;
+    }
+  }
+
+  String _bookLanguageCode() {
+    final raw = _book!['language'] ?? _book!['languageCode'] ?? _book!['language_code'];
+    if (raw == null) return '';
+    return raw.toString().trim().toLowerCase();
   }
 
   Widget _buildPlaceholder() {
