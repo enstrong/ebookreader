@@ -14,8 +14,9 @@ import com.example.ebookreader.model.UserBook;
 public interface UserBookRepository extends JpaRepository<UserBook, Long> {
     Optional<UserBook> findByUserIdAndBookId(Long userId, Long bookId);
     List<UserBook> findByUserIdAndBookmarkedTrue(Long userId);
+    List<UserBook> findByUserId(Long userId);
     
     @Modifying
     @Transactional
     void deleteByBookId(Long bookId);
-}   
+}

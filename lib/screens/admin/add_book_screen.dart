@@ -21,6 +21,7 @@ class _AddBookScreenState extends State<AddBookScreen> with SingleTickerProvider
   final _titleController = TextEditingController();
   final _authorController = TextEditingController();
   final _descController = TextEditingController();
+  final _languageController = TextEditingController();
   File? _cover;
   bool _loading = false;
   late AnimationController _animController;
@@ -46,6 +47,7 @@ class _AddBookScreenState extends State<AddBookScreen> with SingleTickerProvider
     _titleController.dispose();
     _authorController.dispose();
     _descController.dispose();
+    _languageController.dispose();
     super.dispose();
   }
 
@@ -65,6 +67,7 @@ class _AddBookScreenState extends State<AddBookScreen> with SingleTickerProvider
         title: _titleController.text.trim(),
         author: _authorController.text.trim(),
         description: _descController.text.trim(),
+        language: _languageController.text.trim(),
         coverFile: _cover,
       );
       if (!mounted) return;
@@ -263,6 +266,15 @@ class _AddBookScreenState extends State<AddBookScreen> with SingleTickerProvider
                       label: 'Описание',
                       icon: Icons.description_rounded,
                       maxLines: 5,
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // Language field
+                    _buildTextField(
+                      controller: _languageController,
+                      label: 'Язык (например, ru, en, eng)',
+                      icon: Icons.translate_rounded,
                     ),
 
                     const SizedBox(height: 40),

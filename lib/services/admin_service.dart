@@ -58,6 +58,7 @@ class AdminService {
     required String title,
     required String author,
     String? description,
+    String? language,
     File? coverFile,
   }) async {
     final uri = Uri.parse('$baseUrl/books');
@@ -71,6 +72,9 @@ class AdminService {
     request.fields['author'] = author;
     if (description != null && description.isNotEmpty) {
       request.fields['description'] = description;
+    }
+    if (language != null && language.trim().isNotEmpty) {
+      request.fields['language'] = language.trim();
     }
 
     print('📝 Fields: ${request.fields}');
@@ -114,6 +118,60 @@ class AdminService {
         throw Exception('Доступ запрещён (403 Forbidden)');
       }
       throw Exception('Ошибка добавления книги: ${response.statusCode} — ${response.body}');
+    }
+  }
+
+  /// Загружает аудиофайл, привязанный к сегменту книги.
+  Future<void> addAudioTrackMultipart({
+    required int bookId,
+    required int segmentOrder,
+    required File audioFile,
+    String? title,
+    int? durationMs,
+  }) async {
+    final uri = Uri.parse('$baseUrl/books/$bookId/audio-tracks');
+    print('📡 [addAudioTrackMultipart] POST $uri');
+
+    final request = http.MultipartRequest('POST', uri);
+    request.headers.addAll(headers);
+    request.fields['segmentOrder'] = segmentOrder.toString();
+    if (title != null && title.trim().isNotEmpty) {
+      request.fields['title'] = title.trim();
+    }
+    if (durationMs != null && durationMs > 0) {
+      request.fields['durationMs'] = durationMs.toString();
+    }
+
+    final length = await audioFile.length();
+    final stream = http.ByteStream(audioFile.openRead());
+    final ext = p.extension(audioFile.path).toLowerCase();
+    var contentType = MediaType('audio', 'mpeg');
+    if (ext == '.m4a' || ext == '.mp4') {
+      contentType = MediaType('audio', 'mp4');
+    } else if (ext == '.ogg') {
+      contentType = MediaType('audio', 'ogg');
+    } else if (ext == '.wav') {
+      contentType = MediaType('audio', 'wav');
+    }
+
+    request.files.add(
+      http.MultipartFile(
+        'audio',
+        stream,
+        length,
+        filename: p.basename(audioFile.path),
+        contentType: contentType,
+      ),
+    );
+
+    final streamed = await request.send();
+    final response = await http.Response.fromStream(streamed);
+
+    print('📡 [addAudioTrackMultipart] STATUS: ${response.statusCode}');
+    print('📦 [addAudioTrackMultipart] BODY: ${response.body}');
+
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      throw Exception('Ошибка загрузки аудио: ${response.statusCode} — ${response.body}');
     }
   }
 

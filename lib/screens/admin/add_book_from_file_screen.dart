@@ -10,9 +10,9 @@ import 'package:image_picker/image_picker.dart';
 import '../../services/admin_service.dart';
 import '../../constants/api_constants.dart';
 
-/// Экран добавления книги целиком из EPUB-файла.
+/// Экран добавления книги целиком из EPUB/FB2/TXT-файла.
 ///
-/// Позволяет администратору выбрать EPUB-файл, автоматически извлечь
+/// Позволяет администратору выбрать файл книги, автоматически извлечь
 /// из него метаданные (название, автор, описание) и все главы,
 /// при необходимости отредактировать данные, выбрать обложку и
 /// создать книгу вместе со всеми главами за один раз.
@@ -30,6 +30,7 @@ class _AddBookFromFileScreenState extends State<AddBookFromFileScreen>
   final _titleController = TextEditingController();
   final _authorController = TextEditingController();
   final _descController = TextEditingController();
+  final _languageController = TextEditingController();
 
   File? _cover;
   File? _epubFile;
@@ -61,6 +62,7 @@ class _AddBookFromFileScreenState extends State<AddBookFromFileScreen>
     _titleController.dispose();
     _authorController.dispose();
     _descController.dispose();
+    _languageController.dispose();
     super.dispose();
   }
 
@@ -97,7 +99,7 @@ class _AddBookFromFileScreenState extends State<AddBookFromFileScreen>
     try {
       FilePickerResult? result = await FilePicker.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['epub'],
+        allowedExtensions: ['epub', 'fb2', 'txt'],
       );
 
       if (result == null) return;
@@ -111,7 +113,14 @@ class _AddBookFromFileScreenState extends State<AddBookFromFileScreen>
         _selectedChapters = [];
       });
 
-      await _parseEpubFile(file);
+      final extension = (result.files.single.extension ?? '').toLowerCase();
+      if (extension == 'txt') {
+        await _parseTxtFile(file);
+      } else if (extension == 'fb2') {
+        await _parseFb2File(file);
+      } else {
+        await _parseEpubFile(file);
+      }
     } catch (e) {
       _showSnackBar('Ошибка выбора файла: $e', isError: true);
     }
@@ -152,6 +161,8 @@ class _AddBookFromFileScreenState extends State<AddBookFromFileScreen>
             metadataEl.findAllElements('creator').firstOrNull;
         final descEl = metadataEl.findAllElements('dc:description').firstOrNull ??
             metadataEl.findAllElements('description').firstOrNull;
+        final languageEl = metadataEl.findAllElements('dc:language').firstOrNull ??
+            metadataEl.findAllElements('language').firstOrNull;
 
         if (titleEl != null && titleEl.innerText.isNotEmpty) {
           _titleController.text = titleEl.innerText.trim();
@@ -161,6 +172,9 @@ class _AddBookFromFileScreenState extends State<AddBookFromFileScreen>
         }
         if (descEl != null && descEl.innerText.isNotEmpty) {
           _descController.text = descEl.innerText.trim();
+        }
+        if (languageEl != null && languageEl.innerText.isNotEmpty) {
+          _languageController.text = languageEl.innerText.trim();
         }
 
         // Извлекаем обложку
@@ -286,6 +300,133 @@ class _AddBookFromFileScreenState extends State<AddBookFromFileScreen>
     }
   }
 
+  Future<void> _parseTxtFile(File file) async {
+    setState(() => _loading = true);
+
+    try {
+      final text = await file.readAsString();
+      if (_titleController.text.trim().isEmpty) {
+        _titleController.text = _epubFileName?.replaceAll(RegExp(r'\.txt$', caseSensitive: false), '') ?? 'TXT книга';
+      }
+
+      final chapters = _splitPlainTextIntoSegments(text);
+      setState(() {
+        _extractedChapters = chapters;
+        _selectedChapters = List<bool>.filled(chapters.length, true);
+        _epubParsed = true;
+        _loading = false;
+      });
+
+      _showSnackBar(chapters.isEmpty ? 'В TXT не найден текст' : 'Найдено ${chapters.length} сегментов');
+    } catch (e) {
+      setState(() => _loading = false);
+      _showSnackBar('Ошибка парсинга TXT: $e', isError: true);
+    }
+  }
+
+  Future<void> _parseFb2File(File file) async {
+    setState(() => _loading = true);
+
+    try {
+      final fb2Content = await file.readAsString();
+      final doc = XmlDocument.parse(fb2Content);
+
+      final titleInfo = doc.findAllElements('title-info').firstOrNull;
+      final bookTitle = titleInfo?.findAllElements('book-title').firstOrNull?.innerText.trim();
+      if (bookTitle != null && bookTitle.isNotEmpty) {
+        _titleController.text = bookTitle;
+      }
+
+      final author = titleInfo?.findAllElements('author').firstOrNull;
+      if (author != null) {
+        final parts = [
+          author.findAllElements('first-name').firstOrNull?.innerText.trim(),
+          author.findAllElements('middle-name').firstOrNull?.innerText.trim(),
+          author.findAllElements('last-name').firstOrNull?.innerText.trim(),
+        ].whereType<String>().where((value) => value.isNotEmpty).toList();
+        if (parts.isNotEmpty) _authorController.text = parts.join(' ');
+      }
+
+      final lang = titleInfo?.findAllElements('lang').firstOrNull?.innerText.trim();
+      if (lang != null && lang.isNotEmpty) _languageController.text = lang;
+
+      final sections = doc.findAllElements('body').expand((body) => body.findElements('section'));
+      final chapters = <Map<String, String>>[];
+      var order = 1;
+      for (final section in sections) {
+        final rawTitle = section.findElements('title').firstOrNull?.innerText.trim();
+        final content = section.innerText.replaceAll(RegExp(r'\s+'), ' ').trim();
+        if (content.length <= 50) continue;
+        chapters.add({
+          'title': rawTitle?.isNotEmpty == true ? rawTitle! : 'Сегмент $order',
+          'content': content,
+          'order': order.toString(),
+        });
+        order++;
+      }
+
+      setState(() {
+        _extractedChapters = chapters;
+        _selectedChapters = List<bool>.filled(chapters.length, true);
+        _epubParsed = true;
+        _loading = false;
+      });
+
+      _showSnackBar(chapters.isEmpty ? 'В FB2 не найдено сегментов' : 'Найдено ${chapters.length} сегментов');
+    } catch (e) {
+      setState(() => _loading = false);
+      _showSnackBar('Ошибка парсинга FB2: $e', isError: true);
+    }
+  }
+
+  List<Map<String, String>> _splitPlainTextIntoSegments(String rawText) {
+    final text = rawText.replaceAll('\r\n', '\n').replaceAll('\r', '\n').trim();
+    if (text.isEmpty) return [];
+
+    final headingRegex = RegExp(
+      r'(?=^\s*(chapter|глава|book|part)\s+[0-9ivxlcdmа-яё]+[\.: -]?.*$)',
+      caseSensitive: false,
+      multiLine: true,
+    );
+    final matches = headingRegex.allMatches(text).map((match) => match.start).toList();
+    final chapters = <Map<String, String>>[];
+
+    if (matches.length > 1) {
+      for (var index = 0; index < matches.length; index++) {
+        final start = matches[index];
+        final end = index + 1 < matches.length ? matches[index + 1] : text.length;
+        final chunk = text.substring(start, end).trim();
+        final lines = chunk.split('\n').where((line) => line.trim().isNotEmpty).toList();
+        final title = lines.isNotEmpty ? lines.first.trim() : 'Сегмент ${index + 1}';
+        final content = lines.skip(1).join('\n').replaceAll(RegExp(r'\n{3,}'), '\n\n').trim();
+        if (content.length > 50) {
+          chapters.add({
+            'title': title,
+            'content': content,
+            'order': (chapters.length + 1).toString(),
+          });
+        }
+      }
+      return chapters;
+    }
+
+    const chunkSize = 9000;
+    var order = 1;
+    for (var start = 0; start < text.length; start += chunkSize) {
+      final end = (start + chunkSize) > text.length ? text.length : start + chunkSize;
+      final content = text.substring(start, end).trim();
+      if (content.length > 50) {
+        chapters.add({
+          'title': 'Сегмент $order',
+          'content': content,
+          'order': order.toString(),
+        });
+        order++;
+      }
+    }
+    return chapters;
+  }
+
   Future<void> _submit() async {
     if (_titleController.text.trim().isEmpty) {
       _showSnackBar('Введите название книги', isError: true);
@@ -317,6 +458,7 @@ class _AddBookFromFileScreenState extends State<AddBookFromFileScreen>
         title: _titleController.text.trim(),
         author: _authorController.text.trim(),
         description: _descController.text.trim(),
+        language: _languageController.text.trim(),
         coverFile: _cover,
       );
 
@@ -516,7 +658,7 @@ class _AddBookFromFileScreenState extends State<AddBookFromFileScreen>
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'Загрузка книги из EPUB',
+                              'Загрузка книги из EPUB, FB2 или TXT',
                               style: TextStyle(
                                 fontSize: 13,
                                 color: Colors.white.withValues(alpha: 0.5),
@@ -536,8 +678,8 @@ class _AddBookFromFileScreenState extends State<AddBookFromFileScreen>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // EPUB file picker
-                        _buildSectionLabel('EPUB файл'),
+                        // Book file picker
+                        _buildSectionLabel('Файл книги'),
                         const SizedBox(height: 8),
                         GestureDetector(
                           onTap: _loading ? null : _pickEpubFile,
@@ -589,7 +731,7 @@ class _AddBookFromFileScreenState extends State<AddBookFromFileScreen>
                                       Text(
                                         _epubFile != null
                                             ? _epubFileName ?? 'Файл выбран'
-                                            : 'Выбрать EPUB файл',
+                                            : 'Выбрать EPUB, FB2 или TXT',
                                         style: TextStyle(
                                           color: _epubFile != null
                                               ? Colors.white
@@ -771,6 +913,17 @@ class _AddBookFromFileScreenState extends State<AddBookFromFileScreen>
                           hint: 'Введите описание',
                           icon: Icons.description_rounded,
                           maxLines: 4,
+                        ),
+
+                        const SizedBox(height: 20),
+
+                        // Language
+                        _buildSectionLabel('Язык'),
+                        const SizedBox(height: 8),
+                        _buildTextField(
+                          controller: _languageController,
+                          hint: 'Например: ru, en, eng',
+                          icon: Icons.translate_rounded,
                         ),
 
                         // Chapters selection - Collapsible
@@ -957,7 +1110,7 @@ class _AddBookFromFileScreenState extends State<AddBookFromFileScreen>
                                   ? 'Создание книги...'
                                   : _epubParsed
                                       ? 'Создать книгу с главами'
-                                      : 'Сначала выберите EPUB файл',
+                                      : 'Сначала выберите файл книги',
                               style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,

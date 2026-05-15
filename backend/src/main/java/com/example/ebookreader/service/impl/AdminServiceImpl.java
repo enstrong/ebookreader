@@ -19,11 +19,16 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.example.ebookreader.dto.ChapterDTO;
 import com.example.ebookreader.exception.ResourceNotFoundException;
+import com.example.ebookreader.model.AudioTrack;
 import com.example.ebookreader.model.Book;
+import com.example.ebookreader.model.BookAvailability;
+import com.example.ebookreader.model.BookContentBundle;
 import com.example.ebookreader.model.Chapter;
 import com.example.ebookreader.model.Genre;
 import com.example.ebookreader.model.User;
+import com.example.ebookreader.repository.AudioTrackRepository;
 import com.example.ebookreader.repository.BookRepository;
+import com.example.ebookreader.repository.BookContentBundleRepository;
 import com.example.ebookreader.repository.ChapterRepository;
 import com.example.ebookreader.repository.GenreRepository;
 import com.example.ebookreader.repository.UserBookRepository;
@@ -38,14 +43,18 @@ public class AdminServiceImpl implements AdminService {
     private final GenreRepository genreRepository;
     private final UserRepository userRepository;
     private final UserBookRepository userBookRepository;
+    private final AudioTrackRepository audioTrackRepository;
+    private final BookContentBundleRepository bookContentBundleRepository;
 
     @Autowired
-    public AdminServiceImpl(BookRepository bookRepository, ChapterRepository chapterRepository, GenreRepository genreRepository, UserRepository userRepository, UserBookRepository userBookRepository) {
+    public AdminServiceImpl(BookRepository bookRepository, ChapterRepository chapterRepository, GenreRepository genreRepository, UserRepository userRepository, UserBookRepository userBookRepository, AudioTrackRepository audioTrackRepository, BookContentBundleRepository bookContentBundleRepository) {
         this.bookRepository = bookRepository;
         this.chapterRepository = chapterRepository;
         this.genreRepository = genreRepository;
         this.userRepository = userRepository;
         this.userBookRepository = userBookRepository;
+        this.audioTrackRepository = audioTrackRepository;
+        this.bookContentBundleRepository = bookContentBundleRepository;
     }
 
     @Override
@@ -62,7 +71,7 @@ public class AdminServiceImpl implements AdminService {
 
     @Override
     @Transactional
-    public Book createBook(String title, String author, String description, List<String> genres, MultipartFile cover) throws IOException {
+    public Book createBook(String title, String author, String description, List<String> genres, String language, MultipartFile cover) throws IOException {
         if (title == null || title.trim().isEmpty()) {
             throw new IllegalArgumentException("Название книги обязательно");
         }
@@ -74,6 +83,8 @@ public class AdminServiceImpl implements AdminService {
         newBook.setTitle(title);
         newBook.setAuthor(author);
         newBook.setDescription(description != null ? description : "");
+        newBook.setLanguageCode(language != null ? language.trim() : null);
+        newBook.setAvailability(BookAvailability.METADATA_ONLY);
 
         if (genres != null && !genres.isEmpty()) {
             newBook.setGenres(resolveGenres(genres));
@@ -114,7 +125,18 @@ public class AdminServiceImpl implements AdminService {
         if (bookDetails.getGenres() != null) {
             existingBook.setGenres(resolveGenres(bookDetails.getGenres().stream().map(Genre::getName).toList()));
         }
+        if (bookDetails.getLanguageCode() != null) {
+            existingBook.setLanguageCode(bookDetails.getLanguageCode());
+        }
+        return bookRepository.save(existingBook);
+    }
 
+    @Override
+    @Transactional
+    public Book updateBookAvailability(Long id, BookAvailability availability) {
+        Book existingBook = bookRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Книга не найдена"));
+        existingBook.setAvailability(availability);
         return bookRepository.save(existingBook);
     }
 
@@ -133,6 +155,8 @@ public class AdminServiceImpl implements AdminService {
 
         // Удаляем главы книги
         chapterRepository.deleteAll(chapterRepository.findByBookIdOrderByChapterOrderAsc(id));
+        audioTrackRepository.deleteByBookId(id);
+        bookContentBundleRepository.deleteByBookId(id);
 
         if (book.getCoverUrl() != null && !book.getCoverUrl().isEmpty()) {
             try {
@@ -195,7 +219,11 @@ public class AdminServiceImpl implements AdminService {
         chapter.setChapterOrder(dto.getChapterOrder());
         chapter.setTitle(dto.getTitle());
         chapter.setContent(dto.getContent());
-        return chapterRepository.save(chapter);
+        chapter.setContentBundle(getOrCreateManualBundle(book));
+        chapter.setSourceType("ADMIN");
+        Chapter saved = chapterRepository.save(chapter);
+        updateAvailabilityFromAssets(book);
+        return saved;
     }
 
     @Override
@@ -212,7 +240,9 @@ public class AdminServiceImpl implements AdminService {
         if (dto.getTitle() != null) existingChapter.setTitle(dto.getTitle());
         if (dto.getContent() != null) existingChapter.setContent(dto.getContent());
 
-        return chapterRepository.save(existingChapter);
+        Chapter saved = chapterRepository.save(existingChapter);
+        updateAvailabilityFromAssets(existingChapter.getBook());
+        return saved;
     }
 
     @Override
@@ -224,7 +254,89 @@ public class AdminServiceImpl implements AdminService {
         if (!chapter.getBook().getId().equals(bookId)) {
             throw new IllegalArgumentException("Глава не принадлежит указанной книге");
         }
+        Book book = chapter.getBook();
         chapterRepository.delete(chapter);
+        updateAvailabilityFromAssets(book);
+    }
+
+    @Override
+    @Transactional
+    public AudioTrack createAudioTrack(Long bookId, Integer segmentOrder, String title, Long durationMs, MultipartFile audio) throws IOException {
+        if (segmentOrder == null || segmentOrder < 1) {
+            throw new IllegalArgumentException("Неверный номер сегмента");
+        }
+        if (audio == null || audio.isEmpty()) {
+            throw new IllegalArgumentException("Аудиофайл обязателен");
+        }
+
+        Book book = bookRepository.findById(bookId)
+                .orElseThrow(() -> new ResourceNotFoundException("Книга не найдена"));
+
+        Path uploadPath = Paths.get("assets/audio").resolve(bookId.toString());
+        if (!Files.exists(uploadPath)) {
+            Files.createDirectories(uploadPath);
+        }
+
+        String originalName = audio.getOriginalFilename() == null ? "audio" : audio.getOriginalFilename();
+        String cleanName = originalName.replaceAll("[^a-zA-Z0-9._-]", "_");
+        String fileName = System.currentTimeMillis() + "_" + cleanName;
+        Path filePath = uploadPath.resolve(fileName);
+        Files.copy(audio.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+
+        AudioTrack track = new AudioTrack();
+        track.setBook(book);
+        track.setSegmentOrder(segmentOrder);
+        track.setTitle(title != null && !title.isBlank() ? title.trim() : "Сегмент " + segmentOrder);
+        track.setDurationMs(durationMs);
+        track.setAudioPath(filePath.toString());
+        track.setOriginalFileName(originalName);
+        track.setContentType(audio.getContentType() != null ? audio.getContentType() : "audio/mpeg");
+
+        AudioTrack saved = audioTrackRepository.save(track);
+        updateAvailabilityFromAssets(book);
+        return saved;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Resource getAudioTrackResource(Long bookId, Long trackId) throws IOException {
+        AudioTrack track = audioTrackRepository.findByIdAndBookId(trackId, bookId)
+                .orElseThrow(() -> new ResourceNotFoundException("Аудиотрек не найден"));
+        Resource resource = new UrlResource(Paths.get(track.getAudioPath()).toUri());
+        if (resource.exists() && resource.isReadable()) {
+            return resource;
+        }
+        throw new ResourceNotFoundException("Аудиофайл не найден: " + track.getAudioPath());
+    }
+
+    private void updateAvailabilityFromAssets(Book book) {
+        long textCount = chapterRepository.countByBookId(book.getId());
+        long audioCount = audioTrackRepository.countByBookId(book.getId());
+
+        if (textCount > 0 && audioCount > 0) {
+            book.setAvailability(BookAvailability.SYNCED);
+        } else if (textCount > 0) {
+            book.setAvailability(BookAvailability.TEXT);
+        } else if (audioCount > 0) {
+            book.setAvailability(BookAvailability.AUDIO);
+        } else if (book.getAvailability() != BookAvailability.PDF_ONLY) {
+            book.setAvailability(BookAvailability.METADATA_ONLY);
+        }
+        bookRepository.save(book);
+    }
+
+    private BookContentBundle getOrCreateManualBundle(Book book) {
+        return bookContentBundleRepository.findByBookIdOrderByCreatedAtDesc(book.getId()).stream()
+                .filter(bundle -> "ADMIN_IMPORT".equals(bundle.getSourceType()))
+                .findFirst()
+                .orElseGet(() -> {
+                    BookContentBundle bundle = new BookContentBundle();
+                    bundle.setBook(book);
+                    bundle.setSourceType("ADMIN_IMPORT");
+                    bundle.setSourceName("Admin curated import");
+                    bundle.setLanguageCode(book.getLanguageCode());
+                    return bookContentBundleRepository.save(bundle);
+                });
     }
 
     @Override

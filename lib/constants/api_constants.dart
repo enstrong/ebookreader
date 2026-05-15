@@ -36,4 +36,12 @@ class ApiConstants {
     // Возвращаем прямой путь к статике
     return '$apiBase/covers/$filename';
   }
+
+  /// Формирует полный URL для потокового аудио.
+  static String getAudioUrl(String streamPath) {
+    final apiBase = dotenv.env['API_BASE_URL'] ?? 'http://192.168.1.90:8080';
+    if (streamPath.startsWith('http')) return streamPath;
+    if (streamPath.startsWith('/')) return '$apiBase$streamPath';
+    return '$baseUrl/$streamPath';
+  }
 }

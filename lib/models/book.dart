@@ -10,6 +10,7 @@ class Book {
   final String description;
   final String fileUrl;
   final String coverUrl;
+  final String availability;
 
   Book({
     required this.id,
@@ -18,6 +19,7 @@ class Book {
     required this.description,
     required this.fileUrl,
     required this.coverUrl,
+    this.availability = 'METADATA_ONLY',
   });
 
   /// Создаёт экземпляр [Book] из JSON-объекта, полученного от API.
@@ -27,8 +29,13 @@ class Book {
       title: json['title'],
       author: json['author'],
       description: json['description'],
-      fileUrl: json['fileUrl'],
-      coverUrl: json['coverUrl'],
+      fileUrl: json['fileUrl'] ?? '',
+      coverUrl: json['coverUrl'] ?? '',
+      availability: json['availability'] ?? 'METADATA_ONLY',
     );
   }
+
+  bool get hasText => availability == 'TEXT' || availability == 'SYNCED';
+  bool get hasAudio => availability == 'AUDIO' || availability == 'SYNCED';
+  bool get isLibraryAvailable => hasText || hasAudio;
 }

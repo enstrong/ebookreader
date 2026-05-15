@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.example.ebookreader.exception.ResourceNotFoundException;
 import com.example.ebookreader.model.Book;
+import com.example.ebookreader.model.BookAvailability;
 import com.example.ebookreader.model.Chapter;
 import com.example.ebookreader.repository.BookRepository;
 import com.example.ebookreader.repository.ChapterRepository;
@@ -114,7 +115,12 @@ public class BookGraphQLController {
         chapter.setChapterOrder(chapterOrder);
         chapter.setTitle(title);
         chapter.setContent(content);
-        return chapterRepository.save(chapter);
+        Chapter saved = chapterRepository.save(chapter);
+        if (book.getAvailability() == BookAvailability.METADATA_ONLY) {
+            book.setAvailability(BookAvailability.TEXT);
+            bookRepository.save(book);
+        }
+        return saved;
     }
 
     @MutationMapping

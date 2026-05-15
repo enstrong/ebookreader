@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:ebookreader/constants/api_constants.dart';
+import 'package:ebookreader/models/audio_track.dart';
 
 /// Сервис для работы с книгами.
 ///
@@ -51,6 +52,37 @@ class BookService {
       }
     } catch (e) {
       print('Error in getAllBooks: $e');
+      rethrow;
+    }
+  }
+
+  /// Возвращает только книги, у которых есть текст или аудио.
+  Future<List<dynamic>> getLibraryBooks(String token) async {
+    try {
+      print('=== GET LIBRARY BOOKS REQUEST ===');
+      print('URL: $baseUrl/books/library');
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/books/library'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      print('Status code: ${response.statusCode}');
+      print('Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        if (response.body.isEmpty || response.body == '[]') {
+          return [];
+        }
+        final data = json.decode(response.body);
+        return data is List ? data : [];
+      }
+      throw Exception('Ошибка загрузки библиотеки: ${response.statusCode}');
+    } catch (e) {
+      print('Error in getLibraryBooks: $e');
       rethrow;
     }
   }
@@ -381,6 +413,41 @@ class BookService {
       }
     } catch (e) {
       print('Error in getChapter: $e');
+      rethrow;
+    }
+  }
+
+  /// Возвращает аудиотреки книги, привязанные к сегментам.
+  Future<List<AudioTrack>> getAudioTracks(String token, int bookId) async {
+    try {
+      print('=== GET AUDIO TRACKS REQUEST ===');
+      print('URL: $baseUrl/books/$bookId/audio-tracks');
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/books/$bookId/audio-tracks'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      print('Status code: ${response.statusCode}');
+      print('Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        if (response.body.isEmpty || response.body == '[]') return [];
+        final data = json.decode(response.body);
+        if (data is List) {
+          return data
+              .whereType<Map>()
+              .map((item) => AudioTrack.fromJson(Map<String, dynamic>.from(item)))
+              .toList();
+        }
+        return [];
+      }
+      throw Exception('Ошибка загрузки аудио: ${response.statusCode}');
+    } catch (e) {
+      print('Error in getAudioTracks: $e');
       rethrow;
     }
   }

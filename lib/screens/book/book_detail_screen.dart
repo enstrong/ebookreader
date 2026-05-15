@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:ebookreader/services/book_service.dart';
 import 'package:ebookreader/services/bookmark_service.dart';
 import 'package:ebookreader/screens/reader/reader_screen.dart';
+import 'package:ebookreader/screens/audio/audio_player_screen.dart';
 import 'package:ebookreader/constants/api_constants.dart';
 
 /// Экран детальной информации о книге.
@@ -33,6 +34,8 @@ class _BookDetailScreenState extends State<BookDetailScreen>
   bool _isLoading = true;
   bool _isBookmarked = false;
   int _currentChapter = 1;
+  double _segmentProgress = 0.0;
+  int _audioPositionMs = 0;
   late AnimationController _animController;
   late Animation<double> _fadeAnimation;
 
@@ -68,7 +71,9 @@ class _BookDetailScreenState extends State<BookDetailScreen>
       setState(() {
         _book = book;
         _chapters = chapters;
-        _currentChapter = progress['currentChapter'] ?? 1;
+        _currentChapter = progress['segmentOrder'] ?? progress['currentChapter'] ?? 1;
+        _segmentProgress = _asDouble(progress['segmentProgress']);
+        _audioPositionMs = _asInt(progress['audioPositionMs']);
         _isBookmarked = progress['isBookmarked'] ?? false;
         _isLoading = false;
       });
@@ -153,9 +158,66 @@ class _BookDetailScreenState extends State<BookDetailScreen>
           token: widget.token,
           bookId: widget.bookId,
           chapterOrder: chapterOrder,
+          initialSegmentProgress: chapterOrder == _currentChapter ? _segmentProgress : 0.0,
         ),
       ),
     ).then((_) => _loadBookDetails());
+  }
+
+  void _openAudioPlayer() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AudioPlayerScreen(
+          token: widget.token,
+          bookId: widget.bookId,
+          title: _book?['title'] ?? 'Без названия',
+          author: _book?['author'] ?? '',
+          initialSegmentOrder: _currentChapter,
+          initialSegmentProgress: _segmentProgress,
+          initialAudioPositionMs: _audioPositionMs,
+        ),
+      ),
+    ).then((_) => _loadBookDetails());
+  }
+
+  bool get _hasText {
+    final availability = (_book?['availability'] ?? 'METADATA_ONLY').toString();
+    return availability == 'TEXT' || availability == 'SYNCED';
+  }
+
+  bool get _hasAudio {
+    final availability = (_book?['availability'] ?? 'METADATA_ONLY').toString();
+    return availability == 'AUDIO' || availability == 'SYNCED';
+  }
+
+  String _availabilityLabel() {
+    final availability = (_book?['availability'] ?? 'METADATA_ONLY').toString();
+    switch (availability) {
+      case 'TEXT':
+        return 'Есть текст';
+      case 'AUDIO':
+        return 'Есть аудио';
+      case 'SYNCED':
+        return 'Текст + аудио';
+      case 'PDF_ONLY':
+        return 'PDF без синхронизации';
+      default:
+        return 'Метаданные';
+    }
+  }
+
+  double _asDouble(dynamic value) {
+    if (value == null) return 0.0;
+    if (value is num) return value.toDouble().clamp(0.0, 1.0).toDouble();
+    return (double.tryParse(value.toString()) ?? 0.0).clamp(0.0, 1.0).toDouble();
+  }
+
+  int _asInt(dynamic value) {
+    if (value == null) return 0;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value.toString()) ?? 0;
   }
 
   @override
@@ -322,8 +384,8 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                                 if (_detailGenres().isNotEmpty)
                                   for (final genre in _detailGenres().take(2))
                                     _buildInfoChip(genre),
-                                if (_bookLanguage().isNotEmpty)
-                                  _buildLanguageChip(_bookLanguage()),
+                                _buildLanguageChip(_bookLanguage()),
+                                _buildInfoChip(_availabilityLabel()),
                                 if (_bookPages() > 0)
                                   _buildInfoChip('${_bookPages()} стр.'),
                                 if ((_book!['average_rating'] ?? _book!['averageRating'] ?? 0) != 0)
@@ -348,75 +410,23 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                   child: Row(
                     children: [
                       Expanded(
-                        child: _chapters.isEmpty
-                            ? Container(
-                                height: 56,
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [
-                                      Colors.grey.withValues(alpha: 0.3),
-                                      Colors.grey.withValues(alpha: 0.2),
-                                    ],
-                                  ),
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(
-                                    color: Colors.white.withValues(alpha: 0.1),
-                                    width: 1.5,
-                                  ),
-                                ),
-                                child: ElevatedButton.icon(
-                                  onPressed: null,
-                                  icon: Icon(
-                                    Icons.lock_outline_rounded,
-                                    color: Colors.white.withValues(alpha: 0.4),
-                                  ),
-                                  label: Text(
-                                    'Нет глав для чтения',
-                                    style: TextStyle(
-                                      color: Colors.white.withValues(alpha: 0.4),
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.transparent,
-                                    shadowColor: Colors.transparent,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                  ),
-                                ),
-                              )
-                            : Container(
-                                height: 56,
-                                decoration: BoxDecoration(
-                                  gradient: const LinearGradient(
-                                    colors: [Color(0xFF14FFEC), Color(0xFF0D7377)],
-                                  ),
-                                  borderRadius: BorderRadius.circular(16),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: const Color(0xFF14FFEC).withValues(alpha: 0.4),
-                                      blurRadius: 15,
-                                      offset: const Offset(0, 6),
-                                    ),
-                                  ],
-                                ),
-                                child: ElevatedButton.icon(
-                                  onPressed: () => _openReader(_currentChapter),
-                                  icon: const Icon(Icons.play_arrow_rounded),
-                                  label: Text(_currentChapter > 1
-                                      ? 'Продолжить (гл. $_currentChapter)'
-                                      : 'Начать читать'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.transparent,
-                                    shadowColor: Colors.transparent,
-                                    foregroundColor: Colors.white,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                  ),
-                                ),
-                              ),
+                        child: _buildActionButton(
+                          icon: Icons.menu_book_rounded,
+                          label: _currentChapter > 1
+                              ? 'Читать $_currentChapter сегм.'
+                              : 'Читать',
+                          enabled: _hasText && _chapters.isNotEmpty,
+                          onPressed: () => _openReader(_currentChapter),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildActionButton(
+                          icon: Icons.headphones_rounded,
+                          label: 'Слушать',
+                          enabled: _hasAudio,
+                          onPressed: _openAudioPlayer,
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Container(
@@ -687,7 +697,9 @@ class _BookDetailScreenState extends State<BookDetailScreen>
 
   String _bookLanguage() {
     final raw = _book!['language'] ?? _book!['languageCode'] ?? _book!['language_code'];
-    if (raw == null) return '';
+    if (raw == null || raw.toString().trim().isEmpty) {
+      return 'не указан';
+    }
     return _languageLabel(raw.toString());
   }
 
@@ -696,6 +708,8 @@ class _BookDetailScreenState extends State<BookDetailScreen>
     switch (normalized) {
       case 'en':
       case 'eng':
+      case 'en-us':
+      case 'en-gb':
       case 'english':
         return 'English';
       case 'ru':
@@ -710,6 +724,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
         return 'Español';
       case 'fr':
       case 'fra':
+      case 'fre':
       case 'français':
       case 'french':
         return 'Français';
@@ -729,6 +744,19 @@ class _BookDetailScreenState extends State<BookDetailScreen>
       case 'português':
       case 'portuguese':
         return 'Português';
+      case 'ar':
+      case 'ara':
+      case 'arabic':
+        return 'العربية';
+      case 'fa':
+      case 'fas':
+      case 'per':
+      case 'persian':
+        return 'فارسی';
+      case 'pl':
+      case 'pol':
+      case 'polish':
+        return 'Polski';
       case 'ja':
       case 'jpn':
       case 'japanese':
@@ -758,6 +786,57 @@ class _BookDetailScreenState extends State<BookDetailScreen>
     return int.tryParse(raw.toString()) ?? 0;
   }
 
+  Widget _buildActionButton({
+    required IconData icon,
+    required String label,
+    required bool enabled,
+    required VoidCallback onPressed,
+  }) {
+    return Container(
+      height: 56,
+      decoration: BoxDecoration(
+        gradient: enabled
+            ? const LinearGradient(colors: [Color(0xFF14FFEC), Color(0xFF0D7377)])
+            : LinearGradient(
+                colors: [
+                  Colors.white.withValues(alpha: 0.05),
+                  Colors.white.withValues(alpha: 0.03),
+                ],
+              ),
+        borderRadius: BorderRadius.circular(16),
+        border: enabled
+            ? null
+            : Border.all(color: Colors.white.withValues(alpha: 0.1), width: 1.5),
+        boxShadow: enabled
+            ? [
+                BoxShadow(
+                  color: const Color(0xFF14FFEC).withValues(alpha: 0.28),
+                  blurRadius: 15,
+                  offset: const Offset(0, 6),
+                ),
+              ]
+            : null,
+      ),
+      child: ElevatedButton.icon(
+        onPressed: enabled ? onPressed : null,
+        icon: Icon(icon),
+        label: Text(
+          label,
+          overflow: TextOverflow.ellipsis,
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          disabledBackgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          foregroundColor: Colors.white,
+          disabledForegroundColor: Colors.white.withValues(alpha: 0.35),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+        ),
+      ),
+    );
+  }
+
   Widget _buildInfoChip(String label) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -777,7 +856,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
 
   Widget _buildLanguageChip(String language) {
     final flag = _languageFlag(_bookLanguageCode());
-    final display = language;
+    final display = 'Язык: $language';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -817,9 +896,11 @@ class _BookDetailScreenState extends State<BookDetailScreen>
   }
 
   String? _languageFlag(String code) {
-    switch (code.toLowerCase()) {
+    switch (code.trim().toLowerCase()) {
       case 'en':
       case 'eng':
+      case 'en-us':
+      case 'en-gb':
       case 'english':
         return '🇬🇧';
       case 'ru':
@@ -834,6 +915,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
         return '🇪🇸';
       case 'fr':
       case 'fra':
+      case 'fre':
       case 'français':
       case 'french':
         return '🇫🇷';
@@ -853,6 +935,19 @@ class _BookDetailScreenState extends State<BookDetailScreen>
       case 'português':
       case 'portuguese':
         return '🇵🇹';
+      case 'ar':
+      case 'ara':
+      case 'arabic':
+        return '🇸🇦';
+      case 'fa':
+      case 'fas':
+      case 'per':
+      case 'persian':
+        return '🇮🇷';
+      case 'pl':
+      case 'pol':
+      case 'polish':
+        return '🇵🇱';
       case 'ja':
       case 'jpn':
       case 'japanese':

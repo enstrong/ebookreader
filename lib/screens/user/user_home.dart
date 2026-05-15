@@ -5,8 +5,8 @@ import 'package:ebookreader/services/storage_service.dart';
 
 /// Корневой экран для обычного пользователя.
 ///
-/// Реализует нижнюю навигационную панель с двумя вкладками:
-/// каталог книг ([HomeScreen]) и профиль пользователя ([ProfileScreen]).
+/// Реализует нижнюю навигационную панель с тремя вкладками:
+/// каталог, библиотека доступных книг и профиль пользователя.
 class UserHome extends StatefulWidget {
   final String token;
   const UserHome({super.key, required this.token});
@@ -38,7 +38,17 @@ class _UserHomeState extends State<UserHome> {
   @override
   Widget build(BuildContext context) {
     final List<Widget> screens = [
-      HomeScreen(token: _currentToken ?? widget.token),
+      HomeScreen(
+        token: _currentToken ?? widget.token,
+        title: 'Каталог',
+        subtitle: 'Goodreads и рекомендации',
+      ),
+      HomeScreen(
+        token: _currentToken ?? widget.token,
+        libraryOnly: true,
+        title: 'Библиотека',
+        subtitle: 'Для чтения и прослушивания',
+      ),
       ProfileScreen(token: _currentToken ?? widget.token),
     ];
 
@@ -152,6 +162,51 @@ class _UserHomeState extends State<UserHome> {
               icon: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: _selectedIndex == 1
+                    ? BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            const Color(0xFF14FFEC).withValues(alpha: 0.2),
+                            const Color(0xFF0D7377).withValues(alpha: 0.1),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF14FFEC).withValues(alpha: 0.3),
+                            blurRadius: 12,
+                            spreadRadius: 2,
+                          ),
+                        ],
+                      )
+                    : null,
+                child: const Icon(Icons.auto_stories_outlined, size: 26),
+              ),
+              activeIcon: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      const Color(0xFF14FFEC).withValues(alpha: 0.2),
+                      const Color(0xFF0D7377).withValues(alpha: 0.1),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF14FFEC).withValues(alpha: 0.3),
+                      blurRadius: 12,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+                child: const Icon(Icons.auto_stories, size: 26),
+              ),
+              label: 'Библиотека',
+            ),
+            BottomNavigationBarItem(
+              icon: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: _selectedIndex == 2
                     ? BoxDecoration(
                         gradient: LinearGradient(
                           colors: [

@@ -3,9 +3,13 @@ package com.example.ebookreader.model;
 import java.util.HashSet;
 import java.util.Set;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -63,6 +67,10 @@ public class Book {
     @Column(name = "page_count")
     private Integer pageCount;
 
+    @Enumerated(EnumType.STRING)
+    @Column
+    private BookAvailability availability = BookAvailability.METADATA_ONLY;
+
     // Getters and Setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -97,9 +105,33 @@ public class Book {
     public String getExternalUrl() { return externalUrl; }
     public void setExternalUrl(String externalUrl) { this.externalUrl = externalUrl; }
 
+    @JsonProperty("language")
+    @JsonAlias({"languageCode", "language_code"})
     public String getLanguageCode() { return languageCode; }
+
+    @JsonProperty("language")
+    @JsonAlias({"languageCode", "language_code"})
     public void setLanguageCode(String languageCode) { this.languageCode = languageCode; }
 
     public Integer getPageCount() { return pageCount; }
     public void setPageCount(Integer pageCount) { this.pageCount = pageCount; }
+
+    public BookAvailability getAvailability() {
+        if (availability == null) {
+            return BookAvailability.METADATA_ONLY;
+        }
+        return availability;
+    }
+
+    public void setAvailability(BookAvailability availability) {
+        this.availability = availability == null ? BookAvailability.METADATA_ONLY : availability;
+    }
+
+    public boolean isReadable() {
+        return getAvailability().hasText();
+    }
+
+    public boolean isListenable() {
+        return getAvailability().hasAudio();
+    }
 }

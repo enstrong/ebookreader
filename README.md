@@ -1,4 +1,4 @@
-# 🇬🇧 eBookReader(Русский язык ниже)
+#  eBookReader
 
 A cross-platform book app built with Flutter, Spring Boot, and PostgreSQL.
 This diploma project is a joint app created with my partner over several months; now I’m continuing it solo.
@@ -86,92 +86,333 @@ This is a personal project in active development. I finally bought a  new **MacB
 - Now continuing as a solo developer. Also have an internship, part-time job, and I'm training for a half-marathon.
 - Main focus: achieve the first 3 of 4 goals at least, which should suffice for a great grade (no pun intended), or even achieve all 4 if I manage my time the best way possible. Though it all depends on how hard Machine Learning is, and I currently have zero idea due to having zero past experience.
 
+
 ---
 
-## 🇷🇺 Русская версия
+# Updates
 
-Кроссплатформенное приложение для книг на Flutter, Spring Boot и PostgreSQL.
-Этот дипломный проект начинался как совместный с партнером, мы работали несколько месяцев, а сейчас я продолжаю его в одиночку.
+## May 15th, 2026
 
-## Что делает приложение
+This was an incredible experience. For the AI recommendation engine, I started small, because I did not want to just run a library and pretend that I understand Machine Learning. The goal was to learn the recommendation problem step by step: first popularity, then similar users/books, and only after that matrix factorization.
 
-- Загружает книги из приложения как файлы, включая EPUB и другие поддерживаемые форматы.
-- Сохраняет метаданные книг, обложки и содержимое в бэкенд-сервисе.
-- Позволяет читать книги на мобильных и настольных платформах с удобным интерфейсом.
-- Управляет книгами, входом и базовой библиотекой.
-- Хранит локальные настройки и предпочтения пользователя через `shared_preferences`.
+The recommendation engine is still backend-only for now. There is no GUI yet, and that is intentional. At this stage it works through scripts, data artifacts, and evaluation files. Basically, terminal first, product UI later.
 
-## Основные функции
+### Terms I had to define first
 
-### Загрузка книг
+Before the models make sense, the metrics and model words have to make sense.
 
-- Загружайте книги через интерфейс выбора файлов.
-- EPUB поддерживается, и приложение рассчитано на другие форматы, если парсер их допустит.
-- Загруженные книги сохраняются на сервере и становятся доступными в библиотеке приложения.
+**Interaction** means one user-book event from the Goodreads dataset. In this dataset, an interaction can mean the user read the book, rated it, reviewed it, or some combination of those things.
 
-### Работа с библиотекой
+**Rating** means the explicit 1-5 star score. A rating of `5` is the strongest positive signal. A rating of `4` is also positive, but weaker. Ratings below the user's normal rating average can become negative signals in mean-centered ALS.
 
-- Просматривайте и ищите книги.
-- Просматривайте детали книги, обложку и метаданные.
-- Используйте приложение как личный менеджер чтения.
+**Rating 0** does not mean "zero stars". This is very important. In the UCSD Goodreads interactions file, rating `0` means the user read the book but did not leave a star rating. At first I removed those rows, but later I realized that was wasting useful information. If a user chose to read a book, that is at least weak evidence of interest.
 
-### Аутентификация
+**Hit Rate@K** measures whether the hidden liked book appeared in the top `K` recommendations. The evaluation idea is:
 
-- Вход и управление пользователями обрабатываются бэкендом.
-- Безопасные сессии и поддержка библиотек у пользователей.
+```text
+User liked A, B, C, D, E
+Hide E
+Recommend books using A, B, C, D
+Check if E appears in the top K recommendations
+```
 
-### Бэкенд / инфраструктура
+So `Hit@10 = 30%` means that for about 30% of evaluated users, the hidden liked book appeared somewhere in the top 10 recommendations.
 
-- Бэкенд находится в `backend/` и написан на Java/Spring Boot.
-- Данные хранятся в PostgreSQL.
-- Имеется поддержка Docker для локального запуска бэкенда.
+**MRR**, or Mean Reciprocal Rank, measures how early the correct hidden book appears. If the hidden book is ranked first, the score for that user is `1/1 = 1.0`. If it is ranked fifth, the score is `1/5 = 0.2`. If it never appears, it gets `0`. This is why MRR is very important: Hit Rate only asks "did we find it?", but MRR asks "did we rank it near the top?"
 
-## Текущее состояние проекта
+**Features** are ALS latent factors. They are not neural network neurons. They are hidden taste dimensions learned for users and books. For example, the model might learn something like "classic literature vs. fantasy", "dark books vs. lighter books", or "YA romance vs. adult literary fiction", but these dimensions are not named manually.
 
-- Проект начинался как командная работа и развивался несколько месяцев.
-- Я не тороплюсь добавлять всё сразу. Сегодня **15 апреля**, а защита диплома назначена на **22–28 июня**.
+**Lambda** is regularization. It controls how much ALS punishes large user/book factor values. If lambda is too low, the model can overfit. If lambda is too high, the model becomes too cautious and loses useful personalization.
 
-## Дальнейшее развитие
+**Iterations** are ALS alternating solve rounds. ALS repeatedly updates user vectors while holding book vectors fixed, then updates book vectors while holding user vectors fixed. More iterations do not always mean a better model.
 
-Проект движется к формату суперприложения для книг.
-Приоритеты:
+### Dataset
 
-1. **AI Recommendation Engine**
-   - Добавить движок рекомендаций AI, который предлагает книги на основе истории чтения.
-   - Если истории нет, спросить пользователя о книгах, которые ему нравятся, или дать AI задать несколько вопросов.
-   - Добавить кнопку AI на главной странице для динамических рекомендаций.
+For the recommendation dataset, I used the UCSD Goodreads user-book interactions dataset. The raw interactions file is large, around 4.1GB, so it cannot be treated like a normal small CSV. The pipeline reads it in chunks and creates smaller prepared artifacts for training.
 
-2. **Опыт чтения**
-   - Закладки внутри книг.
-   - Заметки и выделения.
-   - Выделять слова и получать определения.
-   - Переводить слова или отрывки с помощью открытых словарей.
+The raw interactions file contained:
 
-3. **Аудиокниги и синхронизация**
-    - Поддержка аудиокниг и чтения электронных книг вместе.
-    - Синхронизация позиции аудио с текстом, чтобы слушать во время прогулки и продолжать читать дома.
+| Dataset stage | Rows / interactions | Users | Books | Notes |
+|---|---:|---:|---:|---|
+| Raw rows scanned | 228,648,342 | - | - | Complete Goodreads interactions CSV |
+| Explicit rating rows | 104,551,549 | - | - | Rows where `rating > 0` |
+| Read-unrated rows | 7,579,654 | - | - | Rows where `rating == 0` and `is_read == 1` |
+| Explicit-only filtered file | 99,361,816 | 750,325 | 724,641 | Users with at least 5 ratings, books with at least 10 ratings |
+| Read-aware filtered file | 106,929,763 | 766,036 | 777,324 | Explicit ratings plus read-unrated rows |
 
-4. **Обзоры, оценки и цитаты позже**
+The first filtering step was simple but important:
 
-    - Добавить обзоры книг и страницы оценок.
-    - Добавить цитаты в будущем, когда основной опыт чтения и AI будут достаточно сильными.
+- keep users with at least `5` observed interactions
+- keep books with at least `10` observed interactions
+- for the explicit-only dataset, count only ratings
+- for the read-aware dataset, count both explicit ratings and read-unrated interactions
 
-## Технологии
+This filtering is not just for speed. A user who rated only one book does not give the model enough taste information. A book rated by only one or two people also does not give the model enough collaborative signal. Netflix, as far as I know, filters out users with less than 20 interactions.
 
-- Flutter frontend
-- Spring Boot backend
-- PostgreSQL database
-- Docker-compatible backend setup
-- File upload via Flutter `file_picker`
-- EPUB parsing and book asset handling via Dart packages
+For the final validation setup, I created a proper train/validation split before training. This matters because the older evaluation was more optimistic: it hid one liked book temporarily during evaluation, but the model had still already seen that book during training.
 
-## Примечания
+The proper split works like this:
 
-Это личный проект в активной разработке. Я недавно купил новый **MacBook Air M4 с 24 ГБ ОЗУ**, чтобы работать над AI-функциями для этого приложения. Следующий этап — сосредоточиться на рекомендациях AI.
+```text
+Choose 10,000 users with enough 5-star books
+Remove one 5-star book per user before training
+Train the model without those 10,000 rows
+Evaluate whether the model can recommend the hidden books back
+```
 
-## Автор
+The validation split created:
 
-- Проект начинался с партнером, разрабатывался вместе 2 месяца (октябрь и февраль, производственные практики).
-- Партнер, абсолютно заслуживающий упоминания - [Shonkurieta](https://github.com/Shonkurieta). Разрабатывал всю Frontend часть проекта и добавил поддержку EPUB.
-- Сейчас продолжаю в одиночку. Также у меня стажировка, работа, и подготовка к полумарафону, поэтому грамотный тайм-менеджмент это все что может спасти мою дипломку.
-- Основная цель: выполнить первые 3 из 4 задач и получить много баллов, а если повезет, то реализовать все 4.
+| Split artifact | Rows |
+|---|---:|
+| Original read-aware interactions | 106,929,763 |
+| Training rows after removing holdout books | 106,919,763 |
+| Validation holdout rows | 10,000 |
+| Candidate books for validation | 20,000 |
+
+So when I say `validation 20k`, it means the model is choosing recommendations from a 20,000-book candidate universe, and the hidden books were removed before training.
+
+### Level 1 Model - Popularity baseline
+
+Level 1 has to be mentioned in order for Levels 2 and 3 to make sense. It is the level that I mostly skipped because it is too simple, but it is still useful.
+
+The Level 1 model is basically a popularity model. It recommends the most popular books based on amount of interactions, average rating, or a weighted combination of rating and popularity. It does not understand taste. It does not understand that a user likes classics, fantasy, or romance. It only says, "many people liked this, so maybe you will too."
+
+This is not impressive as AI, but it is still useful as a fallback for new users with no history.
+
+### Level 2 Model - Item collaborative filtering
+
+This one is harder, which is why I started here. The Level 2 model finds taste neighbors. So if User A liked Books A, B, C, and D, and User B liked Books A, B, and C, then Book D can appear in User B's recommendations.
+
+This is still not deep Machine Learning. There is no training loop, no learned latent vectors, and no matrix factorization. But it is still impressive because it uses other people's behavior to recommend books.
+
+Testing similar books to `Pride and Prejudice` came back with books like:
+
+- `Sense and Sensibility`
+- `Jane Eyre`
+- `Emma`
+- `Little Women`
+- `To Kill a Mockingbird`
+- `Persuasion`
+- `The Great Gatsby`
+
+That was the first "wait, this actually works" moment. It was just eyeballing at first, but then I started using Hit Rate@K and MRR to measure it properly.
+
+At first, I defined "liked" as rating `>= 4`. Then I made a stricter model where "liked" meant only rating `= 5`. The stricter version performed better:
+
+| Model | Eval setup | Hit@5 | Hit@10 | Hit@20 | Hit@50 | MRR |
+|---|---|---:|---:|---:|---:|---:|
+| Level 2 Item-CF, rating >= 4 | old 5k restricted | 16.46% | 22.22% | 31.32% | 46.62% | 0.1236 |
+| Level 2 Item-CF, rating = 5 | old 5k restricted | 19.20% | 25.58% | 34.03% | 48.38% | 0.1494 |
+
+So the first lesson was that not all positive signals are equal. A 5-star rating was cleaner than mixing 4-star and 5-star ratings together.
+
+### Level 3 Model - ALS, where Machine Learning begins
+
+For the Machine Learning model, I used ALS, which stands for Alternating Least Squares.
+
+ALS learns two matrices:
+
+- a user matrix, where each user gets a vector of hidden taste features
+- a book matrix, where each book gets a vector of hidden content/taste features
+
+The model predicts how much a user will like a book by comparing the user's vector with the book's vector. In simple terms:
+
+```text
+predicted preference = user_vector dot book_vector
+```
+
+The "learning" part is ALS repeatedly improving, "optimizing" these vectors. It fixes the book vectors and solves for better user vectors. Then it fixes the user vectors and solves for better book vectors. It keeps alternating until the vectors become useful.
+
+The first ALS model used only 5-star ratings. It was my first actual matrix factorization model, but it lost to the Level 2 model:
+
+| Model | Eval setup | Hit@5 | Hit@10 | Hit@20 | Hit@50 | MRR |
+|---|---|---:|---:|---:|---:|---:|
+| Level 2 Item-CF, rating = 5 | old 5k restricted | 19.20% | 25.58% | 34.03% | 48.38% | 0.1494 |
+| Level 3 ALS first pass, 5-star only | old 5k restricted | 15.72% | 23.04% | 32.68% | 48.29% | 0.1105 |
+
+So that was not supposed to happen, but it also made sense after thinking about it. The first ALS model was too sparse. It only knew about 5-star ratings and ignored everything else.
+
+### Mean-centering - adding rating density
+
+Then I decided to add density for ALS to find patterns. Previously, we used only 5-star ratings as the signal that a user "liked" a book. Now we used all explicit ratings.
+
+The important change was mean-centering:
+
+```text
+centered_rating = rating - user's average rating
+```
+
+A 3-star rating from someone who always rates books 4-5 stars is a negative signal. A 3-star rating from someone who usually rates books 1-2 stars is a positive signal. That is much smarter than treating every 3-star rating the same way.
+
+This improved ALS a lot:
+
+| Model | Eval setup | Hit@5 | Hit@10 | Hit@20 | Hit@50 | MRR |
+|---|---|---:|---:|---:|---:|---:|
+| Level 2 Item-CF, rating = 5 | old 5k restricted | 19.20% | 25.58% | 34.03% | 48.38% | 0.1494 |
+| Level 3 ALS 5-star only | old 5k restricted | 15.72% | 23.04% | 32.68% | 48.29% | 0.1105 |
+| Level 3 ALS mean-centered explicit | old 5k restricted | 21.68% | 28.77% | 37.36% | 51.32% | 0.1577 |
+
+This was the first ALS model that clearly beat Level 2.
+
+### Read-aware ALS - using rating 0 correctly
+
+Then I remembered that I had removed all rating `0` rows. That was a problem.
+
+Again, rating `0` does not mean the user hated the book. It means the user read the book but did not rate it. That information is valuable.
+
+For example, imagine a user read 30 books but rated only one of them with 5 stars. If I remove all rating `0` rows, the dataset makes it look like this user only ever interacted with one book. That is obviously weaker than the real history.
+
+So I added read-unrated rows as weak positive implicit feedback:
+
+```text
+rating > 0:
+  use mean-centered explicit rating signal
+
+rating == 0 and is_read == 1:
+  preference = 1
+  confidence = 1
+```
+
+This idea comes from the 2008 paper by Hu, Koren, and Volinsky, "Collaborative Filtering for Implicit Feedback Datasets". The key idea is that preference and confidence are different things. If a user read a book but did not rate it, I should not treat that as a 5-star rating. But I also should not throw it away.
+
+So the model treats read-unrated books as mild positive evidence.
+
+The read-aware ALS baseline improved the 20k model:
+
+| Model | Eval setup | Hit@5 | Hit@10 | Hit@20 | Hit@50 | MRR |
+|---|---|---:|---:|---:|---:|---:|
+| ALS mean-centered explicit | old 20k | 16.11% | 21.36% | 27.58% | 38.80% | 0.1183 |
+| ALS read-aware 64f lambda 0.1 20i | old 20k | 17.23% | 22.56% | 29.66% | 40.18% | 0.1239 |
+
+This confirmed that the rating `0` rows were not noise. They were weak, but useful.
+
+### Proper validation split
+
+After that, I realized another important thing: the old evaluation was useful for fast experiments, but it was not strict enough.
+
+The old evaluator hid a liked book during evaluation, but the model had already seen that interaction during training. That makes the results optimistic.
+
+So I created a real validation split before training:
+
+- select 10,000 users
+- hold out one 5-star book per selected user
+- remove those 10,000 rows from the training file
+- train ALS on the remaining data
+- evaluate whether the model recommends the hidden books back
+
+This is a much more honest evaluation, and all final model comparisons use `validation 20k`.
+
+### Hyperparameter experiments
+
+Once the read-aware ALS pipeline worked, I started experimenting with hyperparameters:
+
+- features: `32`, `64`, `86`, `128`, `192`, `256`, `384`
+- lambda: `0.01`, `0.1`, `0.2`, `0.5`, `1.0`, `10.0`
+- iterations: `10`, `15`, `20`, `30`, `40`, `50`
+- candidate books: mainly `20k`, with one `50k` experiment
+
+The most important lesson was that bigger is not automatically better. More features helped for a while, but eventually the benefit became small or started hurting MRR.
+
+Iterations were also surprising. I expected 20 iterations to be better, but 10 iterations was enough. After 10 iterations, the model was mostly done learning useful ranking structure. More iterations did not improve validation quality. But I learned that in the very end, so all of my experiments took twice more time and computational power than they should've.
+
+The strongest validation experiments:
+
+| Model | Hit@5 | Hit@10 | Hit@20 | Hit@50 | MRR |
+|---|---:|---:|---:|---:|---:|
+| 256f lambda 0.1 10i | 23.61% | 29.94% | 36.76% | 47.61% | 0.1771 |
+| 256f lambda 1.0 10i | 23.73% | 29.94% | 36.85% | 47.66% | 0.1779 |
+| 256f lambda 10.0 10i | 23.46% | 29.75% | 36.52% | 47.64% | 0.1759 |
+| 384f lambda 0.1 20i | 23.73% | 29.77% | 36.72% | 47.39% | 0.1740 |
+| 384f lambda 1.0 10i | 23.96% | 30.00% | 36.94% | 47.55% | 0.1767 |
+| 384f lambda 10.0 10i | 23.80% | 29.80% | 36.59% | 47.36% | 0.1739 |
+
+The 384-feature model was interesting, but it basically flatlined. It slightly improved Hit@5, Hit@10, and Hit@20, but it lost on MRR compared with the 256-feature model. That means it found the hidden book a tiny bit more often, but ranked it slightly lower on average.
+
+For recommendations, ranking sharpness matters a lot. A model that puts the right book at rank 3 is usually more useful than a model that puts it at rank 18. That is why I still prefer the 256-feature model.
+
+Training time also matters. A 384-feature model is slower and larger. The 384f 20-iteration run took close to an hour, while the 384f 10-iteration runs took around 14-15 minutes. The 256f 10-iteration models were faster and still gave the best MRR. So the practical winner is not just more accurate in the right way, but also cheaper to train and store.
+
+Current best model:
+
+```text
+ALS read-aware mean-centered
+candidate books: 20,000
+features: 256
+lambda: 1.0
+iterations: 10
+validation: true pre-training holdout
+```
+
+### Comparing the best model to the first models
+
+This is the part that makes the progress obvious. The first models were not bad, but the final ALS model is much better at ranking the right book near the top.
+
+| Model | Eval setup | Hit@5 | Hit@10 | Hit@20 | Hit@50 | MRR |
+|---|---|---:|---:|---:|---:|---:|
+| Level 2 Item-CF, rating >= 4 | old 5k restricted | 16.46% | 22.22% | 31.32% | 46.62% | 0.1236 |
+| Level 2 Item-CF, rating = 5 | old 5k restricted | 19.20% | 25.58% | 34.03% | 48.38% | 0.1494 |
+| ALS 5-star only | old 5k restricted | 15.72% | 23.04% | 32.68% | 48.29% | 0.1105 |
+| ALS mean-centered explicit | old 20k | 16.11% | 21.36% | 27.58% | 38.80% | 0.1183 |
+| ALS read-aware 64f lambda 0.1 20i | old 20k | 17.23% | 22.56% | 29.66% | 40.18% | 0.1239 |
+| Newest ALS 256f lambda 1.0 10i | true validation 20k | 23.73% | 29.94% | 36.85% | 47.66% | 0.1779 |
+
+There is one caveat: the old Level 2 models were tested on a smaller 5k restricted universe, while the newest ALS model is tested on a harder 20k validation universe. So this is not a perfectly apples-to-apples table.
+
+But even with that caveat, the newest model is clearly stronger. Compared with the best early Level 2 model, the newest ALS model improved:
+
+| Metric | Improvement |
+|---|---:|
+| Hit@5 | +4.53 percentage points |
+| Hit@10 | +4.36 percentage points |
+| Hit@20 | +2.82 percentage points |
+| MRR | +0.0285 |
+
+Hit@50 is slightly lower than the old Level 2 strict model, but that is not worrying because the newest model chooses from 20k books instead of 5k. The more important signs are Hit@5, Hit@10, Hit@20, and MRR, and all of those improved.
+
+### Current conclusion
+
+The best model right now is:
+
+```text
+Read-aware mean-centered implicit ALS
+256 features
+lambda 1.0
+10 iterations
+20,000 candidate books
+```
+
+This model is the best balance between quality, training time, and ranking sharpness. The 384-feature model is close, but it does not beat the 256-feature model where I care most: MRR.
+
+The biggest lessons so far:
+
+- Level 1 is useful as a fallback, but it is not personalized.
+- Level 2 is surprisingly strong and easy to understand.
+- ALS only became strong after the data representation became better.
+- Mean-centering was a major improvement.
+- Rating `0` rows were useful when treated as weak implicit positives.
+- A proper validation split is necessary, otherwise the metrics are too optimistic.
+- More features and more iterations do not automatically make the model better.
+- MRR matters because recommendations are only useful if the good books appear early.
+
+### What's next - hybrid recommendations
+
+The next step is a hybrid model. 
+
+ALS is good at collaborative filtering, but it does not directly understand book metadata. The app already has metadata like genres, author, average rating, ratings count, language, and page count. That should be useful.
+
+The next model should combine:
+
+- ALS collaborative score
+- genre similarity
+- author similarity
+- popularity / weighted rating fallback
+- maybe book description embeddings later
+
+This should help with cold-start problems too. If a new user has only liked a few books, collaborative filtering alone may not be enough. A hybrid model can say, "this book is similar by user behavior, and it also matches the same genre/author pattern."
+
+So the next phase is not just making ALS bigger. The next phase is making recommendations smarter by combining collaborative signals with book metadata.
+
+Also, some notes to my future self:
+1. Start with experimenting with iterations first. Would've saved a ton of time here.
+2. Use the validation split from the start to avoid too optimistic results.
+3. Test lambda on a log scale. Changing it from 0.1 to 0.2 did absolutely nothing, but 0.01, 0.1, 1.0 and 10.0 all had some differences.

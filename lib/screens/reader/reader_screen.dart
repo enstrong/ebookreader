@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:ebookreader/services/book_service.dart';
 import 'package:ebookreader/services/bookmark_service.dart';
@@ -11,12 +13,14 @@ class ReaderScreen extends StatefulWidget {
   final String token;
   final int bookId;
   final int chapterOrder;
+  final double initialSegmentProgress;
 
   const ReaderScreen({
     super.key,
     required this.token,
     required this.bookId,
     required this.chapterOrder,
+    this.initialSegmentProgress = 0.0,
   });
 
   @override
@@ -35,21 +39,28 @@ class _ReaderScreenState extends State<ReaderScreen> with SingleTickerProviderSt
   bool _showControls = true;
   double _fontSize = 18;
   double _brightness = 1.0;
+  double _segmentProgress = 0.0;
+  Timer? _progressSaveTimer;
+  bool _restoredInitialScroll = false;
   late AnimationController _animController;
 
   @override
   void initState() {
     super.initState();
     _currentChapter = widget.chapterOrder;
+    _segmentProgress = widget.initialSegmentProgress.clamp(0.0, 1.0).toDouble();
     _animController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
     );
+    _scrollController.addListener(_onScrollProgressChanged);
     _loadChapter();
   }
 
   @override
   void dispose() {
+    _progressSaveTimer?.cancel();
+    _saveTextProgress();
     _animController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -65,11 +76,7 @@ class _ReaderScreenState extends State<ReaderScreen> with SingleTickerProviderSt
     );
     final chapters = await _bookService.getBookChapters(widget.token, widget.bookId);
     
-    await _bookmarkService.updateProgress(
-      widget.token,
-      widget.bookId,
-      _currentChapter,
-    );
+    await _saveTextProgress();
 
     setState(() {
       _chapter = chapter;
@@ -80,7 +87,10 @@ class _ReaderScreenState extends State<ReaderScreen> with SingleTickerProviderSt
     // ✅ ИСПРАВЛЕНО: Прокручиваем только после отрисовки виджета
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && _scrollController.hasClients) {
-        _scrollController.jumpTo(0);
+        final maxScroll = _scrollController.position.maxScrollExtent;
+        final shouldRestore = !_restoredInitialScroll && _segmentProgress > 0;
+        _scrollController.jumpTo(shouldRestore ? maxScroll * _segmentProgress : 0);
+        _restoredInitialScroll = true;
       }
     });
     
@@ -107,15 +117,49 @@ class _ReaderScreenState extends State<ReaderScreen> with SingleTickerProviderSt
 
   void _nextChapter() {
     if (_currentChapter < _totalChapters) {
-      setState(() => _currentChapter++);
+      setState(() {
+        _currentChapter++;
+        _segmentProgress = 0.0;
+        _restoredInitialScroll = true;
+      });
       _loadChapter();
     }
   }
 
   void _prevChapter() {
     if (_currentChapter > 1) {
-      setState(() => _currentChapter--);
+      setState(() {
+        _currentChapter--;
+        _segmentProgress = 0.0;
+        _restoredInitialScroll = true;
+      });
       _loadChapter();
+    }
+  }
+
+  void _onScrollProgressChanged() {
+    if (!_scrollController.hasClients || _isLoading) return;
+    final maxScroll = _scrollController.position.maxScrollExtent;
+    if (maxScroll <= 0) {
+      _segmentProgress = 0.0;
+    } else {
+      _segmentProgress = (_scrollController.offset / maxScroll).clamp(0.0, 1.0).toDouble();
+    }
+    _progressSaveTimer?.cancel();
+    _progressSaveTimer = Timer(const Duration(seconds: 2), _saveTextProgress);
+  }
+
+  Future<void> _saveTextProgress() async {
+    try {
+      await _bookmarkService.updateProgress(
+        widget.token,
+        widget.bookId,
+        _currentChapter,
+        segmentProgress: _segmentProgress,
+        lastMode: 'TEXT',
+      );
+    } catch (e) {
+      debugPrint('Ошибка сохранения прогресса чтения: $e');
     }
   }
 

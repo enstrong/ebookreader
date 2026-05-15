@@ -1,5 +1,6 @@
 package com.example.ebookreader.controller;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,6 +22,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.ebookreader.config.JwtUtil;
 import com.example.ebookreader.model.Book;
+import com.example.ebookreader.model.ProgressMode;
+import com.example.ebookreader.model.ReadingStatus;
 import com.example.ebookreader.model.User;
 import com.example.ebookreader.model.UserBook;
 import com.example.ebookreader.repository.BookRepository;
@@ -44,6 +47,37 @@ public class UserBookController {
     @Autowired
     private JwtUtil jwtUtil;
 
+    private Optional<User> getUserFromToken(String token) {
+        String username = jwtUtil.extractUsername(token.replace("Bearer ", ""));
+        return userRepository.findByNickname(username);
+    }
+
+    private UserBook getOrCreateUserBook(User user, Book book) {
+        return userBookRepository.findByUserIdAndBookId(user.getId(), book.getId())
+                .orElseGet(() -> {
+                    UserBook ub = new UserBook();
+                    ub.setUser(user);
+                    ub.setBook(book);
+                    ub.setCurrentChapter(1);
+                    return ub;
+                });
+    }
+
+    private void applyStatus(UserBook ub, ReadingStatus status) {
+        LocalDateTime now = LocalDateTime.now();
+        ub.setStatus(status);
+        ub.setLastReadAt(now);
+        if (status == ReadingStatus.READING && ub.getStartedAt() == null) {
+            ub.setStartedAt(now);
+        }
+        if (status == ReadingStatus.FINISHED) {
+            if (ub.getStartedAt() == null) {
+                ub.setStartedAt(now);
+            }
+            ub.setFinishedAt(now);
+        }
+    }
+
     // Добавить в закладки
     @PostMapping("/{bookId}/bookmark")
     public ResponseEntity<?> addBookmark(
@@ -61,20 +95,12 @@ public class UserBookController {
         User user = userOpt.get();
         Book book = bookOpt.get();
 
-        Optional<UserBook> existing = userBookRepository.findByUserIdAndBookId(user.getId(), bookId);
-        
-        if (existing.isPresent()) {
-            UserBook ub = existing.get();
-            ub.setBookmarked(true);
-            userBookRepository.save(ub);
-        } else {
-            UserBook ub = new UserBook();
-            ub.setUser(user);
-            ub.setBook(book);
-            ub.setBookmarked(true);
-            ub.setCurrentChapter(1);
-            userBookRepository.save(ub);
+        UserBook ub = getOrCreateUserBook(user, book);
+        ub.setBookmarked(true);
+        if (ub.getStatus() == ReadingStatus.WANT_TO_READ) {
+            ub.setLastReadAt(LocalDateTime.now());
         }
+        userBookRepository.save(ub);
 
         return ResponseEntity.ok(Map.of("message", "Добавлено в закладки"));
     }
@@ -125,12 +151,15 @@ public class UserBookController {
     public ResponseEntity<?> updateProgress(
             @RequestHeader("Authorization") String token,
             @PathVariable Long bookId,
-            @RequestBody Map<String, Integer> request) {
+            @RequestBody Map<String, Object> request) {
         String username = jwtUtil.extractUsername(token.replace("Bearer ", ""));
-        Integer chapter = request.get("chapter");
+        Integer segmentOrder = readInteger(request, "segmentOrder");
+        if (segmentOrder == null) {
+            segmentOrder = readInteger(request, "chapter");
+        }
 
-        if (chapter == null || chapter < 1) {
-            return ResponseEntity.badRequest().body(Map.of("message", "Неверный номер главы"));
+        if (segmentOrder == null || segmentOrder < 1) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Неверный номер сегмента"));
         }
 
         Optional<User> userOpt = userRepository.findByNickname(username);
@@ -143,22 +172,110 @@ public class UserBookController {
         User user = userOpt.get();
         Book book = bookOpt.get();
 
-        Optional<UserBook> existing = userBookRepository.findByUserIdAndBookId(user.getId(), bookId);
-        
-        if (existing.isPresent()) {
-            UserBook ub = existing.get();
-            ub.setCurrentChapter(chapter);
-            userBookRepository.save(ub);
-        } else {
-            UserBook ub = new UserBook();
-            ub.setUser(user);
-            ub.setBook(book);
-            ub.setCurrentChapter(chapter);
-            ub.setBookmarked(false);
-            userBookRepository.save(ub);
+        UserBook ub = getOrCreateUserBook(user, book);
+        ub.setSegmentOrder(segmentOrder);
+        Double segmentProgress = readDouble(request, "segmentProgress");
+        if (segmentProgress != null) {
+            ub.setSegmentProgress(segmentProgress);
+        }
+        Long audioPositionMs = readLong(request, "audioPositionMs");
+        if (audioPositionMs != null) {
+            ub.setAudioPositionMs(audioPositionMs);
+        }
+        ProgressMode lastMode = readProgressMode(request, "lastMode");
+        if (lastMode != null) {
+            ub.setLastMode(lastMode);
+        }
+        ub.setLastReadAt(LocalDateTime.now());
+        if (ub.getStatus() == ReadingStatus.WANT_TO_READ) {
+            applyStatus(ub, ReadingStatus.READING);
+        }
+        userBookRepository.save(ub);
+
+        return ResponseEntity.ok(progressPayload(ub, "Прогресс сохранён"));
+    }
+
+    @PutMapping("/{bookId}/status")
+    public ResponseEntity<?> updateStatus(
+            @RequestHeader("Authorization") String token,
+            @PathVariable Long bookId,
+            @RequestBody Map<String, String> request) {
+        String rawStatus = request.get("status");
+        if (rawStatus == null || rawStatus.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Статус обязателен"));
         }
 
-        return ResponseEntity.ok(Map.of("message", "Прогресс сохранён"));
+        ReadingStatus status;
+        try {
+            status = ReadingStatus.valueOf(rawStatus.trim().toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Неверный статус"));
+        }
+
+        Optional<User> userOpt = getUserFromToken(token);
+        Optional<Book> bookOpt = bookRepository.findById(bookId);
+        if (userOpt.isEmpty() || bookOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        UserBook ub = getOrCreateUserBook(userOpt.get(), bookOpt.get());
+        applyStatus(ub, status);
+        userBookRepository.save(ub);
+
+        return ResponseEntity.ok(Map.of(
+                "message", "Статус сохранён",
+                "status", ub.getStatus().name()
+        ));
+    }
+
+    @PostMapping("/{bookId}/finish")
+    public ResponseEntity<?> finishBook(
+            @RequestHeader("Authorization") String token,
+            @PathVariable Long bookId) {
+        Optional<User> userOpt = getUserFromToken(token);
+        Optional<Book> bookOpt = bookRepository.findById(bookId);
+        if (userOpt.isEmpty() || bookOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        UserBook ub = getOrCreateUserBook(userOpt.get(), bookOpt.get());
+        applyStatus(ub, ReadingStatus.FINISHED);
+        userBookRepository.save(ub);
+
+        return ResponseEntity.ok(Map.of(
+                "message", "Книга отмечена как прочитанная",
+                "status", ub.getStatus().name()
+        ));
+    }
+
+    @PutMapping("/{bookId}/rating")
+    public ResponseEntity<?> updateRating(
+            @RequestHeader("Authorization") String token,
+            @PathVariable Long bookId,
+            @RequestBody Map<String, Integer> request) {
+        Integer rating = request.get("rating");
+        if (rating == null || rating < 1 || rating > 5) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Оценка должна быть от 1 до 5"));
+        }
+
+        Optional<User> userOpt = getUserFromToken(token);
+        Optional<Book> bookOpt = bookRepository.findById(bookId);
+        if (userOpt.isEmpty() || bookOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        UserBook ub = getOrCreateUserBook(userOpt.get(), bookOpt.get());
+        ub.setRating(rating);
+        ub.setLastReadAt(LocalDateTime.now());
+        if (ub.getStatus() == ReadingStatus.WANT_TO_READ) {
+            applyStatus(ub, ReadingStatus.FINISHED);
+        }
+        userBookRepository.save(ub);
+
+        return ResponseEntity.ok(Map.of(
+                "message", "Оценка сохранена",
+                "rating", ub.getRating()
+        ));
     }
 
     // Получить прогресс чтения книги
@@ -170,13 +287,83 @@ public class UserBookController {
         
         return userRepository.findByNickname(username)
                 .flatMap(user -> userBookRepository.findByUserIdAndBookId(user.getId(), bookId))
-                .map(ub -> ResponseEntity.ok(Map.of(
-                    "currentChapter", ub.getCurrentChapter(),
-                    "isBookmarked", ub.isBookmarked()
-                )))
+                .map(ub -> {
+                    Map<String, Object> result = new HashMap<>();
+                    result.put("currentChapter", ub.getCurrentChapter());
+                    result.put("segmentOrder", ub.getSegmentOrder());
+                    result.put("segmentProgress", ub.getSegmentProgress());
+                    result.put("audioPositionMs", ub.getAudioPositionMs());
+                    result.put("lastMode", ub.getLastMode().name());
+                    result.put("isBookmarked", ub.isBookmarked());
+                    result.put("status", ub.getStatus().name());
+                    result.put("rating", ub.getRating());
+                    result.put("startedAt", ub.getStartedAt());
+                    result.put("finishedAt", ub.getFinishedAt());
+                    result.put("lastReadAt", ub.getLastReadAt());
+                    return ResponseEntity.ok(result);
+                })
                 .orElse(ResponseEntity.ok(Map.of(
                     "currentChapter", 1,
-                    "isBookmarked", false
+                    "segmentOrder", 1,
+                    "segmentProgress", 0.0,
+                    "audioPositionMs", 0,
+                    "lastMode", ProgressMode.TEXT.name(),
+                    "isBookmarked", false,
+                    "status", ReadingStatus.WANT_TO_READ.name()
                 )));
+    }
+
+    private Map<String, Object> progressPayload(UserBook ub, String message) {
+        Map<String, Object> result = new HashMap<>();
+        result.put("message", message);
+        result.put("currentChapter", ub.getCurrentChapter());
+        result.put("segmentOrder", ub.getSegmentOrder());
+        result.put("segmentProgress", ub.getSegmentProgress());
+        result.put("audioPositionMs", ub.getAudioPositionMs());
+        result.put("lastMode", ub.getLastMode().name());
+        return result;
+    }
+
+    private Integer readInteger(Map<String, Object> request, String key) {
+        Object value = request.get(key);
+        if (value == null) return null;
+        if (value instanceof Number number) return number.intValue();
+        try {
+            return Integer.parseInt(value.toString());
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
+    private Long readLong(Map<String, Object> request, String key) {
+        Object value = request.get(key);
+        if (value == null) return null;
+        if (value instanceof Number number) return number.longValue();
+        try {
+            return Long.parseLong(value.toString());
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
+    private Double readDouble(Map<String, Object> request, String key) {
+        Object value = request.get(key);
+        if (value == null) return null;
+        if (value instanceof Number number) return number.doubleValue();
+        try {
+            return Double.parseDouble(value.toString());
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
+    private ProgressMode readProgressMode(Map<String, Object> request, String key) {
+        Object value = request.get(key);
+        if (value == null) return null;
+        try {
+            return ProgressMode.valueOf(value.toString().trim().toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
     }
 }

@@ -106,11 +106,31 @@ class BookmarkService {
   ///
   /// Отправляет PUT-запрос на `/user/books/{bookId}/progress`
   /// с номером текущей главы. Выбрасывает [Exception] при ошибке.
-  Future<void> updateProgress(String token, int bookId, int chapter) async {
+  Future<void> updateProgress(
+    String token,
+    int bookId,
+    int chapter, {
+    double? segmentProgress,
+    int? audioPositionMs,
+    String? lastMode,
+  }) async {
     try {
       print('=== UPDATE PROGRESS ===');
       print('URL: ${ApiConstants.baseUrl}/user/books/$bookId/progress');
       print('Chapter: $chapter');
+      final payload = <String, dynamic>{
+        'chapter': chapter,
+        'segmentOrder': chapter,
+      };
+      if (segmentProgress != null) {
+        payload['segmentProgress'] = segmentProgress.clamp(0.0, 1.0);
+      }
+      if (audioPositionMs != null) {
+        payload['audioPositionMs'] = audioPositionMs < 0 ? 0 : audioPositionMs;
+      }
+      if (lastMode != null) {
+        payload['lastMode'] = lastMode;
+      }
       
       final response = await http.put(
         Uri.parse('${ApiConstants.baseUrl}/user/books/$bookId/progress'),
@@ -118,7 +138,7 @@ class BookmarkService {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
         },
-        body: json.encode({'chapter': chapter}),
+        body: json.encode(payload),
       );
 
       print('Status: ${response.statusCode}');

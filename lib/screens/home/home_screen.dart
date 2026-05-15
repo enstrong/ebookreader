@@ -6,15 +6,24 @@ import 'package:ebookreader/constants/api_constants.dart';
 enum SortOption { title, rating, popularity, language }
 enum SortDirection { ascending, descending }
 
-/// Домашний экран библиотеки.
+/// Экран каталога или пользовательской библиотеки.
 ///
-/// Отображает полный каталог доступных книг с поддержкой поиска
+/// Отображает полный каталог или только импортированные книги с поддержкой поиска
 /// по названию и автору. При нажатии на книгу открывается
 /// экран детальной информации [BookDetailScreen].
 class HomeScreen extends StatefulWidget {
   final String token;
+  final bool libraryOnly;
+  final String title;
+  final String subtitle;
 
-  const HomeScreen({super.key, required this.token});
+  const HomeScreen({
+    super.key,
+    required this.token,
+    this.libraryOnly = false,
+    this.title = 'Каталог',
+    this.subtitle = 'Все книги',
+  });
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -58,7 +67,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   Future<void> _loadBooks() async {
     setState(() => _isLoading = true);
     try {
-      final books = await _bookService.getAllBooks(widget.token);
+      final books = widget.libraryOnly
+          ? await _bookService.getLibraryBooks(widget.token)
+          : await _bookService.getAllBooks(widget.token);
       final cleanBooks = books.cast<dynamic>().toList();
       setState(() {
         _books = cleanBooks;
@@ -164,9 +175,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
-                                'Ваша библиотека',
-                                style: TextStyle(
+                              Text(
+                                widget.title,
+                                style: const TextStyle(
                                   fontSize: 26,
                                   fontWeight: FontWeight.bold,
                                   color: Colors.white,
@@ -174,7 +185,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                                 ),
                               ),
                               Text(
-                                '${_books.length} книг',
+                                '${widget.subtitle} • ${_books.length} книг',
                                 style: TextStyle(
                                   fontSize: 13,
                                   color: Colors.white.withValues(alpha: 0.6),
@@ -327,24 +338,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       _sortOption = SortOption.language;
                       _sortDirection = SortDirection.descending;
                       break;
-                    case 'rating_all':
-                      _selectedMinRating = null;
-                      break;
-                    case 'rating_gt_4':
-                      _selectedMinRating = 4.0;
-                      break;
-                    case 'rating_gt_45':
-                      _selectedMinRating = 4.5;
-                      break;
-                    case 'rating_gt_35':
-                      _selectedMinRating = 3.5;
-                      break;
-                    case 'rating_gt_35_5':
-                      _selectedMinRating = 3.5;
-                      break;
-                    case 'rating_gt_475':
-                      _selectedMinRating = 4.75;
-                      break;
                   }
                   _applyFilters();
                 });
@@ -381,31 +374,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 const PopupMenuItem(
                   value: 'language_desc',
                   child: Text('Язык Z → A', style: TextStyle(color: Colors.white, fontSize: 14)),
-                ),
-                const PopupMenuDivider(color: Color(0xFF2A3652)),
-                const PopupMenuItem(
-                  value: 'rating_all',
-                  child: Text('Все рейтинги', style: TextStyle(color: Colors.white, fontSize: 14)),
-                ),
-                const PopupMenuItem(
-                  value: 'rating_gt_35',
-                  child: Text('Рейтинг > 3.0', style: TextStyle(color: Colors.white, fontSize: 14)),
-                ),
-                const PopupMenuItem(
-                  value: 'rating_gt_35_5',
-                  child: Text('Рейтинг > 3.5', style: TextStyle(color: Colors.white, fontSize: 14)),
-                ),
-                const PopupMenuItem(
-                  value: 'rating_gt_4',
-                  child: Text('Рейтинг > 4.0', style: TextStyle(color: Colors.white, fontSize: 14)),
-                ),
-                const PopupMenuItem(
-                  value: 'rating_gt_45',
-                  child: Text('Рейтинг > 4.5', style: TextStyle(color: Colors.white, fontSize: 14)),
-                ),
-                const PopupMenuItem(
-                  value: 'rating_gt_475',
-                  child: Text('Рейтинг > 4.75', style: TextStyle(color: Colors.white, fontSize: 14)),
                 ),
               ],
             ),
@@ -562,6 +530,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     switch (normalized) {
       case 'en':
       case 'eng':
+      case 'en-us':
+      case 'en-gb':
       case 'english':
         return 'English';
       case 'ru':
@@ -576,6 +546,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         return 'Español';
       case 'fr':
       case 'fra':
+      case 'fre':
       case 'français':
       case 'french':
         return 'Français';
@@ -595,6 +566,19 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       case 'português':
       case 'portuguese':
         return 'Português';
+      case 'ar':
+      case 'ara':
+      case 'arabic':
+        return 'العربية';
+      case 'fa':
+      case 'fas':
+      case 'per':
+      case 'persian':
+        return 'فارسی';
+      case 'pl':
+      case 'pol':
+      case 'polish':
+        return 'Polski';
       case 'ja':
       case 'jpn':
       case 'japanese':
@@ -661,7 +645,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           ),
           const SizedBox(height: 24),
           Text(
-            'Книги не найдены',
+            widget.libraryOnly ? 'Библиотека пуста' : 'Книги не найдены',
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w600,
@@ -670,7 +654,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           ),
           const SizedBox(height: 8),
           Text(
-            'Попробуйте поискать по другому названию или автору',
+            widget.libraryOnly
+                ? 'Импортируйте EPUB/FB2/TXT или аудиотреки в панели администратора'
+                : 'Попробуйте поискать по другому названию или автору',
             style: TextStyle(
               fontSize: 14,
               color: Colors.white.withValues(alpha: 0.5),
@@ -686,7 +672,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        childAspectRatio: 0.52,
+        childAspectRatio: 0.46,
         crossAxisSpacing: 14,
         mainAxisSpacing: 18,
       ),
@@ -712,6 +698,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   Widget _buildBookCard(Map<String, dynamic> book) {
     final bookId = book['id'] as int;
     final rating = (book['average_rating'] ?? book['averageRating'] ?? 0).toString();
+    final ratingsCount = _bookRatingsCount(book);
+    final availability = _bookAvailability(book);
 
     return GestureDetector(
       onTap: () => _openBookDetail(bookId),
@@ -797,9 +785,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
               // Book info
               Flexible(
-                flex: 4,
+                flex: 5,
                 child: Padding(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 14),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -811,16 +799,16 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                             Text(
                               book['title'] ?? 'Без названия',
                               style: const TextStyle(
-                                fontSize: 15,
+                                fontSize: 14,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white,
                                 letterSpacing: 0.3,
-                                height: 1.2,
+                                height: 1.15,
                               ),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                             ),
-                            const SizedBox(height: 6),
+                            const SizedBox(height: 4),
                             Text(
                               book['author'] ?? 'Неизвестный автор',
                               style: TextStyle(
@@ -830,21 +818,40 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
-                            const SizedBox(height: 10),
-                            if (rating != '0')
-                              _buildTag('${double.tryParse(rating)?.toStringAsFixed(1) ?? rating} ★'),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: [
+                                _buildTag(
+                                  _availabilityLabel(availability),
+                                  color: _availabilityColor(availability),
+                                ),
+                                if (rating != '0')
+                                  _buildTag('${double.tryParse(rating)?.toStringAsFixed(1) ?? rating} ★'),
+                                if (ratingsCount > 0)
+                                  _buildTag(_formatRatingsCount(ratingsCount)),
+                              ],
+                            ),
                           ],
                         ),
                       ),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 7,
+                          horizontal: 10,
+                          vertical: 6,
                         ),
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF14FFEC), Color(0xFF0D7377)],
-                          ),
+                          gradient: _isUsableAvailability(availability)
+                              ? const LinearGradient(
+                                  colors: [Color(0xFF14FFEC), Color(0xFF0D7377)],
+                                )
+                              : LinearGradient(
+                                  colors: [
+                                    Colors.white.withValues(alpha: 0.08),
+                                    Colors.white.withValues(alpha: 0.04),
+                                  ],
+                                ),
                           borderRadius: BorderRadius.circular(10),
                           boxShadow: [
                             BoxShadow(
@@ -854,18 +861,18 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                             ),
                           ],
                         ),
-                        child: const Row(
+                        child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(
+                            const Icon(
                               Icons.play_arrow_rounded,
                               size: 16,
                               color: Colors.white,
                             ),
-                            SizedBox(width: 5),
+                            const SizedBox(width: 5),
                             Text(
-                              'Читать',
-                              style: TextStyle(
+                              _isUsableAvailability(availability) ? 'Открыть' : 'Детали',
+                              style: const TextStyle(
                                 fontSize: 12,
                                 color: Colors.white,
                                 fontWeight: FontWeight.w600,
@@ -885,18 +892,80 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     );
   }
 
-  Widget _buildTag(String text, {bool selected = false}) {
+  int _bookRatingsCount(Map<String, dynamic> book) {
+    final raw = book['ratings_count'] ?? book['ratingsCount'];
+    if (raw == null) return 0;
+    if (raw is int) return raw;
+    if (raw is num) return raw.toInt();
+    return int.tryParse(raw.toString()) ?? 0;
+  }
+
+  String _formatRatingsCount(int count) {
+    if (count >= 1000000) {
+      return '${(count / 1000000).toStringAsFixed(count >= 10000000 ? 0 : 1)}M оценок';
+    }
+    if (count >= 1000) {
+      return '${(count / 1000).toStringAsFixed(count >= 10000 ? 0 : 1)}K оценок';
+    }
+    return '$count оценок';
+  }
+
+  String _bookAvailability(Map<String, dynamic> book) {
+    return (book['availability'] ?? 'METADATA_ONLY').toString();
+  }
+
+  bool _isUsableAvailability(String availability) {
+    return availability == 'TEXT' || availability == 'AUDIO' || availability == 'SYNCED';
+  }
+
+  String _availabilityLabel(String availability) {
+    switch (availability) {
+      case 'TEXT':
+        return 'Текст';
+      case 'AUDIO':
+        return 'Аудио';
+      case 'SYNCED':
+        return 'Sync';
+      case 'PDF_ONLY':
+        return 'PDF';
+      default:
+        return 'Каталог';
+    }
+  }
+
+  Color _availabilityColor(String availability) {
+    switch (availability) {
+      case 'TEXT':
+        return const Color(0xFF14FFEC);
+      case 'AUDIO':
+        return const Color(0xFFFFD166);
+      case 'SYNCED':
+        return const Color(0xFF7CFF6B);
+      case 'PDF_ONLY':
+        return const Color(0xFFFF7A7A);
+      default:
+        return const Color(0xFFB9C2D0);
+    }
+  }
+
+  Widget _buildTag(String text, {bool selected = false, Color? color}) {
+    final background = selected
+        ? const Color(0xFF14FFEC)
+        : color?.withValues(alpha: 0.18) ?? Colors.white.withValues(alpha: 0.06);
+    final foreground = selected
+        ? Colors.black
+        : color ?? Colors.white.withValues(alpha: 0.8);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: selected ? const Color(0xFF14FFEC) : Colors.white.withValues(alpha: 0.06),
+        color: background,
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(
         text,
         style: TextStyle(
           fontSize: 11,
-          color: selected ? Colors.black : Colors.white.withValues(alpha: 0.8),
+          color: foreground,
         ),
       ),
     );
@@ -953,6 +1022,8 @@ class _FilterScreenState extends State<FilterScreen> {
     switch (code.trim().toLowerCase()) {
       case 'en':
       case 'eng':
+      case 'en-us':
+      case 'en-gb':
       case 'english':
         return '🇬🇧';
       case 'ru':
@@ -967,6 +1038,7 @@ class _FilterScreenState extends State<FilterScreen> {
         return '🇪🇸';
       case 'fr':
       case 'fra':
+      case 'fre':
       case 'français':
       case 'french':
         return '🇫🇷';
@@ -986,6 +1058,19 @@ class _FilterScreenState extends State<FilterScreen> {
       case 'português':
       case 'portuguese':
         return '🇵🇹';
+      case 'ar':
+      case 'ara':
+      case 'arabic':
+        return '🇸🇦';
+      case 'fa':
+      case 'fas':
+      case 'per':
+      case 'persian':
+        return '🇮🇷';
+      case 'pl':
+      case 'pol':
+      case 'polish':
+        return '🇵🇱';
       case 'ja':
       case 'jpn':
       case 'japanese':
@@ -1041,58 +1126,76 @@ class _FilterScreenState extends State<FilterScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: widget.languages.map((language) {
-                  final selected = _selectedLanguages.contains(language);
-                  final flag = _languageFlag(language);
-                  return ChoiceChip(
-                    label: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (flag != null) ...[
-                          Container(
-                            height: 18,
-                            width: 18,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.white.withValues(alpha: 0.12),
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              flag,
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                        ],
-                        Text(
-                          _languageLabel(language),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
+              if (widget.languages.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    'Языки недоступны',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.6),
+                      fontSize: 14,
                     ),
-                    selected: selected,
-                                    selectedColor: const Color(0xFF14FFEC).withValues(alpha: 0.22),
-                    backgroundColor: Colors.white.withValues(alpha: 0.08),
-                    side: BorderSide(color: Colors.white.withValues(alpha: 0.14)),
-                    onSelected: (_) {
-                      setState(() {
-                        if (selected) {
-                          _selectedLanguages.remove(language);
-                        } else {
-                          _selectedLanguages.add(language);
-                        }
-                      });
-                    },
-                  );
-                }).toList(),
-              ),
+                  ),
+                )
+              else
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: widget.languages.map((language) {
+                    final selected = _selectedLanguages.contains(language);
+                    final flag = _languageFlag(language);
+                    return ChoiceChip(
+                      label: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (flag != null) ...[
+                            Container(
+                              height: 18,
+                              width: 18,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: selected
+                                    ? Colors.black.withValues(alpha: 0.08)
+                                    : Colors.white.withValues(alpha: 0.12),
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(
+                                flag,
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                          ],
+                          Text(
+                            _languageLabel(language),
+                            style: TextStyle(
+                              color: selected ? Colors.black : Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                      selected: selected,
+                      selectedColor: const Color(0xFF14FFEC),
+                      backgroundColor: const Color(0xFF111A2B),
+                      side: BorderSide(
+                        color: selected
+                            ? const Color(0xFF14FFEC)
+                            : Colors.white.withValues(alpha: 0.16),
+                      ),
+                      onSelected: (_) {
+                        setState(() {
+                          if (selected) {
+                            _selectedLanguages.remove(language);
+                          } else {
+                            _selectedLanguages.add(language);
+                          }
+                        });
+                      },
+                    );
+                  }).toList(),
+                ),
               const SizedBox(height: 18),
               const Text(
                 'Рейтинг',
@@ -1152,8 +1255,8 @@ class _FilterScreenState extends State<FilterScreen> {
     return ChoiceChip(
       label: Text(
         label,
-        style: const TextStyle(
-          color: Colors.white,
+        style: TextStyle(
+          color: selected ? Colors.black : Colors.white,
           fontSize: 14,
           fontWeight: FontWeight.w600,
         ),
@@ -1161,7 +1264,11 @@ class _FilterScreenState extends State<FilterScreen> {
       selected: selected,
       selectedColor: const Color(0xFF14FFEC),
       backgroundColor: const Color(0xFF111A2B),
-      side: BorderSide(color: Colors.white.withValues(alpha: 0.16)),
+      side: BorderSide(
+        color: selected
+            ? const Color(0xFF14FFEC)
+            : Colors.white.withValues(alpha: 0.16),
+      ),
       onSelected: (_) {
         setState(() {
           _selectedMinRating = selected ? null : threshold;
@@ -1189,6 +1296,8 @@ class _FilterScreenState extends State<FilterScreen> {
     switch (normalized) {
       case 'en':
       case 'eng':
+      case 'en-us':
+      case 'en-gb':
       case 'english':
         return 'English';
       case 'ru':
@@ -1203,6 +1312,7 @@ class _FilterScreenState extends State<FilterScreen> {
         return 'Español';
       case 'fr':
       case 'fra':
+      case 'fre':
       case 'français':
       case 'french':
         return 'Français';
@@ -1222,6 +1332,19 @@ class _FilterScreenState extends State<FilterScreen> {
       case 'português':
       case 'portuguese':
         return 'Português';
+      case 'ar':
+      case 'ara':
+      case 'arabic':
+        return 'العربية';
+      case 'fa':
+      case 'fas':
+      case 'per':
+      case 'persian':
+        return 'فارسی';
+      case 'pl':
+      case 'pol':
+      case 'polish':
+        return 'Polski';
       case 'ja':
       case 'jpn':
       case 'japanese':

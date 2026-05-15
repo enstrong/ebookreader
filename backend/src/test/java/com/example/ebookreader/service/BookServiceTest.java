@@ -1,7 +1,9 @@
 package com.example.ebookreader.service;
 
 import com.example.ebookreader.model.Book;
+import com.example.ebookreader.repository.AudioTrackRepository;
 import com.example.ebookreader.repository.BookRepository;
+import com.example.ebookreader.repository.ChapterRepository;
 import com.example.ebookreader.service.impl.BookServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,6 +22,12 @@ class BookServiceTest {
 
     @Mock
     private BookRepository bookRepository;
+
+    @Mock
+    private ChapterRepository chapterRepository;
+
+    @Mock
+    private AudioTrackRepository audioTrackRepository;
 
     @InjectMocks
     private BookServiceImpl bookService;

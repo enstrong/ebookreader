@@ -295,7 +295,14 @@ class UserService {
   ///
   /// Отправляет PUT-запрос на `/user/books/{bookId}/progress` с номером главы.
   /// Выбрасывает [Exception] при ошибке сервера.
-  Future<void> updateProgress(String token, int bookId, int chapter) async {
+  Future<void> updateProgress(
+    String token,
+    int bookId,
+    int chapter, {
+    double? segmentProgress,
+    int? audioPositionMs,
+    String? lastMode,
+  }) async {
     try {
       print('=== UPDATE PROGRESS REQUEST ===');
       print('URL: $baseUrl/user/books/$bookId/progress');
@@ -308,6 +315,10 @@ class UserService {
         },
         body: json.encode({
           'chapter': chapter,
+          'segmentOrder': chapter,
+          if (segmentProgress != null) 'segmentProgress': segmentProgress.clamp(0.0, 1.0),
+          if (audioPositionMs != null) 'audioPositionMs': audioPositionMs < 0 ? 0 : audioPositionMs,
+          if (lastMode != null) 'lastMode': lastMode,
         }),
       );
 
@@ -346,15 +357,36 @@ class UserService {
 
       if (response.statusCode == 200) {
         if (response.body.isEmpty) {
-          return {'currentChapter': 1, 'isBookmarked': false};
+          return {
+            'currentChapter': 1,
+            'segmentOrder': 1,
+            'segmentProgress': 0.0,
+            'audioPositionMs': 0,
+            'lastMode': 'TEXT',
+            'isBookmarked': false,
+          };
         }
         return json.decode(response.body);
       } else {
-        return {'currentChapter': 1, 'isBookmarked': false};
+        return {
+          'currentChapter': 1,
+          'segmentOrder': 1,
+          'segmentProgress': 0.0,
+          'audioPositionMs': 0,
+          'lastMode': 'TEXT',
+          'isBookmarked': false,
+        };
       }
     } catch (e) {
       print('Error in getProgress: $e');
-      return {'currentChapter': 1, 'isBookmarked': false};
+      return {
+        'currentChapter': 1,
+        'segmentOrder': 1,
+        'segmentProgress': 0.0,
+        'audioPositionMs': 0,
+        'lastMode': 'TEXT',
+        'isBookmarked': false,
+      };
     }
   }
 

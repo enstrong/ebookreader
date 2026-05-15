@@ -4,6 +4,9 @@ type Book {
     author: String!
     description: String
     coverUrl: String
+    availability: String
+    readable: Boolean
+    listenable: Boolean
     chapters: [Chapter]
 }
 

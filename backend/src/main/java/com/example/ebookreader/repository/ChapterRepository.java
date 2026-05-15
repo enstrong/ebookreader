@@ -12,4 +12,5 @@ import com.example.ebookreader.model.Chapter;
 public interface ChapterRepository extends JpaRepository<Chapter, Long> {
     List<Chapter> findByBookIdOrderByChapterOrderAsc(Long bookId);
     Optional<Chapter> findByBookIdAndChapterOrder(Long bookId, int chapterOrder);
+    long countByBookId(Long bookId);
 }

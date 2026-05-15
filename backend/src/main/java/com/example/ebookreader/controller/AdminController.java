@@ -25,7 +25,9 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.example.ebookreader.dto.ChapterDTO;
+import com.example.ebookreader.model.AudioTrack;
 import com.example.ebookreader.model.Book;
+import com.example.ebookreader.model.BookAvailability;
 import com.example.ebookreader.model.Chapter;
 import com.example.ebookreader.model.User;
 import com.example.ebookreader.service.AdminService;
@@ -82,9 +84,10 @@ public class AdminController {
             @RequestPart("author") String author,
             @RequestPart(value = "description", required = false) String description,
             @RequestPart(value = "genres", required = false) List<String> genres,
+            @RequestPart(value = "language", required = false) String language,
             @RequestPart(value = "cover", required = false) MultipartFile cover
     ) throws IOException {
-        Book newBook = adminService.createBook(title, author, description, genres, cover);
+        Book newBook = adminService.createBook(title, author, description, genres, language, cover);
         return ResponseEntity.status(HttpStatus.CREATED).body(newBook);
     }
 
@@ -98,6 +101,24 @@ public class AdminController {
     public ResponseEntity<Book> updateBook(@PathVariable Long id, @RequestBody Book bookDetails) {
         Book updatedBook = adminService.updateBook(id, bookDetails);
         return ResponseEntity.ok(updatedBook);
+    }
+
+    @Operation(summary = "Обновить доступность книги")
+    @PutMapping("/books/{id}/availability")
+    public ResponseEntity<Book> updateBookAvailability(
+            @PathVariable Long id,
+            @RequestBody java.util.Map<String, String> request) {
+        String rawAvailability = request.get("availability");
+        if (rawAvailability == null || rawAvailability.isBlank()) {
+            return ResponseEntity.badRequest().build();
+        }
+        BookAvailability availability;
+        try {
+            availability = BookAvailability.valueOf(rawAvailability.trim().toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().build();
+        }
+        return ResponseEntity.ok(adminService.updateBookAvailability(id, availability));
     }
 
     @Operation(summary = "Удалить книгу по ID")
@@ -173,6 +194,31 @@ public class AdminController {
     public ResponseEntity<Void> deleteChapter(@PathVariable Long bookId, @PathVariable Long chapterId) {
         adminService.deleteChapter(bookId, chapterId);
         return ResponseEntity.ok().build();
+    }
+
+    // === УПРАВЛЕНИЕ АУДИОКНИГАМИ ===
+
+    @Operation(summary = "Загрузить аудиотрек для сегмента книги")
+    @PostMapping(value = "/books/{bookId}/audio-tracks", consumes = "multipart/form-data")
+    public ResponseEntity<AudioTrack> createAudioTrack(
+            @PathVariable Long bookId,
+            @RequestPart("segmentOrder") String segmentOrder,
+            @RequestPart(value = "title", required = false) String title,
+            @RequestPart(value = "durationMs", required = false) String durationMs,
+            @RequestPart("audio") MultipartFile audio
+    ) throws IOException {
+        Long parsedDuration = null;
+        if (durationMs != null && !durationMs.isBlank()) {
+            parsedDuration = Long.parseLong(durationMs);
+        }
+        AudioTrack track = adminService.createAudioTrack(
+                bookId,
+                Integer.parseInt(segmentOrder),
+                title,
+                parsedDuration,
+                audio
+        );
+        return ResponseEntity.status(HttpStatus.CREATED).body(track);
     }
 
     // === УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯМИ ===

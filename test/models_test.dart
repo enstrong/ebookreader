@@ -12,6 +12,7 @@ void main() {
         'description': 'Test Description',
         'fileUrl': 'http://example.com/file.epub',
         'coverUrl': 'http://example.com/cover.jpg',
+        'availability': 'SYNCED',
       };
 
       final book = Book.fromJson(json);
@@ -22,6 +23,9 @@ void main() {
       expect(book.description, 'Test Description');
       expect(book.fileUrl, 'http://example.com/file.epub');
       expect(book.coverUrl, 'http://example.com/cover.jpg');
+      expect(book.availability, 'SYNCED');
+      expect(book.hasText, isTrue);
+      expect(book.hasAudio, isTrue);
     });
   });
 
