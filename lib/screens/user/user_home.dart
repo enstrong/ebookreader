@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:ebookreader/screens/home/home_screen.dart';
 import 'package:ebookreader/screens/profile/profile_screen.dart';
 import 'package:ebookreader/services/storage_service.dart';
+import 'package:ebookreader/theme/app_theme.dart';
 
 /// Корневой экран для обычного пользователя.
 ///
@@ -37,6 +38,7 @@ class _UserHomeState extends State<UserHome> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     final List<Widget> screens = [
       HomeScreen(
         key: const ValueKey('catalog-home'),
@@ -55,19 +57,9 @@ class _UserHomeState extends State<UserHome> {
     ];
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E27),
+      backgroundColor: palette.background,
       body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              const Color(0xFF0A0E27),
-              const Color(0xFF1A1F3A),
-              const Color(0xFF0D7377).withValues(alpha: 0.3),
-            ],
-          ),
-        ),
+        decoration: BoxDecoration(gradient: palette.pageGradient),
         child: screens[_selectedIndex],
       ),
       bottomNavigationBar: Container(
@@ -76,16 +68,11 @@ class _UserHomeState extends State<UserHome> {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              const Color(0xFF1A1F3A).withValues(alpha: 0.95),
-              const Color(0xFF0A0E27),
+              palette.surface.withValues(alpha: 0.95),
+              palette.background,
             ],
           ),
-          border: Border(
-            top: BorderSide(
-              color: Colors.white.withValues(alpha: 0.1),
-              width: 1,
-            ),
-          ),
+          border: Border(top: BorderSide(color: palette.border, width: 1)),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.3),
@@ -103,8 +90,8 @@ class _UserHomeState extends State<UserHome> {
           backgroundColor: Colors.transparent,
           elevation: 0,
           type: BottomNavigationBarType.fixed,
-          selectedItemColor: const Color(0xFF14FFEC),
-          unselectedItemColor: Colors.white.withValues(alpha: 0.4),
+          selectedItemColor: palette.accent,
+          unselectedItemColor: palette.mutedText.withValues(alpha: 0.75),
           selectedLabelStyle: const TextStyle(
             fontWeight: FontWeight.w600,
             fontSize: 12,
@@ -122,14 +109,14 @@ class _UserHomeState extends State<UserHome> {
                     ? BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
-                            const Color(0xFF14FFEC).withValues(alpha: 0.2),
-                            const Color(0xFF0D7377).withValues(alpha: 0.1),
+                            palette.accent.withValues(alpha: 0.2),
+                            palette.secondaryAccent.withValues(alpha: 0.1),
                           ],
                         ),
                         borderRadius: BorderRadius.circular(12),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF14FFEC).withValues(alpha: 0.3),
+                            color: palette.accent.withValues(alpha: 0.3),
                             blurRadius: 12,
                             spreadRadius: 2,
                           ),
@@ -143,14 +130,14 @@ class _UserHomeState extends State<UserHome> {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      const Color(0xFF14FFEC).withValues(alpha: 0.2),
-                      const Color(0xFF0D7377).withValues(alpha: 0.1),
+                      palette.accent.withValues(alpha: 0.2),
+                      palette.secondaryAccent.withValues(alpha: 0.1),
                     ],
                   ),
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF14FFEC).withValues(alpha: 0.3),
+                      color: palette.accent.withValues(alpha: 0.3),
                       blurRadius: 12,
                       spreadRadius: 2,
                     ),
@@ -167,14 +154,14 @@ class _UserHomeState extends State<UserHome> {
                     ? BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
-                            const Color(0xFF14FFEC).withValues(alpha: 0.2),
-                            const Color(0xFF0D7377).withValues(alpha: 0.1),
+                            palette.accent.withValues(alpha: 0.2),
+                            palette.secondaryAccent.withValues(alpha: 0.1),
                           ],
                         ),
                         borderRadius: BorderRadius.circular(12),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF14FFEC).withValues(alpha: 0.3),
+                            color: palette.accent.withValues(alpha: 0.3),
                             blurRadius: 12,
                             spreadRadius: 2,
                           ),
@@ -188,14 +175,14 @@ class _UserHomeState extends State<UserHome> {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      const Color(0xFF14FFEC).withValues(alpha: 0.2),
-                      const Color(0xFF0D7377).withValues(alpha: 0.1),
+                      palette.accent.withValues(alpha: 0.2),
+                      palette.secondaryAccent.withValues(alpha: 0.1),
                     ],
                   ),
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF14FFEC).withValues(alpha: 0.3),
+                      color: palette.accent.withValues(alpha: 0.3),
                       blurRadius: 12,
                       spreadRadius: 2,
                     ),
@@ -212,14 +199,14 @@ class _UserHomeState extends State<UserHome> {
                     ? BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
-                            const Color(0xFF14FFEC).withValues(alpha: 0.2),
-                            const Color(0xFF0D7377).withValues(alpha: 0.1),
+                            palette.accent.withValues(alpha: 0.2),
+                            palette.secondaryAccent.withValues(alpha: 0.1),
                           ],
                         ),
                         borderRadius: BorderRadius.circular(12),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF14FFEC).withValues(alpha: 0.3),
+                            color: palette.accent.withValues(alpha: 0.3),
                             blurRadius: 12,
                             spreadRadius: 2,
                           ),

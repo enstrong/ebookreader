@@ -3,6 +3,7 @@ import 'package:ebookreader/services/user_service.dart';
 import 'package:ebookreader/services/storage_service.dart';
 import 'package:ebookreader/screens/bookmarks/bookmarks_screen.dart';
 import 'package:ebookreader/screens/auth/login_screen.dart';
+import 'package:ebookreader/theme/app_theme.dart';
 
 /// Экран профиля пользователя.
 ///
@@ -19,7 +20,8 @@ class ProfileScreen extends StatefulWidget {
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProviderStateMixin {
+class _ProfileScreenState extends State<ProfileScreen>
+    with SingleTickerProviderStateMixin {
   final UserService _userService = UserService();
   final StorageService _storage = StorageService();
 
@@ -81,26 +83,24 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   }
 
   Future<void> _logout() async {
+    final palette = context.palette;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1F3A),
+        backgroundColor: palette.elevated,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text(
+        title: Text(
           'Выход из системы',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style: TextStyle(color: palette.text, fontWeight: FontWeight.bold),
         ),
         content: Text(
           'Вы действительно хотите выйти из своего аккаунта?',
-          style: TextStyle(color: Colors.white.withValues(alpha: 0.8)),
+          style: TextStyle(color: palette.text.withValues(alpha: 0.8)),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Отмена',
-              style: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
-            ),
+            child: Text('Отмена', style: TextStyle(color: palette.mutedText)),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -126,110 +126,105 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   }
 
   void _showNicknameDialog() {
-  final controller = TextEditingController(
-    text: _profile?['nickname'] ?? '',
-  );
+    final palette = context.palette;
+    final controller = TextEditingController(text: _profile?['nickname'] ?? '');
 
-  showDialog(
-    context: context,
-    builder: (context) => AlertDialog(
-      backgroundColor: const Color(0xFF1A1F3A),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: const Text(
-        'Смена имени пользователя',
-        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-      ),
-      content: TextField(
-        controller: controller,
-        style: const TextStyle(color: Colors.white),
-        decoration: InputDecoration(
-          labelText: 'Введите новое имя',
-          labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(
-              color: const Color(0xFF14FFEC).withValues(alpha: 0.3),
-            ),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(
-              color: Color(0xFF14FFEC),
-              width: 2,
-            ),
-          ),
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: palette.elevated,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Смена имени пользователя',
+          style: TextStyle(color: palette.text, fontWeight: FontWeight.bold),
         ),
-        autofocus: true,
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(
-            'Отмена',
-            style: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
-          ),
-        ),
-        ElevatedButton(
-          onPressed: () async {
-            final nickname = controller.text.trim();
-            if (nickname.isEmpty) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Text('Никнейм не может быть пустым'),
-                  backgroundColor: Colors.red.shade600,
-                ),
-              );
-              return;
-            }
-
-            try {
-              // ✅ Получаем ответ с новым токеном
-              final response = await _userService.updateNickname(_currentToken, nickname);
-              
-              // ✅ Обновляем токен, если он пришел в ответе
-              if (response['token'] != null) {
-                final newToken = response['token'];
-                await _storage.saveToken(newToken);
-                setState(() {
-                  _currentToken = newToken;
-                });
-                print('✅ Токен обновлен после смены никнейма');
-              }
-              
-              if (!context.mounted) return;
-              Navigator.pop(context);
-              _loadProfile();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Text('Никнейм успешно обновлён'),
-                  backgroundColor: Colors.green.shade600,
-                ),
-              );
-            } catch (e) {
-              if (!context.mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Ошибка: $e'),
-                  backgroundColor: Colors.red.shade600,
-                ),
-              );
-            }
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF14FFEC),
-            foregroundColor: const Color(0xFF0A0E27),
-            shape: RoundedRectangleBorder(
+        content: TextField(
+          controller: controller,
+          style: TextStyle(color: palette.text),
+          decoration: InputDecoration(
+            labelText: 'Введите новое имя',
+            labelStyle: TextStyle(color: palette.mutedText),
+            enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: palette.border),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: palette.accent, width: 2),
             ),
           ),
-          child: const Text('Сохранить'),
+          autofocus: true,
         ),
-      ],
-    ),
-  );
-}
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Отмена', style: TextStyle(color: palette.mutedText)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final nickname = controller.text.trim();
+              if (nickname.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Text('Никнейм не может быть пустым'),
+                    backgroundColor: Colors.red.shade600,
+                  ),
+                );
+                return;
+              }
+
+              try {
+                // ✅ Получаем ответ с новым токеном
+                final response = await _userService.updateNickname(
+                  _currentToken,
+                  nickname,
+                );
+
+                // ✅ Обновляем токен, если он пришел в ответе
+                if (response['token'] != null) {
+                  final newToken = response['token'];
+                  await _storage.saveToken(newToken);
+                  setState(() {
+                    _currentToken = newToken;
+                  });
+                  print('✅ Токен обновлен после смены никнейма');
+                }
+
+                if (!context.mounted) return;
+                Navigator.pop(context);
+                _loadProfile();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Text('Никнейм успешно обновлён'),
+                    backgroundColor: Colors.green.shade600,
+                  ),
+                );
+              } catch (e) {
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Ошибка: $e'),
+                    backgroundColor: Colors.red.shade600,
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: palette.accent,
+              foregroundColor: palette.onAccent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Text('Сохранить'),
+          ),
+        ],
+      ),
+    );
+  }
 
   void _showPasswordDialog() {
+    final palette = context.palette;
     final oldPasswordController = TextEditingController();
     final newPasswordController = TextEditingController();
     final confirmPasswordController = TextEditingController();
@@ -241,11 +236,13 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
-          backgroundColor: const Color(0xFF1A1F3A),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Text(
+          backgroundColor: palette.elevated,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Text(
             'Изменить пароль',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            style: TextStyle(color: palette.text, fontWeight: FontWeight.bold),
           ),
           content: SingleChildScrollView(
             child: Column(
@@ -254,27 +251,22 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                 TextField(
                   controller: oldPasswordController,
                   obscureText: obscureOld,
-                  style: const TextStyle(color: Colors.white),
+                  style: TextStyle(color: palette.text),
                   decoration: InputDecoration(
                     labelText: 'Старый пароль',
-                    labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
+                    labelStyle: TextStyle(color: palette.mutedText),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                        color: const Color(0xFF14FFEC).withValues(alpha: 0.3),
-                      ),
+                      borderSide: BorderSide(color: palette.border),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(
-                        color: Color(0xFF14FFEC),
-                        width: 2,
-                      ),
+                      borderSide: BorderSide(color: palette.accent, width: 2),
                     ),
                     suffixIcon: IconButton(
                       icon: Icon(
                         obscureOld ? Icons.visibility : Icons.visibility_off,
-                        color: const Color(0xFF14FFEC),
+                        color: palette.accent,
                       ),
                       onPressed: () => setState(() => obscureOld = !obscureOld),
                     ),
@@ -284,29 +276,24 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                 TextField(
                   controller: newPasswordController,
                   obscureText: obscureNew,
-                  style: const TextStyle(color: Colors.white),
+                  style: TextStyle(color: palette.text),
                   decoration: InputDecoration(
                     labelText: 'Новый пароль',
-                    labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
+                    labelStyle: TextStyle(color: palette.mutedText),
                     helperText: 'Минимум 8 символов',
-                    helperStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
+                    helperStyle: TextStyle(color: palette.mutedText),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                        color: const Color(0xFF14FFEC).withValues(alpha: 0.3),
-                      ),
+                      borderSide: BorderSide(color: palette.border),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(
-                        color: Color(0xFF14FFEC),
-                        width: 2,
-                      ),
+                      borderSide: BorderSide(color: palette.accent, width: 2),
                     ),
                     suffixIcon: IconButton(
                       icon: Icon(
                         obscureNew ? Icons.visibility : Icons.visibility_off,
-                        color: const Color(0xFF14FFEC),
+                        color: palette.accent,
                       ),
                       onPressed: () => setState(() => obscureNew = !obscureNew),
                     ),
@@ -316,27 +303,24 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                 TextField(
                   controller: confirmPasswordController,
                   obscureText: obscureConfirm,
-                  style: const TextStyle(color: Colors.white),
+                  style: TextStyle(color: palette.text),
                   decoration: InputDecoration(
                     labelText: 'Подтвердите пароль',
-                    labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
+                    labelStyle: TextStyle(color: palette.mutedText),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                        color: const Color(0xFF14FFEC).withValues(alpha: 0.3),
-                      ),
+                      borderSide: BorderSide(color: palette.border),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(
-                        color: Color(0xFF14FFEC),
-                        width: 2,
-                      ),
+                      borderSide: BorderSide(color: palette.accent, width: 2),
                     ),
                     suffixIcon: IconButton(
                       icon: Icon(
-                        obscureConfirm ? Icons.visibility : Icons.visibility_off,
-                        color: const Color(0xFF14FFEC),
+                        obscureConfirm
+                            ? Icons.visibility
+                            : Icons.visibility_off,
+                        color: palette.accent,
                       ),
                       onPressed: () =>
                           setState(() => obscureConfirm = !obscureConfirm),
@@ -349,10 +333,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text(
-                'Отмена',
-                style: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
-              ),
+              child: Text('Отмена', style: TextStyle(color: palette.mutedText)),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -375,7 +356,9 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                 if (newPassword.length < 8) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: const Text('Пароль должен содержать минимум 8 символов'),
+                      content: const Text(
+                        'Пароль должен содержать минимум 8 символов',
+                      ),
                       backgroundColor: Colors.red.shade600,
                     ),
                   );
@@ -417,8 +400,8 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                 }
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF14FFEC),
-                foregroundColor: const Color(0xFF0A0E27),
+                backgroundColor: palette.accent,
+                foregroundColor: palette.onAccent,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -434,7 +417,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   String _getInitial() {
     final nickname = _profile?['nickname'] ?? '';
     final username = _profile?['username'] ?? 'User';
-    
+
     if (nickname.isNotEmpty) return nickname[0].toUpperCase();
     if (username.isNotEmpty) return username[0].toUpperCase();
     return 'U';
@@ -445,29 +428,18 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
     final nickname = _profile?['nickname'] ?? '';
     final username = _profile?['username'] ?? 'User';
     final email = _profile?['email'] ?? '';
+    final palette = context.palette;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E27),
+      backgroundColor: palette.background,
       body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              const Color(0xFF0A0E27),
-              const Color(0xFF1A1F3A),
-              const Color(0xFF0D7377).withValues(alpha: 0.3),
-            ],
-          ),
-        ),
+        decoration: BoxDecoration(gradient: palette.pageGradient),
         child: SafeArea(
           child: FadeTransition(
             opacity: _fadeAnimation,
             child: _isLoading
                 ? Center(
-                    child: CircularProgressIndicator(
-                      color: const Color(0xFF14FFEC),
-                    ),
+                    child: CircularProgressIndicator(color: palette.accent),
                   )
                 : SingleChildScrollView(
                     padding: const EdgeInsets.all(24),
@@ -482,15 +454,10 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                             padding: const EdgeInsets.all(4),
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              gradient: const LinearGradient(
-                                colors: [
-                                  Color(0xFF14FFEC),
-                                  Color(0xFF0D7377),
-                                ],
-                              ),
+                              gradient: palette.accentGradient,
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(0xFF14FFEC).withValues(alpha: 0.4),
+                                  color: palette.accent.withValues(alpha: 0.28),
                                   blurRadius: 30,
                                   spreadRadius: 5,
                                 ),
@@ -501,18 +468,15 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 gradient: LinearGradient(
-                                  colors: [
-                                    const Color(0xFF1A1F3A),
-                                    const Color(0xFF0A0E27),
-                                  ],
+                                  colors: [palette.elevated, palette.surface],
                                 ),
                               ),
                               child: Text(
                                 _getInitial(),
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 48,
                                   fontWeight: FontWeight.bold,
-                                  color: Color(0xFF14FFEC),
+                                  color: palette.accent,
                                 ),
                               ),
                             ),
@@ -530,13 +494,13 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               colors: [
-                                const Color(0xFF14FFEC).withValues(alpha: 0.3),
-                                const Color(0xFF0D7377).withValues(alpha: 0.3),
+                                palette.accent.withValues(alpha: 0.22),
+                                palette.secondaryAccent.withValues(alpha: 0.14),
                               ],
                             ),
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
-                              color: const Color(0xFF14FFEC).withValues(alpha: 0.5),
+                              color: palette.accent.withValues(alpha: 0.42),
                               width: 1.5,
                             ),
                           ),
@@ -545,14 +509,14 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                             children: [
                               Icon(
                                 Icons.person,
-                                color: const Color(0xFF14FFEC),
+                                color: palette.accent,
                                 size: 18,
                               ),
                               const SizedBox(width: 8),
                               Text(
                                 'ПОЛЬЗОВАТЕЛЬ',
                                 style: TextStyle(
-                                  color: const Color(0xFF14FFEC),
+                                  color: palette.accent,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 12,
                                   letterSpacing: 1.2,
@@ -566,9 +530,8 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
 
                         // Username
                         ShaderMask(
-                          shaderCallback: (bounds) => const LinearGradient(
-                            colors: [Color(0xFF14FFEC), Color(0xFF0D7377)],
-                          ).createShader(bounds),
+                          shaderCallback: (bounds) =>
+                              palette.accentGradient.createShader(bounds),
                           child: Text(
                             nickname.isNotEmpty ? nickname : username,
                             style: const TextStyle(
@@ -590,7 +553,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                             children: [
                               Icon(
                                 Icons.email_outlined,
-                                color: Colors.white.withValues(alpha: 0.5),
+                                color: palette.mutedText,
                                 size: 16,
                               ),
                               const SizedBox(width: 8),
@@ -598,7 +561,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                                 email,
                                 style: TextStyle(
                                   fontSize: 16,
-                                  color: Colors.white.withValues(alpha: 0.6),
+                                  color: palette.mutedText,
                                 ),
                               ),
                             ],
@@ -607,6 +570,15 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                         const SizedBox(height: 48),
 
                         // Menu Items
+                        _buildMenuItem(
+                          icon: Icons.palette_rounded,
+                          title: 'Тема приложения',
+                          description: _themeLabel(context.appTheme.mode),
+                          onTap: () => showAppThemeSheet(context),
+                        ),
+
+                        const SizedBox(height: 16),
+
                         _buildMenuItem(
                           icon: Icons.library_books_rounded,
                           title: 'Сохранённые книги',
@@ -712,20 +684,18 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
     required String description,
     required VoidCallback onTap,
   }) {
+    final palette = context.palette;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         gradient: LinearGradient(
           colors: [
-            Colors.white.withValues(alpha: 0.05),
-            Colors.white.withValues(alpha: 0.02),
+            palette.text.withValues(alpha: palette.isDark ? 0.05 : 0.18),
+            palette.text.withValues(alpha: palette.isDark ? 0.02 : 0.08),
           ],
         ),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.1),
-          width: 1.5,
-        ),
+        border: Border.all(color: palette.border, width: 1.5),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.2),
@@ -745,16 +715,12 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                 shape: BoxShape.circle,
                 gradient: LinearGradient(
                   colors: [
-                    const Color(0xFF14FFEC).withValues(alpha: 0.3),
-                    const Color(0xFF0D7377).withValues(alpha: 0.2),
+                    palette.accent.withValues(alpha: 0.3),
+                    palette.secondaryAccent.withValues(alpha: 0.2),
                   ],
                 ),
               ),
-              child: Icon(
-                icon,
-                color: const Color(0xFF14FFEC),
-                size: 28,
-              ),
+              child: Icon(icon, color: palette.accent, size: 28),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -763,8 +729,8 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: palette.text,
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
@@ -772,22 +738,30 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                   const SizedBox(height: 4),
                   Text(
                     description,
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.6),
-                      fontSize: 13,
-                    ),
+                    style: TextStyle(color: palette.mutedText, fontSize: 13),
                   ),
                 ],
               ),
             ),
             Icon(
               Icons.arrow_forward_ios,
-              color: Colors.white.withValues(alpha: 0.3),
+              color: palette.mutedText.withValues(alpha: 0.55),
               size: 16,
             ),
           ],
         ),
       ),
     );
+  }
+
+  String _themeLabel(AppThemeMode mode) {
+    switch (mode) {
+      case AppThemeMode.dark:
+        return 'Dark';
+      case AppThemeMode.sepia:
+        return 'Sepia';
+      case AppThemeMode.light:
+        return 'Light';
+    }
   }
 }

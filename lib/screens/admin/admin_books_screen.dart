@@ -4,6 +4,7 @@ import '../../constants/api_constants.dart';
 import 'add_book_screen.dart';
 import 'add_book_from_file_screen.dart';
 import 'manage_chapters_screen.dart';
+import 'package:ebookreader/theme/app_theme.dart';
 
 /// Экран управления книгами для администратора.
 ///
@@ -19,7 +20,8 @@ class AdminBooksScreen extends StatefulWidget {
   State<AdminBooksScreen> createState() => _AdminBooksScreenState();
 }
 
-class _AdminBooksScreenState extends State<AdminBooksScreen> with SingleTickerProviderStateMixin {
+class _AdminBooksScreenState extends State<AdminBooksScreen>
+    with SingleTickerProviderStateMixin {
   late AdminService adminService;
   List<dynamic> books = [];
   bool loading = true;
@@ -65,7 +67,9 @@ class _AdminBooksScreenState extends State<AdminBooksScreen> with SingleTickerPr
             ),
             backgroundColor: Colors.red.shade600,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
         );
       }
@@ -84,7 +88,10 @@ class _AdminBooksScreenState extends State<AdminBooksScreen> with SingleTickerPr
             width: 1.5,
           ),
         ),
-        title: const Text('Удалить книгу?', style: TextStyle(color: Colors.white)),
+        title: const Text(
+          'Удалить книгу?',
+          style: TextStyle(color: Colors.white),
+        ),
         content: Text(
           'Вы уверены, что хотите удалить "$title"?\nЭто действие нельзя отменить.',
           style: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
@@ -92,7 +99,10 @@ class _AdminBooksScreenState extends State<AdminBooksScreen> with SingleTickerPr
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Отмена', style: TextStyle(color: Colors.white.withValues(alpha: 0.6))),
+            child: Text(
+              'Отмена',
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
+            ),
           ),
           Container(
             decoration: BoxDecoration(
@@ -131,7 +141,9 @@ class _AdminBooksScreenState extends State<AdminBooksScreen> with SingleTickerPr
             ),
             backgroundColor: Colors.green.shade600,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
         );
       }
@@ -142,7 +154,9 @@ class _AdminBooksScreenState extends State<AdminBooksScreen> with SingleTickerPr
             content: Text('Ошибка: $e'),
             backgroundColor: Colors.red.shade600,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
         );
       }
@@ -152,9 +166,7 @@ class _AdminBooksScreenState extends State<AdminBooksScreen> with SingleTickerPr
   Future<void> _goToAddBook() async {
     final added = await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => AddBookScreen(token: widget.token),
-      ),
+      MaterialPageRoute(builder: (_) => AddBookScreen(token: widget.token)),
     );
     if (added == true) _loadBooks();
   }
@@ -189,19 +201,11 @@ class _AdminBooksScreenState extends State<AdminBooksScreen> with SingleTickerPr
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E27),
+      backgroundColor: palette.background,
       body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              const Color(0xFF0A0E27),
-              const Color(0xFF1A1F3A),
-            ],
-          ),
-        ),
+        decoration: BoxDecoration(gradient: palette.verticalGradient),
         child: SafeArea(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -216,15 +220,15 @@ class _AdminBooksScreenState extends State<AdminBooksScreen> with SingleTickerPr
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
-                            const Color(0xFF14FFEC).withValues(alpha: 0.2),
-                            const Color(0xFF0D7377).withValues(alpha: 0.1),
+                            palette.accent.withValues(alpha: 0.2),
+                            palette.secondaryAccent.withValues(alpha: 0.1),
                           ],
                         ),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.auto_stories_rounded,
-                        color: Color(0xFF14FFEC),
+                        color: palette.accent,
                         size: 28,
                       ),
                     ),
@@ -233,12 +237,12 @@ class _AdminBooksScreenState extends State<AdminBooksScreen> with SingleTickerPr
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             'Управление книгами',
                             style: TextStyle(
                               fontSize: 28,
                               fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                              color: palette.text,
                               letterSpacing: 0.5,
                             ),
                           ),
@@ -246,7 +250,7 @@ class _AdminBooksScreenState extends State<AdminBooksScreen> with SingleTickerPr
                             '${books.length} книг',
                             style: TextStyle(
                               fontSize: 14,
-                              color: Colors.white.withValues(alpha: 0.6),
+                              color: palette.mutedText,
                             ),
                           ),
                         ],
@@ -261,42 +265,45 @@ class _AdminBooksScreenState extends State<AdminBooksScreen> with SingleTickerPr
                 child: loading
                     ? Center(
                         child: CircularProgressIndicator(
-                          color: const Color(0xFF14FFEC),
+                          color: palette.accent,
                           strokeWidth: 2.5,
                         ),
                       )
                     : books.isEmpty
-                        ? _buildEmptyState()
-                        : RefreshIndicator(
-                            onRefresh: _loadBooks,
-                            color: const Color(0xFF14FFEC),
-                            backgroundColor: const Color(0xFF1A1F3A),
-                            child: GridView.builder(
-                              padding: const EdgeInsets.fromLTRB(24, 0, 24, 100),
-                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    ? _buildEmptyState()
+                    : RefreshIndicator(
+                        onRefresh: _loadBooks,
+                        color: palette.accent,
+                        backgroundColor: palette.surface,
+                        child: GridView.builder(
+                          padding: const EdgeInsets.fromLTRB(24, 0, 24, 100),
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
                                 crossAxisCount: 2,
                                 childAspectRatio: 0.65,
                                 crossAxisSpacing: 16,
                                 mainAxisSpacing: 16,
                               ),
-                              itemCount: books.length,
-                              itemBuilder: (context, index) {
-                                return TweenAnimationBuilder(
-                                  duration: Duration(milliseconds: 300 + (index * 50)),
-                                  tween: Tween<double>(begin: 0, end: 1),
-                                  builder: (context, double value, child) {
-                                    return Transform.translate(
-                                      offset: Offset(0, 20 * (1 - value)),
-                                      child: Opacity(
-                                        opacity: value,
-                                        child: _buildBookCard(books[index]),
-                                      ),
-                                    );
-                                  },
+                          itemCount: books.length,
+                          itemBuilder: (context, index) {
+                            return TweenAnimationBuilder(
+                              duration: Duration(
+                                milliseconds: 300 + (index * 50),
+                              ),
+                              tween: Tween<double>(begin: 0, end: 1),
+                              builder: (context, double value, child) {
+                                return Transform.translate(
+                                  offset: Offset(0, 20 * (1 - value)),
+                                  child: Opacity(
+                                    opacity: value,
+                                    child: _buildBookCard(books[index]),
+                                  ),
                                 );
                               },
-                            ),
-                          ),
+                            );
+                          },
+                        ),
+                      ),
               ),
             ],
           ),
@@ -455,9 +462,10 @@ class _AdminBooksScreenState extends State<AdminBooksScreen> with SingleTickerPr
                             if (loadingProgress == null) return child;
                             return Center(
                               child: CircularProgressIndicator(
-                                value: loadingProgress.expectedTotalBytes != null
+                                value:
+                                    loadingProgress.expectedTotalBytes != null
                                     ? loadingProgress.cumulativeBytesLoaded /
-                                        loadingProgress.expectedTotalBytes!
+                                          loadingProgress.expectedTotalBytes!
                                     : null,
                                 strokeWidth: 2,
                                 color: const Color(0xFF14FFEC),
@@ -498,7 +506,7 @@ class _AdminBooksScreenState extends State<AdminBooksScreen> with SingleTickerPr
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 12),
-                  
+
                   // Action buttons
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
@@ -572,11 +580,7 @@ class _AdminBooksScreenState extends State<AdminBooksScreen> with SingleTickerPr
         ),
       ),
       child: const Center(
-        child: Icon(
-          Icons.book_rounded,
-          size: 60,
-          color: Color(0xFF14FFEC),
-        ),
+        child: Icon(Icons.book_rounded, size: 60, color: Color(0xFF14FFEC)),
       ),
     );
   }

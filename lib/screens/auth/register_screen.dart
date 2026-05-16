@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:ebookreader/services/auth_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ebookreader/screens/user/user_home.dart';
+import 'package:ebookreader/theme/app_theme.dart';
 
 /// Экран регистрации нового пользователя.
 ///
@@ -16,14 +17,15 @@ class RegisterScreen extends StatefulWidget {
   State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProviderStateMixin {
+class _RegisterScreenState extends State<RegisterScreen>
+    with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _authService = AuthService();
-  
+
   bool _isLoading = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
@@ -84,7 +86,7 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
     } catch (e) {
       setState(() => _isLoading = false);
       if (!mounted) return;
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
@@ -96,7 +98,9 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
           ),
           backgroundColor: Colors.red.shade600,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           duration: const Duration(seconds: 3),
         ),
       );
@@ -105,263 +109,284 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E27),
+      backgroundColor: palette.background,
       body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              const Color(0xFF0A0E27),
-              const Color(0xFF1A1F3A),
-              const Color(0xFF0D7377).withValues(alpha: 0.3),
-            ],
-          ),
-        ),
+        decoration: BoxDecoration(gradient: palette.pageGradient),
         child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: FadeTransition(
-                opacity: _fadeAnimation,
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      // Back button
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: IconButton(
-                          onPressed: () => Navigator.pop(context),
-                          icon: const Icon(Icons.arrow_back_ios_new, color: Color(0xFF14FFEC)),
-                        ),
-                      ),
-
-                      const SizedBox(height: 20),
-
-                      // Logo
-                      Container(
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: LinearGradient(
-                            colors: [
-                              const Color(0xFF14FFEC).withValues(alpha: 0.3),
-                              const Color(0xFF0D7377).withValues(alpha: 0.2),
-                            ],
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF14FFEC).withValues(alpha: 0.3),
-                              blurRadius: 40,
-                              spreadRadius: 5,
-                            ),
-                          ],
-                        ),
-                        child: const Icon(
-                          Icons.person_add_rounded,
-                          size: 56,
-                          color: Color(0xFF14FFEC),
-                        ),
-                      ),
-
-                      const SizedBox(height: 32),
-
-                      // Title
-                      ShaderMask(
-                        shaderCallback: (bounds) => const LinearGradient(
-                          colors: [Color(0xFF14FFEC), Color(0xFF0D7377)],
-                        ).createShader(bounds),
-                        child: const Text(
-                          'Регистрация',
-                          style: TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 8),
-
-                      Text(
-                        'Присоединяйтесь к нашему сообществу читателей',
-                        style: TextStyle(
-                          fontSize: 15,
-                          color: Colors.white.withValues(alpha: 0.6),
-                        ),
-                      ),
-
-                      const SizedBox(height: 40),
-
-                      // Username field
-                      _buildGlassTextField(
-                        controller: _usernameController,
-                        label: 'Логин',
-                        icon: Icons.person_outline,
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Введите логин';
-                          }
-                          if (value.trim().length < 3) {
-                            return 'Минимум 3 символа';
-                          }
-                          return null;
-                        },
-                      ),
-
-                      const SizedBox(height: 16),
-
-                      // Email field
-                      _buildGlassTextField(
-                        controller: _emailController,
-                        label: 'Email',
-                        icon: Icons.email_outlined,
-                        keyboardType: TextInputType.emailAddress,
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Введите email';
-                          }
-                          if (!value.trim().contains('@')) {
-                            return 'Введите корректный email';
-                          }
-                          return null;
-                        },
-                      ),
-
-                      const SizedBox(height: 16),
-
-                      // Password field
-                      _buildGlassTextField(
-                        controller: _passwordController,
-                        label: 'Пароль',
-                        icon: Icons.lock_outline,
-                        obscureText: _obscurePassword,
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                            color: const Color(0xFF14FFEC).withValues(alpha: 0.6),
-                          ),
-                          onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                        ),
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Введите пароль';
-                          }
-                          if (value.trim().length < 8) {
-                            return 'Минимум 8 символов';
-                          }
-                          return null;
-                        },
-                      ),
-
-                      const SizedBox(height: 16),
-
-                      // Confirm Password field
-                      _buildGlassTextField(
-                        controller: _confirmPasswordController,
-                        label: 'Подтвердите пароль',
-                        icon: Icons.lock_clock_outlined,
-                        obscureText: _obscureConfirmPassword,
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            _obscureConfirmPassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                            color: const Color(0xFF14FFEC).withValues(alpha: 0.6),
-                          ),
-                          onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
-                        ),
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Подтвердите пароль';
-                          }
-                          if (value.trim() != _passwordController.text.trim()) {
-                            return 'Пароли не совпадают';
-                          }
-                          return null;
-                        },
-                      ),
-
-                      const SizedBox(height: 32),
-
-                      // Register button
-                      Container(
-                        width: double.infinity,
-                        height: 58,
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF14FFEC), Color(0xFF0D7377)],
-                          ),
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF14FFEC).withValues(alpha: 0.4),
-                              blurRadius: 20,
-                              offset: const Offset(0, 8),
-                            ),
-                          ],
-                        ),
-                        child: ElevatedButton(
-                          onPressed: _isLoading ? null : _register,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.transparent,
-                            shadowColor: Colors.transparent,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
+          child: Stack(
+            children: [
+              Positioned(
+                top: 8,
+                right: 12,
+                child: IconButton(
+                  tooltip: 'Тема приложения',
+                  onPressed: () => showAppThemeSheet(context),
+                  icon: Icon(Icons.palette_rounded, color: palette.accent),
+                ),
+              ),
+              Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: FadeTransition(
+                    opacity: _fadeAnimation,
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          // Back button
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: IconButton(
+                              onPressed: () => Navigator.pop(context),
+                              icon: Icon(
+                                Icons.arrow_back_ios_new,
+                                color: palette.accent,
+                              ),
                             ),
                           ),
-                          child: _isLoading
-                              ? const SizedBox(
-                                  height: 24,
-                                  width: 24,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.5,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Text(
-                                  'Зарегистрироваться',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.white,
-                                    letterSpacing: 0.5,
-                                  ),
+
+                          const SizedBox(height: 20),
+
+                          // Logo
+                          Container(
+                            padding: const EdgeInsets.all(24),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: LinearGradient(
+                                colors: [
+                                  const Color(
+                                    0xFF14FFEC,
+                                  ).withValues(alpha: 0.3),
+                                  const Color(
+                                    0xFF0D7377,
+                                  ).withValues(alpha: 0.2),
+                                ],
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(
+                                    0xFF14FFEC,
+                                  ).withValues(alpha: 0.3),
+                                  blurRadius: 40,
+                                  spreadRadius: 5,
                                 ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 24),
-
-                      // Login link
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: RichText(
-                          text: TextSpan(
-                            text: 'Уже есть аккаунт? ',
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.6),
-                              fontSize: 15,
+                              ],
                             ),
-                            children: const [
-                              TextSpan(
-                                text: 'Войти',
-                                style: TextStyle(
-                                  color: Color(0xFF14FFEC),
-                                  fontWeight: FontWeight.w600,
+                            child: const Icon(
+                              Icons.person_add_rounded,
+                              size: 56,
+                              color: Color(0xFF14FFEC),
+                            ),
+                          ),
+
+                          const SizedBox(height: 32),
+
+                          // Title
+                          ShaderMask(
+                            shaderCallback: (bounds) => const LinearGradient(
+                              colors: [Color(0xFF14FFEC), Color(0xFF0D7377)],
+                            ).createShader(bounds),
+                            child: const Text(
+                              'Регистрация',
+                              style: TextStyle(
+                                fontSize: 32,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(height: 8),
+
+                          Text(
+                            'Присоединяйтесь к нашему сообществу читателей',
+                            style: TextStyle(
+                              fontSize: 15,
+                              color: Colors.white.withValues(alpha: 0.6),
+                            ),
+                          ),
+
+                          const SizedBox(height: 40),
+
+                          // Username field
+                          _buildGlassTextField(
+                            controller: _usernameController,
+                            label: 'Логин',
+                            icon: Icons.person_outline,
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Введите логин';
+                              }
+                              if (value.trim().length < 3) {
+                                return 'Минимум 3 символа';
+                              }
+                              return null;
+                            },
+                          ),
+
+                          const SizedBox(height: 16),
+
+                          // Email field
+                          _buildGlassTextField(
+                            controller: _emailController,
+                            label: 'Email',
+                            icon: Icons.email_outlined,
+                            keyboardType: TextInputType.emailAddress,
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Введите email';
+                              }
+                              if (!value.trim().contains('@')) {
+                                return 'Введите корректный email';
+                              }
+                              return null;
+                            },
+                          ),
+
+                          const SizedBox(height: 16),
+
+                          // Password field
+                          _buildGlassTextField(
+                            controller: _passwordController,
+                            label: 'Пароль',
+                            icon: Icons.lock_outline,
+                            obscureText: _obscurePassword,
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _obscurePassword
+                                    ? Icons.visibility_outlined
+                                    : Icons.visibility_off_outlined,
+                                color: palette.accent.withValues(alpha: 0.6),
+                              ),
+                              onPressed: () => setState(
+                                () => _obscurePassword = !_obscurePassword,
+                              ),
+                            ),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Введите пароль';
+                              }
+                              if (value.trim().length < 8) {
+                                return 'Минимум 8 символов';
+                              }
+                              return null;
+                            },
+                          ),
+
+                          const SizedBox(height: 16),
+
+                          // Confirm Password field
+                          _buildGlassTextField(
+                            controller: _confirmPasswordController,
+                            label: 'Подтвердите пароль',
+                            icon: Icons.lock_clock_outlined,
+                            obscureText: _obscureConfirmPassword,
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _obscureConfirmPassword
+                                    ? Icons.visibility_outlined
+                                    : Icons.visibility_off_outlined,
+                                color: palette.accent.withValues(alpha: 0.6),
+                              ),
+                              onPressed: () => setState(
+                                () => _obscureConfirmPassword =
+                                    !_obscureConfirmPassword,
+                              ),
+                            ),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Подтвердите пароль';
+                              }
+                              if (value.trim() !=
+                                  _passwordController.text.trim()) {
+                                return 'Пароли не совпадают';
+                              }
+                              return null;
+                            },
+                          ),
+
+                          const SizedBox(height: 32),
+
+                          // Register button
+                          Container(
+                            width: double.infinity,
+                            height: 58,
+                            decoration: BoxDecoration(
+                              gradient: palette.accentGradient,
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: palette.accent.withValues(alpha: 0.4),
+                                  blurRadius: 20,
+                                  offset: const Offset(0, 8),
+                                ),
+                              ],
+                            ),
+                            child: ElevatedButton(
+                              onPressed: _isLoading ? null : _register,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.transparent,
+                                shadowColor: Colors.transparent,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
                                 ),
                               ),
-                            ],
+                              child: _isLoading
+                                  ? const SizedBox(
+                                      height: 24,
+                                      width: 24,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2.5,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Text(
+                                      'Зарегистрироваться',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                            ),
                           ),
-                        ),
+
+                          const SizedBox(height: 24),
+
+                          // Login link
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: RichText(
+                              text: TextSpan(
+                                text: 'Уже есть аккаунт? ',
+                                style: TextStyle(
+                                  color: palette.mutedText,
+                                  fontSize: 15,
+                                ),
+                                children: [
+                                  TextSpan(
+                                    text: 'Войти',
+                                    style: TextStyle(
+                                      color: palette.accent,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),
-            ),
+            ],
           ),
         ),
       ),
@@ -415,7 +440,10 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
           ),
           suffixIcon: suffixIcon,
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 18,
+          ),
           errorStyle: const TextStyle(color: Color(0xFFFF6B9D)),
         ),
         validator: validator,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:ebookreader/theme/app_theme.dart';
 
 /// Экран профиля администратора.
 ///
@@ -15,11 +16,12 @@ class AdminProfileScreen extends StatefulWidget {
   State<AdminProfileScreen> createState() => _AdminProfileScreenState();
 }
 
-class _AdminProfileScreenState extends State<AdminProfileScreen> with SingleTickerProviderStateMixin {
+class _AdminProfileScreenState extends State<AdminProfileScreen>
+    with SingleTickerProviderStateMixin {
   late AnimationController _animController;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
-  
+
   String _username = '';
   String _email = '';
   bool _isLoading = true;
@@ -85,10 +87,9 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> with SingleTick
               final prefs = await SharedPreferences.getInstance();
               await prefs.clear();
               if (context.mounted) {
-                Navigator.of(context).pushNamedAndRemoveUntil(
-                  '/login',
-                  (route) => false,
-                );
+                Navigator.of(
+                  context,
+                ).pushNamedAndRemoveUntil('/login', (route) => false);
               }
             },
             style: ElevatedButton.styleFrom(
@@ -106,28 +107,17 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> with SingleTick
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E27),
+      backgroundColor: palette.background,
       body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              const Color(0xFF0A0E27),
-              const Color(0xFF1A1F3A),
-              const Color(0xFF0D7377).withValues(alpha: 0.3),
-            ],
-          ),
-        ),
+        decoration: BoxDecoration(gradient: palette.pageGradient),
         child: SafeArea(
           child: FadeTransition(
             opacity: _fadeAnimation,
             child: _isLoading
                 ? Center(
-                    child: CircularProgressIndicator(
-                      color: const Color(0xFF14FFEC),
-                    ),
+                    child: CircularProgressIndicator(color: palette.accent),
                   )
                 : SingleChildScrollView(
                     padding: const EdgeInsets.all(24),
@@ -143,14 +133,13 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> with SingleTick
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               gradient: const LinearGradient(
-                                colors: [
-                                  Color(0xFF14FFEC),
-                                  Color(0xFF0D7377),
-                                ],
+                                colors: [Color(0xFF14FFEC), Color(0xFF0D7377)],
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(0xFF14FFEC).withValues(alpha: 0.4),
+                                  color: const Color(
+                                    0xFF14FFEC,
+                                  ).withValues(alpha: 0.4),
                                   blurRadius: 30,
                                   spreadRadius: 5,
                                 ),
@@ -390,11 +379,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> with SingleTick
                 ],
               ),
             ),
-            child: Icon(
-              icon,
-              color: const Color(0xFF14FFEC),
-              size: 28,
-            ),
+            child: Icon(icon, color: const Color(0xFF14FFEC), size: 28),
           ),
           const SizedBox(width: 16),
           Expanded(

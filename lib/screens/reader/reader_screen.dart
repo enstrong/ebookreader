@@ -5,6 +5,7 @@ import 'package:ebookreader/models/book_annotation.dart';
 import 'package:ebookreader/services/annotation_service.dart';
 import 'package:ebookreader/services/book_service.dart';
 import 'package:ebookreader/services/bookmark_service.dart';
+import 'package:ebookreader/theme/app_theme.dart';
 
 /// Экран чтения книги.
 ///
@@ -16,6 +17,7 @@ class ReaderScreen extends StatefulWidget {
   final int bookId;
   final int chapterOrder;
   final double initialSegmentProgress;
+  final int initialRating;
 
   const ReaderScreen({
     super.key,
@@ -23,6 +25,7 @@ class ReaderScreen extends StatefulWidget {
     required this.bookId,
     required this.chapterOrder,
     this.initialSegmentProgress = 0.0,
+    this.initialRating = 0,
   });
 
   @override
@@ -37,11 +40,14 @@ class _ReaderScreenState extends State<ReaderScreen>
   final ScrollController _scrollController = ScrollController();
 
   Map<String, dynamic>? _chapter;
+  String _bookTitle = '';
   List<BookAnnotation> _annotations = [];
   int _currentChapter = 1;
   int _totalChapters = 0;
   bool _isLoading = true;
   bool _showControls = true;
+  bool _isRatingSaving = false;
+  int _userRating = 0;
   TextSelection? _selection;
   String _selectedText = '';
   double _fontSize = 18;
@@ -57,6 +63,7 @@ class _ReaderScreenState extends State<ReaderScreen>
     super.initState();
     _currentChapter = widget.chapterOrder;
     _segmentProgress = widget.initialSegmentProgress.clamp(0.0, 1.0).toDouble();
+    _userRating = widget.initialRating.clamp(0, 5);
     _animController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
@@ -82,6 +89,7 @@ class _ReaderScreenState extends State<ReaderScreen>
         widget.bookId,
         _currentChapter,
       );
+      final book = await _bookService.getBookById(widget.token, widget.bookId);
       final chapters = await _bookService.getBookChapters(
         widget.token,
         widget.bookId,
@@ -91,13 +99,19 @@ class _ReaderScreenState extends State<ReaderScreen>
         widget.bookId,
         _currentChapter,
       );
+      final progress = await _bookmarkService.getProgress(
+        widget.token,
+        widget.bookId,
+      );
 
       await _saveTextProgress();
 
       if (!mounted) return;
       setState(() {
         _chapter = chapter;
+        _bookTitle = book['title']?.toString() ?? '';
         _annotations = annotations;
+        _userRating = _asRating(progress['rating']);
         _selection = null;
         _selectedText = '';
         _totalChapters = chapters.length;
@@ -314,107 +328,112 @@ class _ReaderScreenState extends State<ReaderScreen>
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (context) => StatefulBuilder(
-        builder: (context, setModalState) => Container(
-          height: MediaQuery.of(context).size.height * 0.72,
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-          decoration: BoxDecoration(
-            color: const Color(0xFF10162F),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-          ),
-          child: SafeArea(
-            top: false,
-            child: Column(
-              children: [
-                Container(
-                  width: 42,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.24),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-                const SizedBox(height: 18),
-                Row(
-                  children: [
-                    const Expanded(
-                      child: Text(
-                        'Выделения и заметки',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF14FFEC).withValues(alpha: 0.14),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        '${allAnnotations.length}',
-                        style: const TextStyle(
-                          color: Color(0xFF14FFEC),
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                Expanded(
-                  child: allAnnotations.isEmpty
-                      ? Center(
-                          child: Text(
-                            'Выделите текст в книге, и он появится здесь.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.58),
-                              height: 1.45,
-                            ),
-                          ),
-                        )
-                      : ListView.separated(
-                          itemCount: allAnnotations.length,
-                          separatorBuilder: (context, index) =>
-                              const SizedBox(height: 10),
-                          itemBuilder: (context, index) {
-                            final annotation = allAnnotations[index];
-                            return _buildAnnotationCard(
-                              annotation,
-                              onTap: () {
-                                Navigator.pop(context);
-                                _jumpToAnnotation(annotation);
-                              },
-                              onEdit: () async {
-                                await _showNoteEditor(annotation);
-                                allAnnotations = await _annotationService
-                                    .getBookAnnotations(
-                                      widget.token,
-                                      widget.bookId,
-                                    );
-                                setModalState(() {});
-                              },
-                              onDelete: () async {
-                                await _deleteAnnotation(annotation);
-                                allAnnotations = allAnnotations
-                                    .where((item) => item.id != annotation.id)
-                                    .toList();
-                                setModalState(() {});
-                              },
-                            );
-                          },
-                        ),
-                ),
-              ],
+        builder: (context, setModalState) {
+          final palette = context.palette;
+          return Container(
+            height: MediaQuery.of(context).size.height * 0.72,
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+            decoration: BoxDecoration(
+              color: palette.elevated,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(24),
+              ),
+              border: Border.all(color: palette.border),
             ),
-          ),
-        ),
+            child: SafeArea(
+              top: false,
+              child: Column(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: palette.border,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Выделения и заметки',
+                          style: TextStyle(
+                            color: palette.text,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: palette.accent.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          '${allAnnotations.length}',
+                          style: TextStyle(
+                            color: palette.accent,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Expanded(
+                    child: allAnnotations.isEmpty
+                        ? Center(
+                            child: Text(
+                              'Выделите текст в книге, и он появится здесь.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: palette.mutedText,
+                                height: 1.45,
+                              ),
+                            ),
+                          )
+                        : ListView.separated(
+                            itemCount: allAnnotations.length,
+                            separatorBuilder: (context, index) =>
+                                const SizedBox(height: 10),
+                            itemBuilder: (context, index) {
+                              final annotation = allAnnotations[index];
+                              return _buildAnnotationCard(
+                                annotation,
+                                onTap: () {
+                                  Navigator.pop(context);
+                                  _jumpToAnnotation(annotation);
+                                },
+                                onEdit: () async {
+                                  await _showNoteEditor(annotation);
+                                  allAnnotations = await _annotationService
+                                      .getBookAnnotations(
+                                        widget.token,
+                                        widget.bookId,
+                                      );
+                                  setModalState(() {});
+                                },
+                                onDelete: () async {
+                                  await _deleteAnnotation(annotation);
+                                  allAnnotations = allAnnotations
+                                      .where((item) => item.id != annotation.id)
+                                      .toList();
+                                  setModalState(() {});
+                                },
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -474,6 +493,150 @@ class _ReaderScreenState extends State<ReaderScreen>
     }
   }
 
+  int _asRating(dynamic value) {
+    if (value == null) return 0;
+    if (value is int) return value.clamp(0, 5);
+    if (value is num) return value.toInt().clamp(0, 5);
+    return (int.tryParse(value.toString()) ?? 0).clamp(0, 5);
+  }
+
+  Future<void> _saveRating(int rating, StateSetter? setModalState) async {
+    if (_isRatingSaving || rating < 1 || rating > 5) return;
+    final previous = _userRating;
+    setState(() {
+      _userRating = rating;
+      _isRatingSaving = true;
+    });
+    setModalState?.call(() {});
+
+    try {
+      final savedRating = await _bookmarkService.updateRating(
+        widget.token,
+        widget.bookId,
+        rating,
+      );
+      if (!mounted) return;
+      setState(() {
+        _userRating = savedRating;
+        _isRatingSaving = false;
+      });
+      setModalState?.call(() {});
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Оценка сохранена'),
+          backgroundColor: context.palette.success,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _userRating = previous;
+        _isRatingSaving = false;
+      });
+      setModalState?.call(() {});
+      _showError('Ошибка сохранения оценки: $e');
+    }
+  }
+
+  void _showRatingSheet() {
+    final palette = context.palette;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) {
+          final currentPalette = context.palette;
+          return Container(
+            padding: const EdgeInsets.fromLTRB(24, 18, 24, 24),
+            decoration: BoxDecoration(
+              color: currentPalette.elevated,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(24),
+              ),
+              border: Border.all(color: currentPalette.border),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(
+                    alpha: palette.isDark ? 0.35 : 0.12,
+                  ),
+                  blurRadius: 24,
+                  offset: const Offset(0, -10),
+                ),
+              ],
+            ),
+            child: SafeArea(
+              top: false,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 42,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: currentPalette.border,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'Оценить книгу',
+                    style: TextStyle(
+                      color: currentPalette.text,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    _bookTitle.isEmpty ? 'Книга #${widget.bookId}' : _bookTitle,
+                    style: TextStyle(color: currentPalette.mutedText),
+                  ),
+                  const SizedBox(height: 20),
+                  Center(
+                    child: _isRatingSaving
+                        ? CircularProgressIndicator(
+                            color: currentPalette.accent,
+                          )
+                        : Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              for (var rating = 1; rating <= 5; rating++)
+                                IconButton(
+                                  tooltip: '$rating из 5',
+                                  onPressed: () =>
+                                      _saveRating(rating, setModalState),
+                                  iconSize: 42,
+                                  icon: Icon(
+                                    rating <= _userRating
+                                        ? Icons.star_rounded
+                                        : Icons.star_border_rounded,
+                                    color: currentPalette.warning,
+                                  ),
+                                ),
+                            ],
+                          ),
+                  ),
+                  const SizedBox(height: 10),
+                  Center(
+                    child: Text(
+                      _userRating == 0
+                          ? '0: прочитано без оценки'
+                          : 'Ваша оценка: $_userRating из 5',
+                      style: TextStyle(color: currentPalette.mutedText),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   void _toggleControls() {
     setState(() => _showControls = !_showControls);
     if (_showControls) {
@@ -485,29 +648,37 @@ class _ReaderScreenState extends State<ReaderScreen>
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E27),
+      backgroundColor: palette.background,
       appBar: _showControls
           ? AppBar(
-              backgroundColor: const Color(0xFF1A1F3A),
+              backgroundColor: palette.surface,
               elevation: 0,
               title: Text(
                 _chapter?['title'] ?? 'Глава $_currentChapter',
-                style: const TextStyle(fontSize: 16, color: Colors.white),
+                style: TextStyle(fontSize: 16, color: palette.text),
               ),
               leading: IconButton(
-                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                icon: Icon(Icons.arrow_back, color: palette.text),
                 onPressed: () => Navigator.pop(context),
               ),
               actions: [
                 IconButton(
+                  icon: Icon(
+                    _userRating > 0
+                        ? Icons.star_rounded
+                        : Icons.star_border_rounded,
+                    color: _userRating > 0 ? palette.warning : palette.accent,
+                  ),
+                  tooltip: 'Оценка',
+                  onPressed: _showRatingSheet,
+                ),
+                IconButton(
                   icon: Stack(
                     clipBehavior: Clip.none,
                     children: [
-                      const Icon(
-                        Icons.border_color_rounded,
-                        color: Color(0xFF14FFEC),
-                      ),
+                      Icon(Icons.border_color_rounded, color: palette.accent),
                       if (_annotations.isNotEmpty)
                         Positioned(
                           right: -3,
@@ -527,7 +698,7 @@ class _ReaderScreenState extends State<ReaderScreen>
                   onPressed: _openAnnotationsSheet,
                 ),
                 IconButton(
-                  icon: const Icon(Icons.settings, color: Color(0xFF14FFEC)),
+                  icon: Icon(Icons.settings, color: palette.accent),
                   onPressed: _showFontSettings,
                 ),
               ],
@@ -536,7 +707,7 @@ class _ReaderScreenState extends State<ReaderScreen>
       body: _isLoading
           ? Center(
               child: CircularProgressIndicator(
-                color: const Color(0xFF14FFEC),
+                color: palette.accent,
                 strokeWidth: 2.5,
               ),
             )
@@ -547,7 +718,7 @@ class _ReaderScreenState extends State<ReaderScreen>
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [const Color(0xFF0A0E27), const Color(0xFF1A1F3A)],
+                    colors: [palette.background, palette.surface],
                   ),
                 ),
                 child: Opacity(
@@ -571,13 +742,17 @@ class _ReaderScreenState extends State<ReaderScreen>
                               decoration: BoxDecoration(
                                 gradient: LinearGradient(
                                   colors: [
-                                    Colors.white.withValues(alpha: 0.05),
-                                    Colors.white.withValues(alpha: 0.02),
+                                    palette.elevated.withValues(
+                                      alpha: palette.isDark ? 0.48 : 0.92,
+                                    ),
+                                    palette.surface.withValues(
+                                      alpha: palette.isDark ? 0.26 : 0.70,
+                                    ),
                                   ],
                                 ),
                                 borderRadius: BorderRadius.circular(16),
                                 border: Border.all(
-                                  color: Colors.white.withValues(alpha: 0.08),
+                                  color: palette.border,
                                   width: 1.5,
                                 ),
                               ),
@@ -588,7 +763,7 @@ class _ReaderScreenState extends State<ReaderScreen>
                                     'Глава $_currentChapter',
                                     style: TextStyle(
                                       fontSize: 14,
-                                      color: const Color(0xFF14FFEC),
+                                      color: palette.accent,
                                       fontWeight: FontWeight.w600,
                                       letterSpacing: 1.5,
                                     ),
@@ -599,7 +774,7 @@ class _ReaderScreenState extends State<ReaderScreen>
                                     style: TextStyle(
                                       fontSize: _fontSize + 6,
                                       fontWeight: FontWeight.bold,
-                                      color: Colors.white,
+                                      color: palette.text,
                                       height: 1.4,
                                     ),
                                   ),
@@ -622,15 +797,11 @@ class _ReaderScreenState extends State<ReaderScreen>
                           bottom: _showControls ? 116 : 28,
                           child: DecoratedBox(
                             decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFF14FFEC), Color(0xFF0D7377)],
-                              ),
+                              gradient: palette.accentGradient,
                               borderRadius: BorderRadius.circular(18),
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(
-                                    0xFF14FFEC,
-                                  ).withValues(alpha: 0.25),
+                                  color: palette.accent.withValues(alpha: 0.25),
                                   blurRadius: 18,
                                   offset: const Offset(0, 8),
                                 ),
@@ -638,14 +809,14 @@ class _ReaderScreenState extends State<ReaderScreen>
                             ),
                             child: TextButton.icon(
                               onPressed: _createHighlight,
-                              icon: const Icon(
+                              icon: Icon(
                                 Icons.edit_note_rounded,
-                                color: Colors.black,
+                                color: palette.onAccent,
                               ),
-                              label: const Text(
+                              label: Text(
                                 'Выделить',
                                 style: TextStyle(
-                                  color: Colors.black,
+                                  color: palette.onAccent,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
@@ -677,15 +848,15 @@ class _ReaderScreenState extends State<ReaderScreen>
                                   begin: Alignment.topCenter,
                                   end: Alignment.bottomCenter,
                                   colors: [
-                                    const Color(
-                                      0xFF1A1F3A,
-                                    ).withValues(alpha: 0.95),
-                                    const Color(0xFF0A0E27),
+                                    palette.elevated.withValues(
+                                      alpha: palette.isDark ? 0.95 : 0.98,
+                                    ),
+                                    palette.background,
                                   ],
                                 ),
                                 border: Border(
                                   top: BorderSide(
-                                    color: Colors.white.withValues(alpha: 0.1),
+                                    color: palette.border,
                                     width: 1,
                                   ),
                                 ),
@@ -702,27 +873,31 @@ class _ReaderScreenState extends State<ReaderScreen>
                                           gradient: _currentChapter > 1
                                               ? LinearGradient(
                                                   colors: [
-                                                    Colors.white.withValues(
-                                                      alpha: 0.1,
+                                                    palette.text.withValues(
+                                                      alpha: palette.isDark
+                                                          ? 0.10
+                                                          : 0.08,
                                                     ),
-                                                    Colors.white.withValues(
-                                                      alpha: 0.05,
+                                                    palette.text.withValues(
+                                                      alpha: palette.isDark
+                                                          ? 0.05
+                                                          : 0.04,
                                                     ),
                                                   ],
                                                 )
                                               : null,
                                           color: _currentChapter <= 1
-                                              ? Colors.white.withValues(
-                                                  alpha: 0.03,
+                                              ? palette.text.withValues(
+                                                  alpha: palette.isDark
+                                                      ? 0.03
+                                                      : 0.05,
                                                 )
                                               : null,
                                           borderRadius: BorderRadius.circular(
                                             12,
                                           ),
                                           border: Border.all(
-                                            color: Colors.white.withValues(
-                                              alpha: 0.1,
-                                            ),
+                                            color: palette.border,
                                             width: 1.5,
                                           ),
                                         ),
@@ -738,9 +913,9 @@ class _ReaderScreenState extends State<ReaderScreen>
                                             backgroundColor: Colors.transparent,
                                             shadowColor: Colors.transparent,
                                             foregroundColor: _currentChapter > 1
-                                                ? Colors.white
-                                                : Colors.white.withValues(
-                                                    alpha: 0.3,
+                                                ? palette.text
+                                                : palette.mutedText.withValues(
+                                                    alpha: 0.45,
                                                   ),
                                             shape: RoundedRectangleBorder(
                                               borderRadius:
@@ -762,22 +937,17 @@ class _ReaderScreenState extends State<ReaderScreen>
                                           vertical: 8,
                                         ),
                                         decoration: BoxDecoration(
-                                          gradient: const LinearGradient(
-                                            colors: [
-                                              Color(0xFF14FFEC),
-                                              Color(0xFF0D7377),
-                                            ],
-                                          ),
+                                          gradient: palette.accentGradient,
                                           borderRadius: BorderRadius.circular(
                                             12,
                                           ),
                                         ),
                                         child: Text(
                                           '$_currentChapter/$_totalChapters',
-                                          style: const TextStyle(
+                                          style: TextStyle(
                                             fontSize: 16,
                                             fontWeight: FontWeight.bold,
-                                            color: Colors.white,
+                                            color: palette.onAccent,
                                           ),
                                         ),
                                       ),
@@ -790,17 +960,14 @@ class _ReaderScreenState extends State<ReaderScreen>
                                         decoration: BoxDecoration(
                                           gradient:
                                               _currentChapter < _totalChapters
-                                              ? const LinearGradient(
-                                                  colors: [
-                                                    Color(0xFF14FFEC),
-                                                    Color(0xFF0D7377),
-                                                  ],
-                                                )
+                                              ? palette.accentGradient
                                               : null,
                                           color:
                                               _currentChapter >= _totalChapters
-                                              ? Colors.white.withValues(
-                                                  alpha: 0.03,
+                                              ? palette.text.withValues(
+                                                  alpha: palette.isDark
+                                                      ? 0.03
+                                                      : 0.05,
                                                 )
                                               : null,
                                           borderRadius: BorderRadius.circular(
@@ -809,8 +976,7 @@ class _ReaderScreenState extends State<ReaderScreen>
                                           border:
                                               _currentChapter >= _totalChapters
                                               ? Border.all(
-                                                  color: Colors.white
-                                                      .withValues(alpha: 0.1),
+                                                  color: palette.border,
                                                   width: 1.5,
                                                 )
                                               : null,
@@ -818,9 +984,8 @@ class _ReaderScreenState extends State<ReaderScreen>
                                               _currentChapter < _totalChapters
                                               ? [
                                                   BoxShadow(
-                                                    color: const Color(
-                                                      0xFF14FFEC,
-                                                    ).withValues(alpha: 0.3),
+                                                    color: palette.accent
+                                                        .withValues(alpha: 0.3),
                                                     blurRadius: 15,
                                                     offset: const Offset(0, 4),
                                                   ),
@@ -841,9 +1006,9 @@ class _ReaderScreenState extends State<ReaderScreen>
                                             shadowColor: Colors.transparent,
                                             foregroundColor:
                                                 _currentChapter < _totalChapters
-                                                ? Colors.white
-                                                : Colors.white.withValues(
-                                                    alpha: 0.3,
+                                                ? palette.onAccent
+                                                : palette.mutedText.withValues(
+                                                    alpha: 0.45,
                                                   ),
                                             shape: RoundedRectangleBorder(
                                               borderRadius:
@@ -868,11 +1033,12 @@ class _ReaderScreenState extends State<ReaderScreen>
   }
 
   TextSpan _buildHighlightedContent() {
+    final palette = context.palette;
     final content = _chapter?['content']?.toString() ?? '';
     final baseStyle = TextStyle(
       fontSize: _fontSize,
       height: 1.9,
-      color: Colors.white.withValues(alpha: 0.85),
+      color: palette.text.withValues(alpha: 0.88),
       letterSpacing: 0.3,
     );
     if (content.isEmpty || _annotations.isEmpty) {
@@ -898,10 +1064,10 @@ class _ReaderScreenState extends State<ReaderScreen>
         TextSpan(
           text: content.substring(start, end),
           style: baseStyle.copyWith(
-            color: Colors.white,
-            backgroundColor: const Color(0xFF14FFEC).withValues(alpha: 0.22),
+            color: palette.text,
+            backgroundColor: palette.highlight,
             decoration: TextDecoration.underline,
-            decorationColor: const Color(0xFF14FFEC).withValues(alpha: 0.65),
+            decorationColor: palette.accent.withValues(alpha: 0.65),
             decorationThickness: 1.2,
           ),
         ),
@@ -921,8 +1087,9 @@ class _ReaderScreenState extends State<ReaderScreen>
     required VoidCallback onEdit,
     required VoidCallback onDelete,
   }) {
+    final palette = context.palette;
     return Material(
-      color: Colors.white.withValues(alpha: 0.055),
+      color: palette.elevated.withValues(alpha: palette.isDark ? 0.55 : 0.90),
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
@@ -940,13 +1107,13 @@ class _ReaderScreenState extends State<ReaderScreen>
                       vertical: 5,
                     ),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF14FFEC).withValues(alpha: 0.12),
+                      color: palette.accent.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
                       'Глава ${annotation.chapterOrder}',
-                      style: const TextStyle(
-                        color: Color(0xFF14FFEC),
+                      style: TextStyle(
+                        color: palette.accent,
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
                       ),
@@ -956,9 +1123,9 @@ class _ReaderScreenState extends State<ReaderScreen>
                   IconButton(
                     visualDensity: VisualDensity.compact,
                     onPressed: onEdit,
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.edit_rounded,
-                      color: Colors.white70,
+                      color: palette.mutedText,
                       size: 20,
                     ),
                   ),
@@ -979,7 +1146,7 @@ class _ReaderScreenState extends State<ReaderScreen>
                 maxLines: 4,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.86),
+                  color: palette.text.withValues(alpha: 0.86),
                   height: 1.45,
                   fontStyle: FontStyle.italic,
                 ),
@@ -990,10 +1157,7 @@ class _ReaderScreenState extends State<ReaderScreen>
                   annotation.note,
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.62),
-                    height: 1.35,
-                  ),
+                  style: TextStyle(color: palette.mutedText, height: 1.35),
                 ),
               ],
             ],
@@ -1008,150 +1172,138 @@ class _ReaderScreenState extends State<ReaderScreen>
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) => StatefulBuilder(
-        builder: (context, setModalState) => Container(
-          padding: const EdgeInsets.all(24),
+        builder: (context, setModalState) {
+          final palette = context.palette;
+          return Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [palette.elevated, palette.background],
+              ),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(24),
+              ),
+              border: Border.all(color: palette.border, width: 1.5),
+            ),
+            child: SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: palette.border,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Настройки чтения',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: palette.text,
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  const AppThemePicker(),
+                  const SizedBox(height: 28),
+                  _buildReaderSliderRow(
+                    icon: Icons.format_size,
+                    label: 'Размер шрифта',
+                    value: _fontSize,
+                    min: 14,
+                    max: 28,
+                    divisions: 7,
+                    trailing: '${_fontSize.round()}',
+                    onChanged: (value) {
+                      setState(() => _fontSize = value);
+                      setModalState(() {});
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                  _buildReaderSliderRow(
+                    icon: Icons.brightness_6,
+                    label: 'Яркость',
+                    value: _brightness,
+                    min: 0.5,
+                    max: 1.0,
+                    onChanged: (value) {
+                      setState(() => _brightness = value);
+                      setModalState(() {});
+                    },
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildReaderSliderRow({
+    required IconData icon,
+    required String label,
+    required double value,
+    required double min,
+    required double max,
+    required ValueChanged<double> onChanged,
+    int? divisions,
+    String? trailing,
+  }) {
+    final palette = context.palette;
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [const Color(0xFF1A1F3A), const Color(0xFF0A0E27)],
-            ),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.1),
-              width: 1.5,
-            ),
-          ),
-          child: SafeArea(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                const Text(
-                  'Настройки чтения',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 32),
-                // Font size
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            const Color(0xFF14FFEC).withValues(alpha: 0.2),
-                            const Color(0xFF0D7377).withValues(alpha: 0.1),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.format_size,
-                        color: Color(0xFF14FFEC),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Размер шрифта',
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.8),
-                              fontSize: 14,
-                            ),
-                          ),
-                          Slider(
-                            value: _fontSize,
-                            min: 14,
-                            max: 28,
-                            divisions: 7,
-                            activeColor: const Color(0xFF14FFEC),
-                            inactiveColor: Colors.white.withValues(alpha: 0.1),
-                            onChanged: (value) {
-                              setState(() => _fontSize = value);
-                              setModalState(() {});
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                    Text(
-                      '${_fontSize.round()}',
-                      style: const TextStyle(
-                        color: Color(0xFF14FFEC),
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                // Brightness
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            const Color(0xFF14FFEC).withValues(alpha: 0.2),
-                            const Color(0xFF0D7377).withValues(alpha: 0.1),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.brightness_6,
-                        color: Color(0xFF14FFEC),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Яркость',
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.8),
-                              fontSize: 14,
-                            ),
-                          ),
-                          Slider(
-                            value: _brightness,
-                            min: 0.5,
-                            max: 1.0,
-                            activeColor: const Color(0xFF14FFEC),
-                            inactiveColor: Colors.white.withValues(alpha: 0.1),
-                            onChanged: (value) {
-                              setState(() => _brightness = value);
-                              setModalState(() {});
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+              colors: [
+                palette.accent.withValues(alpha: 0.2),
+                palette.secondaryAccent.withValues(alpha: 0.1),
               ],
             ),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(icon, color: palette.accent),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  color: palette.text.withValues(alpha: 0.8),
+                  fontSize: 14,
+                ),
+              ),
+              Slider(
+                value: value,
+                min: min,
+                max: max,
+                divisions: divisions,
+                activeColor: palette.accent,
+                inactiveColor: palette.border,
+                onChanged: onChanged,
+              ),
+            ],
           ),
         ),
-      ),
+        if (trailing != null)
+          Text(
+            trailing,
+            style: TextStyle(
+              color: palette.accent,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+      ],
     );
   }
 }
@@ -1182,6 +1334,7 @@ class _AnnotationNoteSheetState extends State<_AnnotationNoteSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Padding(
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
@@ -1189,9 +1342,9 @@ class _AnnotationNoteSheetState extends State<_AnnotationNoteSheet> {
       child: Container(
         padding: const EdgeInsets.fromLTRB(24, 18, 24, 24),
         decoration: BoxDecoration(
-          color: const Color(0xFF10162F),
+          color: palette.elevated,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          border: Border.all(color: palette.border),
         ),
         child: SafeArea(
           top: false,
@@ -1204,16 +1357,16 @@ class _AnnotationNoteSheetState extends State<_AnnotationNoteSheet> {
                   width: 42,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.24),
+                    color: palette.border,
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
               ),
               const SizedBox(height: 20),
-              const Text(
+              Text(
                 'Заметка к выделению',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: palette.text,
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
                 ),
@@ -1222,10 +1375,10 @@ class _AnnotationNoteSheetState extends State<_AnnotationNoteSheet> {
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF14FFEC).withValues(alpha: 0.08),
+                  color: palette.highlight.withValues(alpha: 0.45),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: const Color(0xFF14FFEC).withValues(alpha: 0.22),
+                    color: palette.accent.withValues(alpha: 0.24),
                   ),
                 ),
                 child: Text(
@@ -1233,7 +1386,7 @@ class _AnnotationNoteSheetState extends State<_AnnotationNoteSheet> {
                   maxLines: 4,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.82),
+                    color: palette.text.withValues(alpha: 0.86),
                     height: 1.45,
                     fontStyle: FontStyle.italic,
                   ),
@@ -1244,29 +1397,27 @@ class _AnnotationNoteSheetState extends State<_AnnotationNoteSheet> {
                 controller: _controller,
                 minLines: 3,
                 maxLines: 5,
-                style: const TextStyle(color: Colors.white),
+                style: TextStyle(color: palette.text),
                 decoration: InputDecoration(
                   hintText: 'Добавьте мысль, вопрос или короткую заметку...',
                   hintStyle: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.38),
+                    color: palette.mutedText.withValues(alpha: 0.70),
                   ),
                   filled: true,
-                  fillColor: Colors.white.withValues(alpha: 0.06),
+                  fillColor: palette.surface.withValues(
+                    alpha: palette.isDark ? 0.44 : 0.72,
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide(
-                      color: Colors.white.withValues(alpha: 0.08),
-                    ),
+                    borderSide: BorderSide(color: palette.border),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide(
-                      color: Colors.white.withValues(alpha: 0.08),
-                    ),
+                    borderSide: BorderSide(color: palette.border),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(color: Color(0xFF14FFEC)),
+                    borderSide: BorderSide(color: palette.accent),
                   ),
                 ),
               ),
@@ -1278,9 +1429,7 @@ class _AnnotationNoteSheetState extends State<_AnnotationNoteSheet> {
                       onPressed: () => Navigator.of(context).pop(),
                       child: Text(
                         'Позже',
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.65),
-                        ),
+                        style: TextStyle(color: palette.mutedText),
                       ),
                     ),
                   ),
@@ -1290,8 +1439,8 @@ class _AnnotationNoteSheetState extends State<_AnnotationNoteSheet> {
                       onPressed: () =>
                           Navigator.of(context).pop(_controller.text.trim()),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF14FFEC),
-                        foregroundColor: Colors.black,
+                        backgroundColor: palette.accent,
+                        foregroundColor: palette.onAccent,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
                         ),

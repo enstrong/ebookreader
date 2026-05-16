@@ -4,6 +4,7 @@ import 'package:ebookreader/screens/audio/audio_player_screen.dart';
 import 'package:ebookreader/screens/book/book_detail_screen.dart';
 import 'package:ebookreader/screens/reader/reader_screen.dart';
 import 'package:ebookreader/services/bookmark_service.dart';
+import 'package:ebookreader/theme/app_theme.dart';
 
 /// Экран сохранённых книг.
 ///
@@ -166,16 +167,11 @@ class _BookmarksScreenState extends State<BookmarksScreen>
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E27),
+      backgroundColor: palette.background,
       body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [const Color(0xFF0A0E27), const Color(0xFF1A1F3A)],
-          ),
-        ),
+        decoration: BoxDecoration(gradient: palette.verticalGradient),
         child: SafeArea(
           child: Column(
             children: [
@@ -190,16 +186,17 @@ class _BookmarksScreenState extends State<BookmarksScreen>
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
                             colors: [
-                              Colors.white.withValues(alpha: 0.1),
-                              Colors.white.withValues(alpha: 0.05),
+                              palette.text.withValues(
+                                alpha: palette.isDark ? 0.1 : 0.2,
+                              ),
+                              palette.text.withValues(
+                                alpha: palette.isDark ? 0.05 : 0.08,
+                              ),
                             ],
                           ),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Icon(
-                          Icons.arrow_back,
-                          color: Colors.white,
-                        ),
+                        child: Icon(Icons.arrow_back, color: palette.text),
                       ),
                       onPressed: () => Navigator.pop(context),
                     ),
@@ -208,12 +205,12 @@ class _BookmarksScreenState extends State<BookmarksScreen>
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             'Сохранённые книги',
                             style: TextStyle(
                               fontSize: 28,
                               fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                              color: palette.text,
                               letterSpacing: 0.5,
                             ),
                           ),
@@ -221,7 +218,7 @@ class _BookmarksScreenState extends State<BookmarksScreen>
                             'Книги, к которым вы хотите вернуться',
                             style: TextStyle(
                               fontSize: 14,
-                              color: Colors.white.withValues(alpha: 0.6),
+                              color: palette.mutedText,
                             ),
                           ),
                         ],
@@ -235,16 +232,16 @@ class _BookmarksScreenState extends State<BookmarksScreen>
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
-                            const Color(0xFF14FFEC).withValues(alpha: 0.2),
-                            const Color(0xFF0D7377).withValues(alpha: 0.1),
+                            palette.accent.withValues(alpha: 0.2),
+                            palette.secondaryAccent.withValues(alpha: 0.1),
                           ],
                         ),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
                         '${_bookmarks.length}',
-                        style: const TextStyle(
-                          color: Color(0xFF14FFEC),
+                        style: TextStyle(
+                          color: palette.accent,
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
@@ -259,7 +256,7 @@ class _BookmarksScreenState extends State<BookmarksScreen>
                 child: _isLoading
                     ? Center(
                         child: CircularProgressIndicator(
-                          color: const Color(0xFF14FFEC),
+                          color: palette.accent,
                           strokeWidth: 2.5,
                         ),
                       )

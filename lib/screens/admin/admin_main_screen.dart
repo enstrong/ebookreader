@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'admin_books_screen.dart';
 import 'admin_users_screen.dart';
 import 'admin_profile_screen.dart';
+import 'package:ebookreader/theme/app_theme.dart';
 
 /// Главный экран панели администратора.
 ///
@@ -18,7 +19,8 @@ class AdminMainScreen extends StatefulWidget {
   State<AdminMainScreen> createState() => _AdminMainScreenState();
 }
 
-class _AdminMainScreenState extends State<AdminMainScreen> with SingleTickerProviderStateMixin {
+class _AdminMainScreenState extends State<AdminMainScreen>
+    with SingleTickerProviderStateMixin {
   int _selectedIndex = 0;
   late AnimationController _animController;
   late List<Widget> _screens;
@@ -54,23 +56,34 @@ class _AdminMainScreenState extends State<AdminMainScreen> with SingleTickerProv
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E27),
+      backgroundColor: palette.background,
       body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              const Color(0xFF0A0E27),
-              const Color(0xFF1A1F3A),
-              const Color(0xFF0D7377).withValues(alpha: 0.3),
-            ],
-          ),
-        ),
-        child: FadeTransition(
-          opacity: _animController,
-          child: _screens[_selectedIndex],
+        decoration: BoxDecoration(gradient: palette.pageGradient),
+        child: Stack(
+          children: [
+            FadeTransition(
+              opacity: _animController,
+              child: _screens[_selectedIndex],
+            ),
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 8,
+              right: 14,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: palette.elevated.withValues(alpha: 0.72),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: palette.border),
+                ),
+                child: IconButton(
+                  tooltip: 'Тема приложения',
+                  onPressed: () => showAppThemeSheet(context),
+                  icon: Icon(Icons.palette_rounded, color: palette.accent),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
       bottomNavigationBar: Container(
@@ -79,13 +92,13 @@ class _AdminMainScreenState extends State<AdminMainScreen> with SingleTickerProv
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              const Color(0xFF1A1F3A).withValues(alpha: 0.95),
-              const Color(0xFF0A0E27),
+              palette.surface.withValues(alpha: 0.95),
+              palette.background,
             ],
           ),
           border: Border(
             top: BorderSide(
-              color: const Color(0xFF14FFEC).withValues(alpha: 0.2),
+              color: palette.accent.withValues(alpha: 0.2),
               width: 1.5,
             ),
           ),
@@ -133,6 +146,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> with SingleTickerProv
     required int index,
   }) {
     final isSelected = _selectedIndex == index;
+    final palette = context.palette;
 
     return Expanded(
       child: GestureDetector(
@@ -149,8 +163,10 @@ class _AdminMainScreenState extends State<AdminMainScreen> with SingleTickerProv
                 gradient: value > 0
                     ? LinearGradient(
                         colors: [
-                          const Color(0xFF14FFEC).withValues(alpha: 0.25 * value),
-                          const Color(0xFF0D7377).withValues(alpha: 0.15 * value),
+                          palette.accent.withValues(alpha: 0.25 * value),
+                          palette.secondaryAccent.withValues(
+                            alpha: 0.15 * value,
+                          ),
                         ],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
@@ -159,14 +175,14 @@ class _AdminMainScreenState extends State<AdminMainScreen> with SingleTickerProv
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
                   color: isSelected
-                      ? const Color(0xFF14FFEC).withValues(alpha: 0.4 * value)
+                      ? palette.accent.withValues(alpha: 0.4 * value)
                       : Colors.transparent,
                   width: 1.5,
                 ),
                 boxShadow: isSelected
                     ? [
                         BoxShadow(
-                          color: const Color(0xFF14FFEC).withValues(alpha: 0.3 * value),
+                          color: palette.accent.withValues(alpha: 0.3 * value),
                           blurRadius: 12 * value,
                           spreadRadius: 2 * value,
                         ),
@@ -186,8 +202,10 @@ class _AdminMainScreenState extends State<AdminMainScreen> with SingleTickerProv
                         gradient: value > 0
                             ? LinearGradient(
                                 colors: [
-                                  const Color(0xFF14FFEC).withValues(alpha: 0.3 * value),
-                                  const Color(0xFF0D7377).withValues(alpha: 0.2 * value),
+                                  palette.accent.withValues(alpha: 0.3 * value),
+                                  palette.secondaryAccent.withValues(
+                                    alpha: 0.2 * value,
+                                  ),
                                 ],
                               )
                             : null,
@@ -195,8 +213,8 @@ class _AdminMainScreenState extends State<AdminMainScreen> with SingleTickerProv
                       child: Icon(
                         icon,
                         color: Color.lerp(
-                          Colors.white.withValues(alpha: 0.5),
-                          const Color(0xFF14FFEC),
+                          palette.mutedText.withValues(alpha: 0.75),
+                          palette.accent,
                           value,
                         ),
                         size: 24,
@@ -209,12 +227,14 @@ class _AdminMainScreenState extends State<AdminMainScreen> with SingleTickerProv
                     label,
                     style: TextStyle(
                       color: Color.lerp(
-                        Colors.white.withValues(alpha: 0.5),
-                        const Color(0xFF14FFEC),
+                        palette.mutedText.withValues(alpha: 0.75),
+                        palette.accent,
                         value,
                       ),
                       fontSize: 10,
-                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                      fontWeight: isSelected
+                          ? FontWeight.w700
+                          : FontWeight.w500,
                       letterSpacing: 0.2,
                     ),
                     maxLines: 1,
@@ -227,14 +247,12 @@ class _AdminMainScreenState extends State<AdminMainScreen> with SingleTickerProv
                     height: 3,
                     width: isSelected ? 20 : 0,
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF14FFEC), Color(0xFF0D7377)],
-                      ),
+                      gradient: palette.accentGradient,
                       borderRadius: BorderRadius.circular(2),
                       boxShadow: isSelected
                           ? [
                               BoxShadow(
-                                color: const Color(0xFF14FFEC).withValues(alpha: 0.5),
+                                color: palette.accent.withValues(alpha: 0.5),
                                 blurRadius: 6,
                               ),
                             ]

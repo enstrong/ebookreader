@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/admin_service.dart';
+import 'package:ebookreader/theme/app_theme.dart';
 
 /// Экран управления пользователями для администратора.
 ///
@@ -14,7 +15,8 @@ class AdminUsersScreen extends StatefulWidget {
   State<AdminUsersScreen> createState() => _AdminUsersScreenState();
 }
 
-class _AdminUsersScreenState extends State<AdminUsersScreen> with SingleTickerProviderStateMixin {
+class _AdminUsersScreenState extends State<AdminUsersScreen>
+    with SingleTickerProviderStateMixin {
   late AdminService adminService;
   List<dynamic> users = [];
   bool loading = true;
@@ -60,7 +62,9 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> with SingleTickerPr
             ),
             backgroundColor: Colors.red.shade600,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
         );
       }
@@ -79,7 +83,10 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> with SingleTickerPr
             width: 1.5,
           ),
         ),
-        title: const Text('Удалить пользователя?', style: TextStyle(color: Colors.white)),
+        title: const Text(
+          'Удалить пользователя?',
+          style: TextStyle(color: Colors.white),
+        ),
         content: Text(
           'Вы уверены, что хотите удалить пользователя "$email"?\nЭто действие нельзя отменить.',
           style: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
@@ -87,7 +94,10 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> with SingleTickerPr
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Отмена', style: TextStyle(color: Colors.white.withValues(alpha: 0.6))),
+            child: Text(
+              'Отмена',
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
+            ),
           ),
           Container(
             decoration: BoxDecoration(
@@ -126,7 +136,9 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> with SingleTickerPr
             ),
             backgroundColor: Colors.green.shade600,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
         );
       }
@@ -137,7 +149,9 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> with SingleTickerPr
             content: Text('Ошибка: $e'),
             backgroundColor: Colors.red.shade600,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
         );
       }
@@ -158,19 +172,11 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> with SingleTickerPr
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E27),
+      backgroundColor: palette.background,
       body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              const Color(0xFF0A0E27),
-              const Color(0xFF1A1F3A),
-            ],
-          ),
-        ),
+        decoration: BoxDecoration(gradient: palette.verticalGradient),
         child: SafeArea(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -185,15 +191,15 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> with SingleTickerPr
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
-                            const Color(0xFF14FFEC).withValues(alpha: 0.2),
-                            const Color(0xFF0D7377).withValues(alpha: 0.1),
+                            palette.accent.withValues(alpha: 0.2),
+                            palette.secondaryAccent.withValues(alpha: 0.1),
                           ],
                         ),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.people_rounded,
-                        color: Color(0xFF14FFEC),
+                        color: palette.accent,
                         size: 28,
                       ),
                     ),
@@ -202,12 +208,12 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> with SingleTickerPr
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             'Пользователи',
                             style: TextStyle(
                               fontSize: 28,
                               fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                              color: palette.text,
                               letterSpacing: 0.5,
                             ),
                           ),
@@ -215,7 +221,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> with SingleTickerPr
                             '${users.length} пользователей',
                             style: TextStyle(
                               fontSize: 14,
-                              color: Colors.white.withValues(alpha: 0.6),
+                              color: palette.mutedText,
                             ),
                           ),
                         ],
@@ -230,36 +236,38 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> with SingleTickerPr
                 child: loading
                     ? Center(
                         child: CircularProgressIndicator(
-                          color: const Color(0xFF14FFEC),
+                          color: palette.accent,
                           strokeWidth: 2.5,
                         ),
                       )
                     : users.isEmpty
-                        ? _buildEmptyState()
-                        : RefreshIndicator(
-                            onRefresh: _loadUsers,
-                            color: const Color(0xFF14FFEC),
-                            backgroundColor: const Color(0xFF1A1F3A),
-                            child: ListView.builder(
-                              padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-                              itemCount: users.length,
-                              itemBuilder: (context, index) {
-                                return TweenAnimationBuilder(
-                                  duration: Duration(milliseconds: 300 + (index * 50)),
-                                  tween: Tween<double>(begin: 0, end: 1),
-                                  builder: (context, double value, child) {
-                                    return Transform.translate(
-                                      offset: Offset(0, 20 * (1 - value)),
-                                      child: Opacity(
-                                        opacity: value,
-                                        child: _buildUserCard(users[index]),
-                                      ),
-                                    );
-                                  },
+                    ? _buildEmptyState()
+                    : RefreshIndicator(
+                        onRefresh: _loadUsers,
+                        color: palette.accent,
+                        backgroundColor: palette.surface,
+                        child: ListView.builder(
+                          padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                          itemCount: users.length,
+                          itemBuilder: (context, index) {
+                            return TweenAnimationBuilder(
+                              duration: Duration(
+                                milliseconds: 300 + (index * 50),
+                              ),
+                              tween: Tween<double>(begin: 0, end: 1),
+                              builder: (context, double value, child) {
+                                return Transform.translate(
+                                  offset: Offset(0, 20 * (1 - value)),
+                                  child: Opacity(
+                                    opacity: value,
+                                    child: _buildUserCard(users[index]),
+                                  ),
                                 );
                               },
-                            ),
-                          ),
+                            );
+                          },
+                        ),
+                      ),
               ),
             ],
           ),
@@ -405,7 +413,9 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> with SingleTickerPr
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
-                            isAdmin ? Icons.admin_panel_settings_rounded : Icons.person_rounded,
+                            isAdmin
+                                ? Icons.admin_panel_settings_rounded
+                                : Icons.person_rounded,
                             size: 14,
                             color: _getRoleColor(role),
                           ),

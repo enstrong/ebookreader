@@ -1,4 +1,5 @@
 import 'package:ebookreader/screens/admin/admin_main_screen.dart';
+import 'package:ebookreader/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -26,6 +27,7 @@ class _MyAppState extends State<MyApp> {
   String? token;
   String? role;
   bool isLoading = true;
+  final AppThemeController _themeController = AppThemeController();
 
   @override
   void initState() {
@@ -33,10 +35,17 @@ class _MyAppState extends State<MyApp> {
     _loadUserSession();
   }
 
+  @override
+  void dispose() {
+    _themeController.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadUserSession() async {
     final prefs = await SharedPreferences.getInstance();
     final savedToken = prefs.getString('token');
     final savedRole = prefs.getString('role');
+    await _themeController.load();
 
     setState(() {
       token = savedToken;
@@ -49,9 +58,7 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     if (isLoading) {
       return const MaterialApp(
-        home: Scaffold(
-          body: Center(child: CircularProgressIndicator()),
-        ),
+        home: Scaffold(body: Center(child: CircularProgressIndicator())),
       );
     }
 
@@ -67,20 +74,26 @@ class _MyAppState extends State<MyApp> {
       startScreen = const LoginScreen();
     }
 
-    return MaterialApp(
-      title: 'EBook Reader',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
-        useMaterial3: true,
-      ),
-      home: startScreen,
-      routes: {
-        '/login': (_) => const LoginScreen(),
-        '/register': (_) => const RegisterScreen(),
-        '/home': (_) => HomeScreen(token: token ?? ''),
-        '/admin': (_) => AdminMainScreen(token: token ?? ''),
-        '/bookmarks': (_) => BookmarksScreen(token: token ?? ''),
+    return AnimatedBuilder(
+      animation: _themeController,
+      builder: (context, _) {
+        final palette = _themeController.palette;
+        return AppThemeScope(
+          controller: _themeController,
+          child: MaterialApp(
+            title: 'EBook Reader',
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.themeData(palette),
+            home: startScreen,
+            routes: {
+              '/login': (_) => const LoginScreen(),
+              '/register': (_) => const RegisterScreen(),
+              '/home': (_) => HomeScreen(token: token ?? ''),
+              '/admin': (_) => AdminMainScreen(token: token ?? ''),
+              '/bookmarks': (_) => BookmarksScreen(token: token ?? ''),
+            },
+          ),
+        );
       },
     );
   }

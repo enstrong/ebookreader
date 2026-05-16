@@ -16,7 +16,7 @@ class BookmarkService {
     try {
       print('=== ADD BOOKMARK ===');
       print('URL: ${ApiConstants.baseUrl}/user/books/$bookId/bookmark');
-      
+
       final response = await http.post(
         Uri.parse('${ApiConstants.baseUrl}/user/books/$bookId/bookmark'),
         headers: {
@@ -45,7 +45,7 @@ class BookmarkService {
     try {
       print('=== REMOVE BOOKMARK ===');
       print('URL: ${ApiConstants.baseUrl}/user/books/$bookId/bookmark');
-      
+
       final response = await http.delete(
         Uri.parse('${ApiConstants.baseUrl}/user/books/$bookId/bookmark'),
         headers: {
@@ -74,7 +74,7 @@ class BookmarkService {
     try {
       print('=== GET BOOKMARKS ===');
       print('URL: ${ApiConstants.baseUrl}/user/books/bookmarks');
-      
+
       final response = await http.get(
         Uri.parse('${ApiConstants.baseUrl}/user/books/bookmarks'),
         headers: {
@@ -94,10 +94,55 @@ class BookmarkService {
       } else if (response.statusCode == 404) {
         return [];
       } else {
-        throw Exception('Ошибка загрузки сохранённых книг: ${response.statusCode} ${response.body}');
+        throw Exception(
+          'Ошибка загрузки сохранённых книг: ${response.statusCode} ${response.body}',
+        );
       }
     } catch (e) {
       print('Error in getBookmarks: $e');
+      rethrow;
+    }
+  }
+
+  /// Сохраняет личную оценку пользователя для книги.
+  ///
+  /// Рейтинг 1-5 является явной оценкой; отсутствие значения в UI
+  /// отображается как 0/без оценки и не отправляется на этот endpoint.
+  Future<int> updateRating(String token, int bookId, int rating) async {
+    if (rating < 1 || rating > 5) {
+      throw Exception('Оценка должна быть от 1 до 5');
+    }
+
+    try {
+      print('=== UPDATE RATING ===');
+      print('URL: ${ApiConstants.baseUrl}/user/books/$bookId/rating');
+      print('Rating: $rating');
+
+      final response = await http.put(
+        Uri.parse('${ApiConstants.baseUrl}/user/books/$bookId/rating'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({'rating': rating}),
+      );
+
+      print('Status: ${response.statusCode}');
+      print('Body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body) as Map<String, dynamic>;
+        final savedRating = data['rating'];
+        if (savedRating is int) return savedRating;
+        if (savedRating is num) return savedRating.toInt();
+        return int.tryParse(savedRating?.toString() ?? '') ?? rating;
+      }
+
+      throw Exception(
+        'Ошибка сохранения оценки: ${response.statusCode} ${response.body}',
+      );
+    } catch (e) {
+      print('Error in updateRating: $e');
       rethrow;
     }
   }
@@ -131,7 +176,7 @@ class BookmarkService {
       if (lastMode != null) {
         payload['lastMode'] = lastMode;
       }
-      
+
       final response = await http.put(
         Uri.parse('${ApiConstants.baseUrl}/user/books/$bookId/progress'),
         headers: {
@@ -162,7 +207,7 @@ class BookmarkService {
     try {
       print('=== GET PROGRESS ===');
       print('URL: ${ApiConstants.baseUrl}/user/books/$bookId/progress');
-      
+
       final response = await http.get(
         Uri.parse('${ApiConstants.baseUrl}/user/books/$bookId/progress'),
         headers: {
@@ -176,15 +221,17 @@ class BookmarkService {
 
       if (response.statusCode == 200) {
         if (response.body.isEmpty) {
-          return {'currentChapter': 1, 'isBookmarked': false};
+          return {'currentChapter': 1, 'isBookmarked': false, 'rating': 0};
         }
-        return json.decode(response.body);
+        final decoded = json.decode(response.body) as Map<String, dynamic>;
+        decoded['rating'] ??= 0;
+        return decoded;
       } else {
-        return {'currentChapter': 1, 'isBookmarked': false};
+        return {'currentChapter': 1, 'isBookmarked': false, 'rating': 0};
       }
     } catch (e) {
       print('Error in getProgress: $e');
-      return {'currentChapter': 1, 'isBookmarked': false};
+      return {'currentChapter': 1, 'isBookmarked': false, 'rating': 0};
     }
   }
 }

@@ -4,6 +4,7 @@ import 'package:ebookreader/services/bookmark_service.dart';
 import 'package:ebookreader/screens/reader/reader_screen.dart';
 import 'package:ebookreader/screens/audio/audio_player_screen.dart';
 import 'package:ebookreader/constants/api_constants.dart';
+import 'package:ebookreader/theme/app_theme.dart';
 
 /// Экран детальной информации о книге.
 ///
@@ -33,6 +34,8 @@ class _BookDetailScreenState extends State<BookDetailScreen>
   List<dynamic> _chapters = [];
   bool _isLoading = true;
   bool _isBookmarked = false;
+  bool _isRatingSaving = false;
+  int _userRating = 0;
   int _currentChapter = 1;
   double _segmentProgress = 0.0;
   int _audioPositionMs = 0;
@@ -62,7 +65,10 @@ class _BookDetailScreenState extends State<BookDetailScreen>
   Future<void> _loadBookDetails() async {
     try {
       final book = await _bookService.getBookById(widget.token, widget.bookId);
-      final chapters = await _bookService.getBookChapters(widget.token, widget.bookId);
+      final chapters = await _bookService.getBookChapters(
+        widget.token,
+        widget.bookId,
+      );
       final progress = await _bookmarkService.getProgress(
         widget.token,
         widget.bookId,
@@ -71,10 +77,12 @@ class _BookDetailScreenState extends State<BookDetailScreen>
       setState(() {
         _book = book;
         _chapters = chapters;
-        _currentChapter = progress['segmentOrder'] ?? progress['currentChapter'] ?? 1;
+        _currentChapter =
+            progress['segmentOrder'] ?? progress['currentChapter'] ?? 1;
         _segmentProgress = _asDouble(progress['segmentProgress']);
         _audioPositionMs = _asInt(progress['audioPositionMs']);
         _isBookmarked = progress['isBookmarked'] ?? false;
+        _userRating = _asRating(progress['rating']);
         _isLoading = false;
       });
       _animController.forward();
@@ -92,7 +100,9 @@ class _BookDetailScreenState extends State<BookDetailScreen>
             ),
             backgroundColor: Colors.red.shade600,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
         );
       }
@@ -115,7 +125,9 @@ class _BookDetailScreenState extends State<BookDetailScreen>
               ),
               backgroundColor: Colors.orange.shade600,
               behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               duration: const Duration(seconds: 1),
             ),
           );
@@ -134,7 +146,9 @@ class _BookDetailScreenState extends State<BookDetailScreen>
               ),
               backgroundColor: Colors.green.shade600,
               behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               duration: const Duration(seconds: 1),
             ),
           );
@@ -143,9 +157,9 @@ class _BookDetailScreenState extends State<BookDetailScreen>
       setState(() => _isBookmarked = !_isBookmarked);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Ошибка: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Ошибка: $e')));
       }
     }
   }
@@ -158,10 +172,53 @@ class _BookDetailScreenState extends State<BookDetailScreen>
           token: widget.token,
           bookId: widget.bookId,
           chapterOrder: chapterOrder,
-          initialSegmentProgress: chapterOrder == _currentChapter ? _segmentProgress : 0.0,
+          initialSegmentProgress: chapterOrder == _currentChapter
+              ? _segmentProgress
+              : 0.0,
+          initialRating: _userRating,
         ),
       ),
     ).then((_) => _loadBookDetails());
+  }
+
+  Future<void> _saveRating(int rating) async {
+    if (_isRatingSaving || rating < 1 || rating > 5) return;
+    final previous = _userRating;
+    setState(() {
+      _userRating = rating;
+      _isRatingSaving = true;
+    });
+
+    try {
+      final savedRating = await _bookmarkService.updateRating(
+        widget.token,
+        widget.bookId,
+        rating,
+      );
+      if (!mounted) return;
+      setState(() {
+        _userRating = savedRating;
+        _isRatingSaving = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Оценка сохранена'),
+          backgroundColor: context.palette.success,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _userRating = previous;
+        _isRatingSaving = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Ошибка сохранения оценки: $e'),
+          backgroundColor: context.palette.danger,
+        ),
+      );
+    }
   }
 
   void _openAudioPlayer() {
@@ -210,7 +267,9 @@ class _BookDetailScreenState extends State<BookDetailScreen>
   double _asDouble(dynamic value) {
     if (value == null) return 0.0;
     if (value is num) return value.toDouble().clamp(0.0, 1.0).toDouble();
-    return (double.tryParse(value.toString()) ?? 0.0).clamp(0.0, 1.0).toDouble();
+    return (double.tryParse(value.toString()) ?? 0.0)
+        .clamp(0.0, 1.0)
+        .toDouble();
   }
 
   int _asInt(dynamic value) {
@@ -220,14 +279,22 @@ class _BookDetailScreenState extends State<BookDetailScreen>
     return int.tryParse(value.toString()) ?? 0;
   }
 
+  int _asRating(dynamic value) {
+    if (value == null) return 0;
+    if (value is int) return value.clamp(0, 5);
+    if (value is num) return value.toInt().clamp(0, 5);
+    return (int.tryParse(value.toString()) ?? 0).clamp(0, 5);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     if (_isLoading) {
       return Scaffold(
-        backgroundColor: const Color(0xFF0A0E27),
+        backgroundColor: palette.background,
         body: Center(
           child: CircularProgressIndicator(
-            color: const Color(0xFF14FFEC),
+            color: palette.accent,
             strokeWidth: 2.5,
           ),
         ),
@@ -236,19 +303,22 @@ class _BookDetailScreenState extends State<BookDetailScreen>
 
     if (_book == null) {
       return Scaffold(
-        backgroundColor: const Color(0xFF0A0E27),
+        backgroundColor: palette.background,
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           title: const Text('Ошибка'),
         ),
-        body: const Center(
-          child: Text('Книга не найдена', style: TextStyle(color: Colors.white)),
+        body: Center(
+          child: Text(
+            'Книга не найдена',
+            style: TextStyle(color: palette.text),
+          ),
         ),
       );
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E27),
+      backgroundColor: palette.background,
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
@@ -257,10 +327,11 @@ class _BookDetailScreenState extends State<BookDetailScreen>
           icon: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.3),
+              color: palette.elevated.withValues(alpha: 0.80),
               shape: BoxShape.circle,
+              border: Border.all(color: palette.border),
             ),
-            child: const Icon(Icons.arrow_back, color: Colors.white),
+            child: Icon(Icons.arrow_back, color: palette.text),
           ),
           onPressed: () => Navigator.pop(context),
         ),
@@ -269,12 +340,15 @@ class _BookDetailScreenState extends State<BookDetailScreen>
             icon: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.3),
+                color: palette.elevated.withValues(alpha: 0.80),
                 shape: BoxShape.circle,
+                border: Border.all(color: palette.border),
               ),
               child: Icon(
-                _isBookmarked ? Icons.library_add_check : Icons.library_add_outlined,
-                color: _isBookmarked ? const Color(0xFF14FFEC) : Colors.white,
+                _isBookmarked
+                    ? Icons.library_add_check
+                    : Icons.library_add_outlined,
+                color: _isBookmarked ? palette.accent : palette.text,
               ),
             ),
             onPressed: _toggleBookmark,
@@ -288,10 +362,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [
-                const Color(0xFF0A0E27),
-                const Color(0xFF1A1F3A),
-              ],
+              colors: [palette.background, palette.surface],
             ),
           ),
           child: CustomScrollView(
@@ -311,7 +382,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                             borderRadius: BorderRadius.circular(24),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFF14FFEC).withValues(alpha: 0.2),
+                                color: palette.accent.withValues(alpha: 0.2),
                                 blurRadius: 40,
                                 spreadRadius: 5,
                               ),
@@ -324,25 +395,38 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                           ),
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(24),
-                            child: _book!['coverUrl'] != null && _book!['coverUrl'].toString().isNotEmpty
+                            child:
+                                _book!['coverUrl'] != null &&
+                                    _book!['coverUrl'].toString().isNotEmpty
                                 ? Image.network(
-                                    ApiConstants.getCoverUrl(_book!['coverUrl']),
+                                    ApiConstants.getCoverUrl(
+                                      _book!['coverUrl'],
+                                    ),
                                     fit: BoxFit.cover,
-                                    loadingBuilder: (context, child, loadingProgress) {
-                                      if (loadingProgress == null) return child;
-                                      return Container(
-                                        color: Colors.white.withValues(alpha: 0.03),
-                                        child: Center(
-                                          child: CircularProgressIndicator(
-                                            color: const Color(0xFF14FFEC),
-                                            strokeWidth: 2,
-                                          ),
-                                        ),
-                                      );
-                                    },
+                                    loadingBuilder:
+                                        (context, child, loadingProgress) {
+                                          if (loadingProgress == null) {
+                                            return child;
+                                          }
+                                          return Container(
+                                            color: Colors.white.withValues(
+                                              alpha: 0.03,
+                                            ),
+                                            child: Center(
+                                              child: CircularProgressIndicator(
+                                                color: palette.accent,
+                                                strokeWidth: 2,
+                                              ),
+                                            ),
+                                          );
+                                        },
                                     errorBuilder: (context, error, stackTrace) {
-                                      debugPrint('❌ Ошибка загрузки обложки: $error');
-                                      debugPrint('📍 URL: ${ApiConstants.getCoverUrl(_book!['coverUrl'])}');
+                                      debugPrint(
+                                        '❌ Ошибка загрузки обложки: $error',
+                                      );
+                                      debugPrint(
+                                        '📍 URL: ${ApiConstants.getCoverUrl(_book!['coverUrl'])}',
+                                      );
                                       return _buildPlaceholder();
                                     },
                                   )
@@ -357,8 +441,8 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                           children: [
                             Text(
                               _book!['title'] ?? 'Без названия',
-                              style: const TextStyle(
-                                color: Colors.white,
+                              style: TextStyle(
+                                color: palette.text,
                                 fontSize: 28,
                                 fontWeight: FontWeight.bold,
                                 letterSpacing: 0.5,
@@ -371,7 +455,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                             Text(
                               _book!['author'] ?? 'Неизвестный автор',
                               style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.6),
+                                color: palette.mutedText,
                                 fontSize: 16,
                               ),
                             ),
@@ -388,11 +472,25 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                                 _buildInfoChip(_availabilityLabel()),
                                 if (_bookPages() > 0)
                                   _buildInfoChip('${_bookPages()} стр.'),
-                                if ((_book!['average_rating'] ?? _book!['averageRating'] ?? 0) != 0)
-                                  _buildInfoChip('${(_book!['average_rating'] ?? _book!['averageRating']).toString()} ★'),
-                                if ((_book!['ratings_count'] ?? _book!['ratingsCount'] ?? 0) != 0)
-                                  _buildInfoChip('${(_book!['ratings_count'] ?? _book!['ratingsCount']).toString()} оценок'),
-                                _buildInfoChip(_chapters.isEmpty ? 'Нет глав' : '${_chapters.length} глав'),
+                                if ((_book!['average_rating'] ??
+                                        _book!['averageRating'] ??
+                                        0) !=
+                                    0)
+                                  _buildInfoChip(
+                                    '${(_book!['average_rating'] ?? _book!['averageRating']).toString()} ★',
+                                  ),
+                                if ((_book!['ratings_count'] ??
+                                        _book!['ratingsCount'] ??
+                                        0) !=
+                                    0)
+                                  _buildInfoChip(
+                                    '${(_book!['ratings_count'] ?? _book!['ratingsCount']).toString()} оценок',
+                                  ),
+                                _buildInfoChip(
+                                  _chapters.isEmpty
+                                      ? 'Нет глав'
+                                      : '${_chapters.length} глав',
+                                ),
                               ],
                             ),
                           ],
@@ -407,52 +505,62 @@ class _BookDetailScreenState extends State<BookDetailScreen>
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Row(
+                  child: Column(
                     children: [
-                      Expanded(
-                        child: _buildActionButton(
-                          icon: Icons.menu_book_rounded,
-                          label: _currentChapter > 1
-                              ? 'Читать $_currentChapter сегм.'
-                              : 'Читать',
-                          enabled: _hasText && _chapters.isNotEmpty,
-                          onPressed: () => _openReader(_currentChapter),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _buildActionButton(
-                          icon: Icons.headphones_rounded,
-                          label: 'Слушать',
-                          enabled: _hasAudio,
-                          onPressed: _openAudioPlayer,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Container(
-                        height: 56,
-                        width: 56,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              Colors.white.withValues(alpha: 0.1),
-                              Colors.white.withValues(alpha: 0.05),
-                            ],
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildActionButton(
+                              icon: Icons.menu_book_rounded,
+                              label: _currentChapter > 1
+                                  ? 'Читать $_currentChapter сегм.'
+                                  : 'Читать',
+                              enabled: _hasText && _chapters.isNotEmpty,
+                              onPressed: () => _openReader(_currentChapter),
+                            ),
                           ),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.1),
-                            width: 1.5,
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildActionButton(
+                              icon: Icons.headphones_rounded,
+                              label: 'Слушать',
+                              enabled: _hasAudio,
+                              onPressed: _openAudioPlayer,
+                            ),
                           ),
-                        ),
-                        child: IconButton(
-                          onPressed: _toggleBookmark,
-                          icon: Icon(
-                            _isBookmarked ? Icons.library_add_check : Icons.library_add_outlined,
-                            color: _isBookmarked ? const Color(0xFF14FFEC) : Colors.white,
+                          const SizedBox(width: 12),
+                          Container(
+                            height: 56,
+                            width: 56,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  palette.text.withValues(alpha: 0.10),
+                                  palette.text.withValues(alpha: 0.05),
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: palette.border,
+                                width: 1.5,
+                              ),
+                            ),
+                            child: IconButton(
+                              onPressed: _toggleBookmark,
+                              icon: Icon(
+                                _isBookmarked
+                                    ? Icons.library_add_check
+                                    : Icons.library_add_outlined,
+                                color: _isBookmarked
+                                    ? palette.accent
+                                    : palette.text,
+                              ),
+                            ),
                           ),
-                        ),
+                        ],
                       ),
+                      const SizedBox(height: 14),
+                      _buildUserRatingPanel(),
                     ],
                   ),
                 ),
@@ -465,10 +573,10 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Описание',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: palette.text,
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
                         ),
@@ -477,7 +585,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                       Text(
                         _book!['description'] ?? 'Описание отсутствует',
                         style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.7),
+                          color: palette.text.withValues(alpha: 0.76),
                           fontSize: 15,
                           height: 1.6,
                         ),
@@ -486,10 +594,10 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
+                          Text(
                             'Главы',
                             style: TextStyle(
-                              color: Colors.white,
+                              color: palette.text,
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
                             ),
@@ -502,16 +610,18 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                             decoration: BoxDecoration(
                               gradient: LinearGradient(
                                 colors: [
-                                  const Color(0xFF14FFEC).withValues(alpha: 0.2),
-                                  const Color(0xFF0D7377).withValues(alpha: 0.1),
+                                  palette.accent.withValues(alpha: 0.18),
+                                  palette.secondaryAccent.withValues(
+                                    alpha: 0.10,
+                                  ),
                                 ],
                               ),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
                               '${_chapters.length} глав',
-                              style: const TextStyle(
-                                color: Color(0xFF14FFEC),
+                              style: TextStyle(
+                                color: palette.accent,
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -527,98 +637,101 @@ class _BookDetailScreenState extends State<BookDetailScreen>
               // Chapters list
               _chapters.isNotEmpty
                   ? SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) {
-                          final chapter = _chapters[index];
-                          final chapterNum = chapter['chapterOrder'];
-                          final isCurrent = chapterNum == _currentChapter;
+                      delegate: SliverChildBuilderDelegate((context, index) {
+                        final chapter = _chapters[index];
+                        final chapterNum = chapter['chapterOrder'];
+                        final isCurrent = chapterNum == _currentChapter;
 
-                          return Container(
-                            margin: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 6,
+                        return Container(
+                          margin: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            gradient: isCurrent
+                                ? palette.accentGradient
+                                : LinearGradient(
+                                    colors: [
+                                      palette.elevated.withValues(
+                                        alpha: palette.isDark ? 0.42 : 0.90,
+                                      ),
+                                      palette.surface.withValues(
+                                        alpha: palette.isDark ? 0.22 : 0.58,
+                                      ),
+                                    ],
+                                  ),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: isCurrent
+                                  ? Colors.transparent
+                                  : palette.border,
+                              width: 1.5,
                             ),
-                            decoration: BoxDecoration(
-                              gradient: isCurrent
-                                  ? const LinearGradient(
-                                      colors: [Color(0xFF14FFEC), Color(0xFF0D7377)],
-                                    )
-                                  : LinearGradient(
-                                      colors: [
-                                        Colors.white.withValues(alpha: 0.05),
-                                        Colors.white.withValues(alpha: 0.02),
-                                      ],
-                                    ),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
+                          ),
+                          child: ListTile(
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            leading: Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
                                 color: isCurrent
-                                    ? Colors.transparent
-                                    : Colors.white.withValues(alpha: 0.08),
-                                width: 1.5,
+                                    ? palette.onAccent.withValues(alpha: 0.18)
+                                    : palette.accent.withValues(alpha: 0.10),
+                                borderRadius: BorderRadius.circular(12),
                               ),
-                            ),
-                            child: ListTile(
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 8,
-                              ),
-                              leading: Container(
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  color: isCurrent
-                                      ? Colors.white.withValues(alpha: 0.2)
-                                      : Colors.white.withValues(alpha: 0.05),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    '$chapterNum',
-                                    style: TextStyle(
-                                      color: isCurrent
-                                          ? Colors.white
-                                          : const Color(0xFF14FFEC),
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                              child: Center(
+                                child: Text(
+                                  '$chapterNum',
+                                  style: TextStyle(
+                                    color: isCurrent
+                                        ? palette.onAccent
+                                        : palette.accent,
+                                    fontWeight: FontWeight.bold,
                                   ),
                                 ),
                               ),
-                              title: Text(
-                                chapter['title'] ?? 'Глава $chapterNum',
-                                style: TextStyle(
-                                  color: isCurrent
-                                      ? Colors.white
-                                      : Colors.white.withValues(alpha: 0.8),
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              trailing: Icon(
-                                isCurrent
-                                    ? Icons.play_circle_filled_rounded
-                                    : Icons.arrow_forward_ios_rounded,
-                                color: isCurrent
-                                    ? Colors.white
-                                    : Colors.white.withValues(alpha: 0.4),
-                                size: isCurrent ? 24 : 16,
-                              ),
-                              onTap: () => _openReader(chapterNum),
                             ),
-                          );
-                        },
-                        childCount: _chapters.length,
-                      ),
+                            title: Text(
+                              chapter['title'] ?? 'Глава $chapterNum',
+                              style: TextStyle(
+                                color: isCurrent
+                                    ? palette.onAccent
+                                    : palette.text.withValues(alpha: 0.84),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            trailing: Icon(
+                              isCurrent
+                                  ? Icons.play_circle_filled_rounded
+                                  : Icons.arrow_forward_ios_rounded,
+                              color: isCurrent
+                                  ? palette.onAccent
+                                  : palette.mutedText.withValues(alpha: 0.60),
+                              size: isCurrent ? 24 : 16,
+                            ),
+                            onTap: () => _openReader(chapterNum),
+                          ),
+                        );
+                      }, childCount: _chapters.length),
                     )
                   : SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 24, vertical: 40),
+                          horizontal: 24,
+                          vertical: 40,
+                        ),
                         child: Container(
                           padding: const EdgeInsets.all(32),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.03),
+                            color: palette.elevated.withValues(
+                              alpha: palette.isDark ? 0.42 : 0.92,
+                            ),
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.08),
+                              color: palette.border,
                               width: 1.5,
                             ),
                           ),
@@ -628,22 +741,21 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                                 padding: const EdgeInsets.all(20),
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  color: const Color(0xFF14FFEC)
-                                      .withValues(alpha: 0.1),
+                                  color: palette.accent.withValues(alpha: 0.10),
                                 ),
-                                child: const Icon(
+                                child: Icon(
                                   Icons.menu_book_outlined,
                                   size: 60,
-                                  color: Color(0xFF14FFEC),
+                                  color: palette.accent,
                                 ),
                               ),
                               const SizedBox(height: 20),
-                              const Text(
+                              Text(
                                 'Главы отсутствуют',
                                 style: TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.white,
+                                  color: palette.text,
                                 ),
                               ),
                               const SizedBox(height: 8),
@@ -652,7 +764,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   fontSize: 14,
-                                  color: Colors.white.withValues(alpha: 0.5),
+                                  color: palette.mutedText,
                                   height: 1.5,
                                 ),
                               ),
@@ -663,7 +775,9 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                     ),
 
               SliverToBoxAdapter(
-                child: SizedBox(height: MediaQuery.of(context).padding.bottom + 40),
+                child: SizedBox(
+                  height: MediaQuery.of(context).padding.bottom + 40,
+                ),
               ),
             ],
           ),
@@ -686,7 +800,9 @@ class _BookDetailScreenState extends State<BookDetailScreen>
       return raw
           .map((item) {
             if (item is String) return item;
-            if (item is Map && item.containsKey('name')) return item['name']?.toString() ?? '';
+            if (item is Map && item.containsKey('name')) {
+              return item['name']?.toString() ?? '';
+            }
             return item.toString();
           })
           .where((value) => value.isNotEmpty)
@@ -696,7 +812,8 @@ class _BookDetailScreenState extends State<BookDetailScreen>
   }
 
   String _bookLanguage() {
-    final raw = _book!['language'] ?? _book!['languageCode'] ?? _book!['language_code'];
+    final raw =
+        _book!['language'] ?? _book!['languageCode'] ?? _book!['language_code'];
     if (raw == null || raw.toString().trim().isEmpty) {
       return 'не указан';
     }
@@ -774,16 +891,99 @@ class _BookDetailScreenState extends State<BookDetailScreen>
       default:
         return normalized
             .split(RegExp(r'[_\-\s]+'))
-            .map((word) => word.isEmpty ? word : '${word[0].toUpperCase()}${word.substring(1)}')
+            .map(
+              (word) => word.isEmpty
+                  ? word
+                  : '${word[0].toUpperCase()}${word.substring(1)}',
+            )
             .join(' ');
     }
   }
 
   int _bookPages() {
-    final raw = _book!['page_count'] ?? _book!['pageCount'] ?? _book!['num_pages'];
+    final raw =
+        _book!['page_count'] ?? _book!['pageCount'] ?? _book!['num_pages'];
     if (raw == null) return 0;
     if (raw is int) return raw;
     return int.tryParse(raw.toString()) ?? 0;
+  }
+
+  Widget _buildUserRatingPanel() {
+    final palette = context.palette;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: palette.elevated.withValues(alpha: palette.isDark ? 0.62 : 0.88),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: palette.border, width: 1.3),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: palette.accent.withValues(alpha: 0.12),
+            ),
+            child: Icon(Icons.star_rounded, color: palette.accent),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Ваша оценка',
+                  style: TextStyle(
+                    color: palette.text,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _userRating == 0
+                      ? '0: прочитано без оценки'
+                      : '$_userRating из 5',
+                  style: TextStyle(color: palette.mutedText, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          if (_isRatingSaving)
+            SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: palette.accent,
+              ),
+            )
+          else
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (var rating = 1; rating <= 5; rating++)
+                  InkResponse(
+                    radius: 20,
+                    onTap: () => _saveRating(rating),
+                    child: Padding(
+                      padding: const EdgeInsets.all(2),
+                      child: Icon(
+                        rating <= _userRating
+                            ? Icons.star_rounded
+                            : Icons.star_border_rounded,
+                        color: palette.warning,
+                        size: 26,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+        ],
+      ),
+    );
   }
 
   Widget _buildActionButton({
@@ -792,25 +992,24 @@ class _BookDetailScreenState extends State<BookDetailScreen>
     required bool enabled,
     required VoidCallback onPressed,
   }) {
+    final palette = context.palette;
     return Container(
       height: 56,
       decoration: BoxDecoration(
         gradient: enabled
-            ? const LinearGradient(colors: [Color(0xFF14FFEC), Color(0xFF0D7377)])
+            ? palette.accentGradient
             : LinearGradient(
                 colors: [
-                  Colors.white.withValues(alpha: 0.05),
-                  Colors.white.withValues(alpha: 0.03),
+                  palette.text.withValues(alpha: 0.05),
+                  palette.text.withValues(alpha: 0.03),
                 ],
               ),
         borderRadius: BorderRadius.circular(16),
-        border: enabled
-            ? null
-            : Border.all(color: Colors.white.withValues(alpha: 0.1), width: 1.5),
+        border: enabled ? null : Border.all(color: palette.border, width: 1.5),
         boxShadow: enabled
             ? [
                 BoxShadow(
-                  color: const Color(0xFF14FFEC).withValues(alpha: 0.28),
+                  color: palette.accent.withValues(alpha: 0.28),
                   blurRadius: 15,
                   offset: const Offset(0, 6),
                 ),
@@ -820,17 +1019,16 @@ class _BookDetailScreenState extends State<BookDetailScreen>
       child: ElevatedButton.icon(
         onPressed: enabled ? onPressed : null,
         icon: Icon(icon),
-        label: Text(
-          label,
-          overflow: TextOverflow.ellipsis,
-        ),
+        label: Text(label, overflow: TextOverflow.ellipsis),
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.transparent,
           disabledBackgroundColor: Colors.transparent,
           shadowColor: Colors.transparent,
-          foregroundColor: Colors.white,
-          disabledForegroundColor: Colors.white.withValues(alpha: 0.35),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          foregroundColor: palette.onAccent,
+          disabledForegroundColor: palette.mutedText.withValues(alpha: 0.55),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           padding: const EdgeInsets.symmetric(horizontal: 8),
         ),
       ),
@@ -838,16 +1036,18 @@ class _BookDetailScreenState extends State<BookDetailScreen>
   }
 
   Widget _buildInfoChip(String label) {
+    final palette = context.palette;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.08),
+        color: palette.elevated.withValues(alpha: palette.isDark ? 0.38 : 0.74),
         borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: palette.border),
       ),
       child: Text(
         label,
         style: TextStyle(
-          color: Colors.white.withValues(alpha: 0.85),
+          color: palette.text.withValues(alpha: 0.84),
           fontSize: 13,
         ),
       ),
@@ -855,14 +1055,16 @@ class _BookDetailScreenState extends State<BookDetailScreen>
   }
 
   Widget _buildLanguageChip(String language) {
+    final palette = context.palette;
     final flag = _languageFlag(_bookLanguageCode());
     final display = 'Язык: $language';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.08),
+        color: palette.elevated.withValues(alpha: palette.isDark ? 0.38 : 0.74),
         borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: palette.border),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -873,20 +1075,17 @@ class _BookDetailScreenState extends State<BookDetailScreen>
               width: 18,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.white.withValues(alpha: 0.15),
+                color: palette.surface.withValues(alpha: 0.70),
               ),
               alignment: Alignment.center,
-              child: Text(
-                flag,
-                style: const TextStyle(fontSize: 12),
-              ),
+              child: Text(flag, style: const TextStyle(fontSize: 12)),
             ),
             const SizedBox(width: 8),
           ],
           Text(
             display,
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.85),
+              color: palette.text.withValues(alpha: 0.84),
               fontSize: 13,
             ),
           ),
@@ -968,18 +1167,20 @@ class _BookDetailScreenState extends State<BookDetailScreen>
   }
 
   String _bookLanguageCode() {
-    final raw = _book!['language'] ?? _book!['languageCode'] ?? _book!['language_code'];
+    final raw =
+        _book!['language'] ?? _book!['languageCode'] ?? _book!['language_code'];
     if (raw == null) return '';
     return raw.toString().trim().toLowerCase();
   }
 
   Widget _buildPlaceholder() {
+    final palette = context.palette;
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            Colors.white.withValues(alpha: 0.05),
-            Colors.white.withValues(alpha: 0.02),
+            palette.text.withValues(alpha: palette.isDark ? 0.05 : 0.14),
+            palette.text.withValues(alpha: palette.isDark ? 0.02 : 0.06),
           ],
         ),
       ),
@@ -987,7 +1188,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
         child: Icon(
           Icons.book_rounded,
           size: 80,
-          color: Colors.white.withValues(alpha: 0.2),
+          color: palette.mutedText.withValues(alpha: 0.70),
         ),
       ),
     );

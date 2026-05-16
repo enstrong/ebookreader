@@ -325,7 +325,8 @@ public class UserBookController {
                     "audioPositionMs", 0,
                     "lastMode", ProgressMode.TEXT.name(),
                     "isBookmarked", false,
-                    "status", ReadingStatus.WANT_TO_READ.name()
+                    "status", ReadingStatus.WANT_TO_READ.name(),
+                    "rating", 0
                 )));
     }
 

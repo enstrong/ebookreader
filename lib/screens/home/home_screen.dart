@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:ebookreader/services/book_service.dart';
 import 'package:ebookreader/screens/book/book_detail_screen.dart';
 import 'package:ebookreader/constants/api_constants.dart';
+import 'package:ebookreader/theme/app_theme.dart';
 
 enum SortOption { title, rating, popularity, language }
+
 enum SortDirection { ascending, descending }
 
 /// Экран каталога или пользовательской библиотеки.
@@ -29,10 +31,11 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
+class _HomeScreenState extends State<HomeScreen>
+    with SingleTickerProviderStateMixin {
   final BookService _bookService = BookService();
   final TextEditingController _searchController = TextEditingController();
-  
+
   List<dynamic> _books = [];
   List<dynamic> _filteredBooks = [];
   Set<String> _availableGenres = {};
@@ -67,7 +70,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   @override
   void didUpdateWidget(covariant HomeScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.token != widget.token || oldWidget.libraryOnly != widget.libraryOnly) {
+    if (oldWidget.token != widget.token ||
+        oldWidget.libraryOnly != widget.libraryOnly) {
       _resetFilters();
       _loadBooks();
     }
@@ -108,7 +112,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             ),
             backgroundColor: Colors.red.shade600,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
         );
       }
@@ -127,29 +133,18 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => BookDetailScreen(
-          token: widget.token,
-          bookId: bookId,
-        ),
+        builder: (_) => BookDetailScreen(token: widget.token, bookId: bookId),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E27),
+      backgroundColor: palette.background,
       body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              const Color(0xFF0A0E27),
-              const Color(0xFF1A1F3A),
-            ],
-          ),
-        ),
+        decoration: BoxDecoration(gradient: palette.verticalGradient),
         child: SafeArea(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -167,15 +162,15 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               colors: [
-                                const Color(0xFF14FFEC).withValues(alpha: 0.2),
-                                const Color(0xFF0D7377).withValues(alpha: 0.1),
+                                palette.accent.withValues(alpha: 0.2),
+                                palette.secondaryAccent.withValues(alpha: 0.1),
                               ],
                             ),
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Icon(
+                          child: Icon(
                             Icons.auto_stories_rounded,
-                            color: Color(0xFF14FFEC),
+                            color: palette.accent,
                             size: 26,
                           ),
                         ),
@@ -186,10 +181,10 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                             children: [
                               Text(
                                 widget.title,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 26,
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.white,
+                                  color: palette.text,
                                   letterSpacing: 0.5,
                                 ),
                               ),
@@ -197,7 +192,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                                 '${widget.subtitle} • ${_books.length} книг',
                                 style: TextStyle(
                                   fontSize: 13,
-                                  color: Colors.white.withValues(alpha: 0.6),
+                                  color: palette.mutedText,
                                 ),
                               ),
                             ],
@@ -205,40 +200,41 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                         ),
                       ],
                     ),
-                          const SizedBox(height: 18),
+                    const SizedBox(height: 18),
                     // Search bar
                     Container(
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(16),
                         gradient: LinearGradient(
                           colors: [
-                            Colors.white.withValues(alpha: 0.08),
-                            Colors.white.withValues(alpha: 0.04),
+                            palette.text.withValues(
+                              alpha: palette.isDark ? 0.08 : 0.22,
+                            ),
+                            palette.text.withValues(
+                              alpha: palette.isDark ? 0.04 : 0.10,
+                            ),
                           ],
                         ),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.1),
-                          width: 1.5,
-                        ),
+                        border: Border.all(color: palette.border, width: 1.5),
                       ),
                       child: TextField(
                         controller: _searchController,
                         onChanged: _searchBooks,
-                        style: const TextStyle(color: Colors.white),
+                        style: TextStyle(color: palette.text),
                         decoration: InputDecoration(
                           hintText: 'Поиск книг...',
                           hintStyle: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.4),
+                            color: palette.mutedText.withValues(alpha: 0.75),
                           ),
                           prefixIcon: Icon(
                             Icons.search_rounded,
-                            color: const Color(0xFF14FFEC).withValues(alpha: 0.7),
+                            color: palette.accent.withValues(alpha: 0.7),
                           ),
                           suffixIcon: _searchController.text.isNotEmpty
                               ? IconButton(
                                   icon: Icon(
                                     Icons.clear_rounded,
-                                    color: Colors.white.withValues(alpha: 0.5),
+                                    color: palette.mutedText,
                                   ),
                                   onPressed: () {
                                     _searchController.clear();
@@ -265,13 +261,13 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 child: _isLoading || _isSearching
                     ? Center(
                         child: CircularProgressIndicator(
-                          color: const Color(0xFF14FFEC),
+                          color: palette.accent,
                           strokeWidth: 2.5,
                         ),
                       )
                     : _filteredBooks.isEmpty
-                        ? _buildEmptyState()
-                        : _buildBooksGrid(),
+                    ? _buildEmptyState()
+                    : _buildBooksGrid(),
               ),
             ],
           ),
@@ -281,6 +277,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   }
 
   Widget _buildFilterBar() {
+    final palette = context.palette;
     final genres = _availableGenres.toList()..sort();
 
     return Column(
@@ -293,21 +290,18 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 '${_filteredBooks.length} результатов • ${_sortLabel()}',
                 overflow: TextOverflow.ellipsis,
                 maxLines: 1,
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.75),
-                  fontSize: 13,
-                ),
+                style: TextStyle(color: palette.mutedText, fontSize: 13),
               ),
             ),
             IconButton(
               onPressed: _openFilterScreen,
-              icon: const Icon(Icons.filter_list_rounded, color: Color(0xFF14FFEC)),
+              icon: Icon(Icons.filter_list_rounded, color: palette.accent),
               tooltip: 'Фильтры',
             ),
             PopupMenuButton<String>(
-              icon: const Icon(Icons.sort_rounded, color: Color(0xFF14FFEC)),
+              icon: Icon(Icons.sort_rounded, color: palette.accent),
               tooltip: 'Сортировать',
-              color: Colors.black,
+              color: palette.elevated,
               elevation: 5,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
@@ -352,37 +346,61 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 });
               },
               itemBuilder: (context) => [
-                const PopupMenuItem(
+                PopupMenuItem(
                   value: 'title_asc',
-                  child: Text('Название A → Z', style: TextStyle(color: Colors.white, fontSize: 14)),
+                  child: Text(
+                    'Название A → Z',
+                    style: TextStyle(color: palette.text, fontSize: 14),
+                  ),
                 ),
-                const PopupMenuItem(
+                PopupMenuItem(
                   value: 'title_desc',
-                  child: Text('Название Z → A', style: TextStyle(color: Colors.white, fontSize: 14)),
+                  child: Text(
+                    'Название Z → A',
+                    style: TextStyle(color: palette.text, fontSize: 14),
+                  ),
                 ),
-                const PopupMenuItem(
+                PopupMenuItem(
                   value: 'rating_desc',
-                  child: Text('Рейтинг: высокий → низкий', style: TextStyle(color: Colors.white, fontSize: 14)),
+                  child: Text(
+                    'Рейтинг: высокий → низкий',
+                    style: TextStyle(color: palette.text, fontSize: 14),
+                  ),
                 ),
-                const PopupMenuItem(
+                PopupMenuItem(
                   value: 'rating_asc',
-                  child: Text('Рейтинг: низкий → высокий', style: TextStyle(color: Colors.white, fontSize: 14)),
+                  child: Text(
+                    'Рейтинг: низкий → высокий',
+                    style: TextStyle(color: palette.text, fontSize: 14),
+                  ),
                 ),
-                const PopupMenuItem(
+                PopupMenuItem(
                   value: 'popularity_desc',
-                  child: Text('Оценок: высокий → низкий', style: TextStyle(color: Colors.white, fontSize: 14)),
+                  child: Text(
+                    'Оценок: высокий → низкий',
+                    style: TextStyle(color: palette.text, fontSize: 14),
+                  ),
                 ),
-                const PopupMenuItem(
+                PopupMenuItem(
                   value: 'popularity_asc',
-                  child: Text('Оценок: низкий → высокий', style: TextStyle(color: Colors.white, fontSize: 14)),
+                  child: Text(
+                    'Оценок: низкий → высокий',
+                    style: TextStyle(color: palette.text, fontSize: 14),
+                  ),
                 ),
-                const PopupMenuItem(
+                PopupMenuItem(
                   value: 'language_asc',
-                  child: Text('Язык A → Z', style: TextStyle(color: Colors.white, fontSize: 14)),
+                  child: Text(
+                    'Язык A → Z',
+                    style: TextStyle(color: palette.text, fontSize: 14),
+                  ),
                 ),
-                const PopupMenuItem(
+                PopupMenuItem(
                   value: 'language_desc',
-                  child: Text('Язык Z → A', style: TextStyle(color: Colors.white, fontSize: 14)),
+                  child: Text(
+                    'Язык Z → A',
+                    style: TextStyle(color: palette.text, fontSize: 14),
+                  ),
                 ),
               ],
             ),
@@ -399,10 +417,14 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               return ChoiceChip(
                 label: Text(genre),
                 selected: selected,
-                selectedColor: const Color(0xFF14FFEC),
-                backgroundColor: Colors.white.withValues(alpha: 0.07),
+                selectedColor: palette.accent,
+                backgroundColor: palette.text.withValues(
+                  alpha: palette.isDark ? 0.07 : 0.16,
+                ),
                 labelStyle: TextStyle(
-                  color: selected ? Colors.black : Colors.white.withValues(alpha: 0.8),
+                  color: selected
+                      ? palette.onAccent
+                      : palette.text.withValues(alpha: 0.8),
                   fontSize: 12,
                 ),
                 onSelected: (_) {
@@ -446,18 +468,27 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       final title = (book['title'] ?? '').toString().toLowerCase();
       final author = (book['author'] ?? '').toString().toLowerCase();
       final language = _bookLanguage(book).toLowerCase();
-      final genres = _bookGenres(book).map((genre) => genre.toLowerCase()).toList();
-      final textMatches = query.isEmpty ||
+      final genres = _bookGenres(
+        book,
+      ).map((genre) => genre.toLowerCase()).toList();
+      final textMatches =
+          query.isEmpty ||
           title.contains(query) ||
           author.contains(query) ||
           language.contains(query) ||
           genres.any((genre) => genre.contains(query));
-      final selectedLanguages = _selectedLanguages.map((lang) => lang.toLowerCase()).toSet();
+      final selectedLanguages = _selectedLanguages
+          .map((lang) => lang.toLowerCase())
+          .toSet();
       final selectedGenre = _selectedGenre?.toLowerCase();
-      final languageMatches = selectedLanguages.isEmpty || selectedLanguages.contains(language);
-      final genreMatches = selectedGenre == null || genres.contains(selectedGenre);
-      final rating = (book['average_rating'] ?? book['averageRating'] ?? 0) as num;
-      final ratingMatches = _selectedMinRating == null || rating >= _selectedMinRating!;
+      final languageMatches =
+          selectedLanguages.isEmpty || selectedLanguages.contains(language);
+      final genreMatches =
+          selectedGenre == null || genres.contains(selectedGenre);
+      final rating =
+          (book['average_rating'] ?? book['averageRating'] ?? 0) as num;
+      final ratingMatches =
+          _selectedMinRating == null || rating >= _selectedMinRating!;
       return textMatches && languageMatches && genreMatches && ratingMatches;
     }).toList();
 
@@ -465,8 +496,10 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       int result;
       switch (_sortOption) {
         case SortOption.rating:
-          final aRating = (a['average_rating'] ?? a['averageRating'] ?? 0) as num;
-          final bRating = (b['average_rating'] ?? b['averageRating'] ?? 0) as num;
+          final aRating =
+              (a['average_rating'] ?? a['averageRating'] ?? 0) as num;
+          final bRating =
+              (b['average_rating'] ?? b['averageRating'] ?? 0) as num;
           result = aRating.compareTo(bRating);
           break;
         case SortOption.popularity:
@@ -478,7 +511,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           result = _bookLanguage(a).compareTo(_bookLanguage(b));
           break;
         case SortOption.title:
-          result = (a['title'] ?? '').toString().compareTo((b['title'] ?? '').toString());
+          result = (a['title'] ?? '').toString().compareTo(
+            (b['title'] ?? '').toString(),
+          );
           break;
       }
       if (_sortDirection == SortDirection.descending) {
@@ -513,13 +548,19 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     final raw = book['genres'] ?? book['genre'];
     if (raw == null) return [];
     if (raw is String) {
-      return raw.split(';').map((value) => value.trim()).where((value) => value.isNotEmpty).toList();
+      return raw
+          .split(';')
+          .map((value) => value.trim())
+          .where((value) => value.isNotEmpty)
+          .toList();
     }
     if (raw is List) {
       return raw
           .map((item) {
             if (item is String) return item;
-            if (item is Map && item.containsKey('name')) return item['name']?.toString() ?? '';
+            if (item is Map && item.containsKey('name')) {
+              return item['name']?.toString() ?? '';
+            }
             return item.toString();
           })
           .where((value) => value.isNotEmpty)
@@ -529,7 +570,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   }
 
   String _bookLanguage(dynamic book) {
-    final raw = book['language'] ?? book['languageCode'] ?? book['language_code'];
+    final raw =
+        book['language'] ?? book['languageCode'] ?? book['language_code'];
     if (raw == null) return '';
     return _languageLabel(raw.toString());
   }
@@ -605,7 +647,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       default:
         return normalized
             .split(RegExp(r'[_\-\s]+'))
-            .map((word) => word.isEmpty ? word : '${word[0].toUpperCase()}${word.substring(1)}')
+            .map(
+              (word) => word.isEmpty
+                  ? word
+                  : '${word[0].toUpperCase()}${word.substring(1)}',
+            )
             .join(' ');
     }
   }
@@ -631,6 +677,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   }
 
   Widget _buildEmptyState() {
+    final palette = context.palette;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -641,15 +688,15 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               shape: BoxShape.circle,
               gradient: LinearGradient(
                 colors: [
-                  Colors.white.withValues(alpha: 0.05),
-                  Colors.white.withValues(alpha: 0.02),
+                  palette.text.withValues(alpha: palette.isDark ? 0.05 : 0.15),
+                  palette.text.withValues(alpha: palette.isDark ? 0.02 : 0.07),
                 ],
               ),
             ),
             child: Icon(
               Icons.search_off_rounded,
               size: 80,
-              color: Colors.white.withValues(alpha: 0.3),
+              color: palette.mutedText.withValues(alpha: 0.7),
             ),
           ),
           const SizedBox(height: 24),
@@ -658,7 +705,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w600,
-              color: Colors.white.withValues(alpha: 0.8),
+              color: palette.text,
             ),
           ),
           const SizedBox(height: 8),
@@ -666,10 +713,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             widget.libraryOnly
                 ? 'Начните читать книгу, и она появится здесь'
                 : 'Попробуйте поискать по другому названию или автору',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.white.withValues(alpha: 0.5),
-            ),
+            style: TextStyle(fontSize: 14, color: palette.mutedText),
           ),
         ],
       ),
@@ -716,8 +760,10 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   }
 
   Widget _buildBookCard(Map<String, dynamic> book) {
+    final palette = context.palette;
     final bookId = book['id'] as int;
-    final rating = (book['average_rating'] ?? book['averageRating'] ?? 0).toString();
+    final rating = (book['average_rating'] ?? book['averageRating'] ?? 0)
+        .toString();
     final ratingsCount = _bookRatingsCount(book);
     final availability = _bookAvailability(book);
 
@@ -733,14 +779,13 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Colors.white.withValues(alpha: 0.05),
-                Colors.white.withValues(alpha: 0.02),
+                palette.elevated.withValues(
+                  alpha: palette.isDark ? 0.18 : 0.88,
+                ),
+                palette.surface.withValues(alpha: palette.isDark ? 0.08 : 0.58),
               ],
             ),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.08),
-              width: 1.5,
-            ),
+            border: Border.all(color: palette.border, width: 1.5),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.3),
@@ -762,8 +807,12 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                     ),
                     gradient: LinearGradient(
                       colors: [
-                        Colors.white.withValues(alpha: 0.03),
-                        Colors.white.withValues(alpha: 0.01),
+                        palette.text.withValues(
+                          alpha: palette.isDark ? 0.03 : 0.10,
+                        ),
+                        palette.text.withValues(
+                          alpha: palette.isDark ? 0.01 : 0.04,
+                        ),
                       ],
                     ),
                   ),
@@ -771,7 +820,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                     borderRadius: const BorderRadius.vertical(
                       top: Radius.circular(24),
                     ),
-                    child: book['coverUrl'] != null && book['coverUrl'].toString().isNotEmpty
+                    child:
+                        book['coverUrl'] != null &&
+                            book['coverUrl'].toString().isNotEmpty
                         ? Image.network(
                             ApiConstants.getCoverUrl(book['coverUrl']),
                             width: double.infinity,
@@ -779,14 +830,18 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                             loadingBuilder: (context, child, loadingProgress) {
                               if (loadingProgress == null) return child;
                               return Container(
-                                color: Colors.white.withValues(alpha: 0.03),
+                                color: palette.surface.withValues(alpha: 0.28),
                                 child: Center(
                                   child: CircularProgressIndicator(
-                                    value: loadingProgress.expectedTotalBytes != null
-                                        ? loadingProgress.cumulativeBytesLoaded /
-                                          loadingProgress.expectedTotalBytes!
+                                    value:
+                                        loadingProgress.expectedTotalBytes !=
+                                            null
+                                        ? loadingProgress
+                                                  .cumulativeBytesLoaded /
+                                              loadingProgress
+                                                  .expectedTotalBytes!
                                         : null,
-                                    color: const Color(0xFF14FFEC),
+                                    color: palette.accent,
                                     strokeWidth: 2,
                                   ),
                                 ),
@@ -794,7 +849,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                             },
                             errorBuilder: (context, error, stackTrace) {
                               debugPrint('❌ Ошибка загрузки обложки: $error');
-                              debugPrint('📍 URL: ${ApiConstants.getCoverUrl(book['coverUrl'])}');
+                              debugPrint(
+                                '📍 URL: ${ApiConstants.getCoverUrl(book['coverUrl'])}',
+                              );
                               return _buildPlaceholder();
                             },
                           )
@@ -818,10 +875,10 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                           children: [
                             Text(
                               book['title'] ?? 'Без названия',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.bold,
-                                color: Colors.white,
+                                color: palette.text,
                                 letterSpacing: 0.3,
                                 height: 1.15,
                               ),
@@ -833,7 +890,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                               book['author'] ?? 'Неизвестный автор',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: Colors.white.withValues(alpha: 0.6),
+                                color: palette.mutedText,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -848,7 +905,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                                   color: _availabilityColor(availability),
                                 ),
                                 if (rating != '0')
-                                  _buildTag('${double.tryParse(rating)?.toStringAsFixed(1) ?? rating} ★'),
+                                  _buildTag(
+                                    '${double.tryParse(rating)?.toStringAsFixed(1) ?? rating} ★',
+                                  ),
                                 if (ratingsCount > 0)
                                   _buildTag(_formatRatingsCount(ratingsCount)),
                               ],
@@ -863,19 +922,17 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                         ),
                         decoration: BoxDecoration(
                           gradient: _isUsableAvailability(availability)
-                              ? const LinearGradient(
-                                  colors: [Color(0xFF14FFEC), Color(0xFF0D7377)],
-                                )
+                              ? palette.accentGradient
                               : LinearGradient(
                                   colors: [
-                                    Colors.white.withValues(alpha: 0.08),
-                                    Colors.white.withValues(alpha: 0.04),
+                                    palette.text.withValues(alpha: 0.08),
+                                    palette.text.withValues(alpha: 0.04),
                                   ],
                                 ),
                           borderRadius: BorderRadius.circular(10),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF14FFEC).withValues(alpha: 0.3),
+                              color: palette.accent.withValues(alpha: 0.24),
                               blurRadius: 8,
                               offset: const Offset(0, 2),
                             ),
@@ -884,17 +941,19 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.play_arrow_rounded,
                               size: 16,
-                              color: Colors.white,
+                              color: palette.onAccent,
                             ),
                             const SizedBox(width: 5),
                             Text(
-                              _isUsableAvailability(availability) ? 'Открыть' : 'Детали',
-                              style: const TextStyle(
+                              _isUsableAvailability(availability)
+                                  ? 'Открыть'
+                                  : 'Детали',
+                              style: TextStyle(
                                 fontSize: 12,
-                                color: Colors.white,
+                                color: palette.onAccent,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -935,7 +994,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   }
 
   bool _isUsableAvailability(String availability) {
-    return availability == 'TEXT' || availability == 'AUDIO' || availability == 'SYNCED';
+    return availability == 'TEXT' ||
+        availability == 'AUDIO' ||
+        availability == 'SYNCED';
   }
 
   String _availabilityLabel(String availability) {
@@ -954,9 +1015,10 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   }
 
   Color _availabilityColor(String availability) {
+    final palette = context.palette;
     switch (availability) {
       case 'TEXT':
-        return const Color(0xFF14FFEC);
+        return palette.accent;
       case 'AUDIO':
         return const Color(0xFFFFD166);
       case 'SYNCED':
@@ -964,40 +1026,35 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       case 'PDF_ONLY':
         return const Color(0xFFFF7A7A);
       default:
-        return const Color(0xFFB9C2D0);
+        return palette.mutedText;
     }
   }
 
   Widget _buildTag(String text, {bool selected = false, Color? color}) {
+    final palette = context.palette;
     final background = selected
-        ? const Color(0xFF14FFEC)
-        : color?.withValues(alpha: 0.18) ?? Colors.white.withValues(alpha: 0.06);
-    final foreground = selected
-        ? Colors.black
-        : color ?? Colors.white.withValues(alpha: 0.8);
+        ? palette.accent
+        : color?.withValues(alpha: 0.18) ??
+              palette.text.withValues(alpha: palette.isDark ? 0.06 : 0.12);
+    final foreground = selected ? palette.onAccent : color ?? palette.mutedText;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: background,
         borderRadius: BorderRadius.circular(10),
       ),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 11,
-          color: foreground,
-        ),
-      ),
+      child: Text(text, style: TextStyle(fontSize: 11, color: foreground)),
     );
   }
 
   Widget _buildPlaceholder() {
+    final palette = context.palette;
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            Colors.white.withValues(alpha: 0.05),
-            Colors.white.withValues(alpha: 0.02),
+            palette.text.withValues(alpha: palette.isDark ? 0.05 : 0.14),
+            palette.text.withValues(alpha: palette.isDark ? 0.02 : 0.06),
           ],
         ),
       ),
@@ -1005,12 +1062,13 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         child: Icon(
           Icons.book_rounded,
           size: 80,
-          color: Colors.white.withValues(alpha: 0.2),
+          color: palette.mutedText.withValues(alpha: 0.7),
         ),
       ),
     );
   }
 }
+
 class FilterScreen extends StatefulWidget {
   final List<String> languages;
   final Set<String> selectedLanguages;
@@ -1112,17 +1170,18 @@ class _FilterScreenState extends State<FilterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Scaffold(
       resizeToAvoidBottomInset: false,
-      backgroundColor: const Color(0xFF080F23),
+      backgroundColor: palette.background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF101A37),
+        backgroundColor: palette.surface,
         elevation: 0,
-        title: const Text('Фильтр'),
+        title: Text('Фильтр', style: TextStyle(color: palette.text)),
         actions: [
           TextButton(
             onPressed: _clearFilters,
-            child: const Text('Сброс', style: TextStyle(color: Colors.white70)),
+            child: Text('Сброс', style: TextStyle(color: palette.accent)),
           ),
         ],
       ),
@@ -1137,10 +1196,10 @@ class _FilterScreenState extends State<FilterScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'Язык',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: palette.text,
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
@@ -1151,10 +1210,7 @@ class _FilterScreenState extends State<FilterScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   child: Text(
                     'Языки недоступны',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.6),
-                      fontSize: 14,
-                    ),
+                    style: TextStyle(color: palette.mutedText, fontSize: 14),
                   ),
                 )
               else
@@ -1175,8 +1231,8 @@ class _FilterScreenState extends State<FilterScreen> {
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 color: selected
-                                    ? Colors.black.withValues(alpha: 0.08)
-                                    : Colors.white.withValues(alpha: 0.12),
+                                    ? palette.onAccent.withValues(alpha: 0.12)
+                                    : palette.text.withValues(alpha: 0.12),
                               ),
                               alignment: Alignment.center,
                               child: Text(
@@ -1189,7 +1245,7 @@ class _FilterScreenState extends State<FilterScreen> {
                           Text(
                             _languageLabel(language),
                             style: TextStyle(
-                              color: selected ? Colors.black : Colors.white,
+                              color: selected ? palette.onAccent : palette.text,
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
                             ),
@@ -1197,12 +1253,10 @@ class _FilterScreenState extends State<FilterScreen> {
                         ],
                       ),
                       selected: selected,
-                      selectedColor: const Color(0xFF14FFEC),
-                      backgroundColor: const Color(0xFF111A2B),
+                      selectedColor: palette.accent,
+                      backgroundColor: palette.elevated,
                       side: BorderSide(
-                        color: selected
-                            ? const Color(0xFF14FFEC)
-                            : Colors.white.withValues(alpha: 0.16),
+                        color: selected ? palette.accent : palette.border,
                       ),
                       onSelected: (_) {
                         setState(() {
@@ -1217,10 +1271,10 @@ class _FilterScreenState extends State<FilterScreen> {
                   }).toList(),
                 ),
               const SizedBox(height: 18),
-              const Text(
+              Text(
                 'Рейтинг',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: palette.text,
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
@@ -1245,8 +1299,8 @@ class _FilterScreenState extends State<FilterScreen> {
                     child: OutlinedButton(
                       onPressed: _clearFilters,
                       style: OutlinedButton.styleFrom(
-                        side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
-                        foregroundColor: Colors.white,
+                        side: BorderSide(color: palette.border),
+                        foregroundColor: palette.text,
                       ),
                       child: const Text('Очистить'),
                     ),
@@ -1256,7 +1310,8 @@ class _FilterScreenState extends State<FilterScreen> {
                     child: ElevatedButton(
                       onPressed: _applyFilters,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF14FFEC),
+                        backgroundColor: palette.accent,
+                        foregroundColor: palette.onAccent,
                       ),
                       child: const Text('Применить'),
                     ),
@@ -1271,24 +1326,21 @@ class _FilterScreenState extends State<FilterScreen> {
   }
 
   Widget _buildFilterChip(double? threshold, String label) {
+    final palette = context.palette;
     final selected = _selectedMinRating == threshold;
     return ChoiceChip(
       label: Text(
         label,
         style: TextStyle(
-          color: selected ? Colors.black : Colors.white,
+          color: selected ? palette.onAccent : palette.text,
           fontSize: 14,
           fontWeight: FontWeight.w600,
         ),
       ),
       selected: selected,
-      selectedColor: const Color(0xFF14FFEC),
-      backgroundColor: const Color(0xFF111A2B),
-      side: BorderSide(
-        color: selected
-            ? const Color(0xFF14FFEC)
-            : Colors.white.withValues(alpha: 0.16),
-      ),
+      selectedColor: palette.accent,
+      backgroundColor: palette.elevated,
+      side: BorderSide(color: selected ? palette.accent : palette.border),
       onSelected: (_) {
         setState(() {
           _selectedMinRating = selected ? null : threshold;
@@ -1382,7 +1434,11 @@ class _FilterScreenState extends State<FilterScreen> {
       default:
         return normalized
             .split(RegExp(r'[_\-\s]+'))
-            .map((word) => word.isEmpty ? word : '${word[0].toUpperCase()}${word.substring(1)}')
+            .map(
+              (word) => word.isEmpty
+                  ? word
+                  : '${word[0].toUpperCase()}${word.substring(1)}',
+            )
             .join(' ');
     }
   }
