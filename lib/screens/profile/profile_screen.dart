@@ -7,7 +7,7 @@ import 'package:ebookreader/screens/auth/login_screen.dart';
 /// Экран профиля пользователя.
 ///
 /// Отображает имя пользователя, никнейм, email и роль в системе.
-/// Позволяет изменить никнейм, обновить пароль, перейти к закладкам
+/// Позволяет изменить никнейм, обновить пароль, перейти к сохранённым книгам
 /// или выйти из системы. После смены никнейма автоматически
 /// обновляет JWT-токен, если сервер вернул новый.
 class ProfileScreen extends StatefulWidget {
@@ -608,8 +608,8 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
 
                         // Menu Items
                         _buildMenuItem(
-                          icon: Icons.bookmark_rounded,
-                          title: 'Мои закладки',
+                          icon: Icons.library_books_rounded,
+                          title: 'Сохранённые книги',
                           description: 'Сохранённые книги',
                           onTap: () {
                             Navigator.push(

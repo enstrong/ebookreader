@@ -27,6 +27,7 @@ import com.example.ebookreader.model.Chapter;
 import com.example.ebookreader.model.Genre;
 import com.example.ebookreader.model.User;
 import com.example.ebookreader.repository.AudioTrackRepository;
+import com.example.ebookreader.repository.BookAnnotationRepository;
 import com.example.ebookreader.repository.BookRepository;
 import com.example.ebookreader.repository.BookContentBundleRepository;
 import com.example.ebookreader.repository.ChapterRepository;
@@ -45,9 +46,10 @@ public class AdminServiceImpl implements AdminService {
     private final UserBookRepository userBookRepository;
     private final AudioTrackRepository audioTrackRepository;
     private final BookContentBundleRepository bookContentBundleRepository;
+    private final BookAnnotationRepository bookAnnotationRepository;
 
     @Autowired
-    public AdminServiceImpl(BookRepository bookRepository, ChapterRepository chapterRepository, GenreRepository genreRepository, UserRepository userRepository, UserBookRepository userBookRepository, AudioTrackRepository audioTrackRepository, BookContentBundleRepository bookContentBundleRepository) {
+    public AdminServiceImpl(BookRepository bookRepository, ChapterRepository chapterRepository, GenreRepository genreRepository, UserRepository userRepository, UserBookRepository userBookRepository, AudioTrackRepository audioTrackRepository, BookContentBundleRepository bookContentBundleRepository, BookAnnotationRepository bookAnnotationRepository) {
         this.bookRepository = bookRepository;
         this.chapterRepository = chapterRepository;
         this.genreRepository = genreRepository;
@@ -55,6 +57,7 @@ public class AdminServiceImpl implements AdminService {
         this.userBookRepository = userBookRepository;
         this.audioTrackRepository = audioTrackRepository;
         this.bookContentBundleRepository = bookContentBundleRepository;
+        this.bookAnnotationRepository = bookAnnotationRepository;
     }
 
     @Override
@@ -152,6 +155,7 @@ public class AdminServiceImpl implements AdminService {
 
         // Удаляем связи пользователей с книгой
         userBookRepository.deleteByBookId(id);
+        bookAnnotationRepository.deleteByBookId(id);
 
         // Удаляем главы книги
         chapterRepository.deleteAll(chapterRepository.findByBookIdOrderByChapterOrderAsc(id));

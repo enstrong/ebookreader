@@ -39,11 +39,13 @@ class _UserHomeState extends State<UserHome> {
   Widget build(BuildContext context) {
     final List<Widget> screens = [
       HomeScreen(
+        key: const ValueKey('catalog-home'),
         token: _currentToken ?? widget.token,
         title: 'Каталог',
         subtitle: 'Goodreads и рекомендации',
       ),
       HomeScreen(
+        key: const ValueKey('reading-library-home'),
         token: _currentToken ?? widget.token,
         libraryOnly: true,
         title: 'Библиотека',

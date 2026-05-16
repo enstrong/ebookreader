@@ -64,6 +64,15 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     super.dispose();
   }
 
+  @override
+  void didUpdateWidget(covariant HomeScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.token != widget.token || oldWidget.libraryOnly != widget.libraryOnly) {
+      _resetFilters();
+      _loadBooks();
+    }
+  }
+
   Future<void> _loadBooks() async {
     setState(() => _isLoading = true);
     try {
@@ -655,7 +664,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           const SizedBox(height: 8),
           Text(
             widget.libraryOnly
-                ? 'Импортируйте EPUB/FB2/TXT или аудиотреки в панели администратора'
+                ? 'Начните читать книгу, и она появится здесь'
                 : 'Попробуйте поискать по другому названию или автору',
             style: TextStyle(
               fontSize: 14,
@@ -665,6 +674,17 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         ],
       ),
     );
+  }
+
+  void _resetFilters() {
+    _searchController.clear();
+    _selectedGenre = null;
+    _selectedLanguages = {};
+    _selectedMinRating = null;
+    _sortOption = SortOption.title;
+    _sortDirection = SortDirection.ascending;
+    _searchQuery = '';
+    _isSearching = false;
   }
 
   Widget _buildBooksGrid() {

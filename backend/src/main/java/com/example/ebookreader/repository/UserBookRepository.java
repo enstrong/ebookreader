@@ -9,11 +9,13 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.ebookreader.model.UserBook;
+import com.example.ebookreader.model.ReadingStatus;
 
 @Repository
 public interface UserBookRepository extends JpaRepository<UserBook, Long> {
     Optional<UserBook> findByUserIdAndBookId(Long userId, Long bookId);
     List<UserBook> findByUserIdAndBookmarkedTrue(Long userId);
+    List<UserBook> findByUserIdAndStatusOrderByLastReadAtDesc(Long userId, ReadingStatus status);
     List<UserBook> findByUserId(Long userId);
     
     @Modifying

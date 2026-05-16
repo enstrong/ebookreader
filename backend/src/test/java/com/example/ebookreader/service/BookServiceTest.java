@@ -2,6 +2,7 @@ package com.example.ebookreader.service;
 
 import com.example.ebookreader.model.Book;
 import com.example.ebookreader.repository.AudioTrackRepository;
+import com.example.ebookreader.repository.BookAnnotationRepository;
 import com.example.ebookreader.repository.BookRepository;
 import com.example.ebookreader.repository.ChapterRepository;
 import com.example.ebookreader.service.impl.BookServiceImpl;
@@ -28,6 +29,9 @@ class BookServiceTest {
 
     @Mock
     private AudioTrackRepository audioTrackRepository;
+
+    @Mock
+    private BookAnnotationRepository bookAnnotationRepository;
 
     @InjectMocks
     private BookServiceImpl bookService;

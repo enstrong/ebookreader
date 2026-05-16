@@ -215,6 +215,16 @@ ALS learns two matrices:
 - a user matrix, where each user gets a vector of hidden taste features
 - a book matrix, where each book gets a vector of hidden content/taste features
 
+For each user vector, the core ALS math looks like this:
+
+```text
+A = Y.T @ Y  +  Y_obs.T @ (C - I) @ Y_obs  +  lambda * I
+b = Y_obs.T @ (C * p)
+x = solve(A, b)
+```
+
+In plain English, `Y` is the book-factor matrix, `Y_obs` is the part of that matrix for the books this user interacted with, `C` is confidence, `p` is preference, and `lambda` is regularization. The model solves this equation to get the best user vector `x` given the current book vectors, then it does the same thing, vice versa, for books.
+
 The model predicts how much a user will like a book by comparing the user's vector with the book's vector. In simple terms:
 
 ```text
@@ -313,7 +323,7 @@ Once the read-aware ALS pipeline worked, I started experimenting with hyperparam
 
 The most important lesson was that bigger is not automatically better. More features helped for a while, but eventually the benefit became small or started hurting MRR.
 
-Iterations were also surprising. I expected 20 iterations to be better, but 10 iterations was enough. After 10 iterations, the model was mostly done learning useful ranking structure. More iterations did not improve validation quality. But I learned that in the very end, so all of my experiments took twice more time and computational power than they should've.
+Iterations were also surprising. I expected 20 iterations to be better, but 10 iterations was enough. After 10 iterations, the model was mostly done learning useful ranking structure. The more precise reason is that ALS solves the exact mathematical optimum for one side of the matrix at each step, instead of slowly approximating it with tiny gradient updates. More iterations did not improve validation quality. But I learned that in the very end, so all of my experiments took twice more time and computational power than they should've.
 
 The strongest validation experiments:
 
@@ -385,34 +395,92 @@ This model is the best balance between quality, training time, and ranking sharp
 
 The biggest lessons so far:
 
-- Level 1 is useful as a fallback, but it is not personalized.
 - Level 2 is surprisingly strong and easy to understand.
 - ALS only became strong after the data representation became better.
 - Mean-centering was a major improvement.
 - Rating `0` rows were useful when treated as weak implicit positives.
-- A proper validation split is necessary, otherwise the metrics are too optimistic.
+- A proper validation split is necessary, otherwise the metrics are way too optimistic
 - More features and more iterations do not automatically make the model better.
 - MRR matters because recommendations are only useful if the good books appear early.
 
-### What's next - hybrid recommendations
+## May 16th, 2026
 
-The next step is a hybrid model. 
+### Level 4 Model - Hybrid ALS + metadata
 
-ALS is good at collaborative filtering, but it does not directly understand book metadata. The app already has metadata like genres, author, average rating, ratings count, language, and page count. That should be useful.
+After ALS, I moved to a hybrid model. ALS is strong because it learns from user behavior, but it does not know anything about the book itself. It does not know the author, genre, page count, language, average rating, or popularity. That is a problem for cold-start users and cold-start books.
 
-The next model should combine:
+A cold-start user is a user with little or no reading history. ALS cannot know their taste yet, because there is no useful user vector. A cold-start book is a book with too few interactions. ALS cannot recommend it well because the book vector is weak or missing. Metadata helps here, because even if a book has no behavior signal, it still has an author, genre, rating, page count, and other descriptive features.
 
-- ALS collaborative score
+The hybrid model combines:
+
+```text
+final_score = alpha * ALS_score + (1 - alpha) * metadata_score
+```
+
+Here, `alpha` controls how much we trust ALS compared with metadata. If `alpha = 0.6`, then the final score is 60% ALS and 40% metadata. Metadata weights control what the metadata side cares about. For example, author weight `0.5` means author similarity is 50% of the metadata score, not 50% of the whole final score.
+
+The metadata score used:
+
 - genre similarity
 - author similarity
-- popularity / weighted rating fallback
-- maybe book description embeddings later
+- average rating similarity
+- page count similarity
+- popularity
+- language similarity
 
-This should help with cold-start problems too. If a new user has only liked a few books, collaborative filtering alone may not be enough. A hybrid model can say, "this book is similar by user behavior, and it also matches the same genre/author pattern."
+My own instinct was to make author weigh more than other metadata, because this is how I noticed I pick books personally. I enjoyed reading a lot of Rick Riordan's books and George Orwell's, but if I were to look at books of the same genre, I can't say the same. 
 
-So the next phase is not just making ALS bigger. The next phase is making recommendations smarter by combining collaborative signals with book metadata.
+So I tested many variations. I changed alpha, changed the metadata weights, tried author-heavy versions, genre-heavy versions, language-aware versions, and tried different candidate pools. In total, this became around 200 hybrid variations. The best one was:
+
+```text
+Base model: ALS read-aware mean-centered
+features: 256
+lambda: 1.0
+iterations: 10
+alpha: 0.6
+genre weight: 0.3
+author weight: 0.5
+rating weight: 0.1
+page count weight: 0.05
+popularity weight: 0.05
+language weight: 0
+candidate strategy: rerank ALS top 500
+```
+
+This means the best model used the previous ALS model, then reranked the top ALS candidates using a 60/40 blend of collaborative score and metadata score. It did not beat ALS by making the candidate pool bigger. In fact, when I tried reranking ALS top 1000 instead of top 500, the result got worse. The model found the hidden book in the candidate pool more often, but the ranking became noisier.
+
+The final best model from each major level:
+
+| Level | Model | Eval setup | Hit@5 | Hit@10 | Hit@20 | Hit@50 | MRR |
+|---|---|---|---:|---:|---:|---:|---:|
+|  2 | Item-CF, rating = 5 | old 5k restricted | 19.20% | 25.58% | 34.03% | 48.38% | 0.1494 |
+|  3 | ALS read-aware 256f lambda 1.0 10i | true validation 20k | 23.73% | 29.94% | 36.85% | 47.66% | 0.1779 |
+|  4 | Hybrid ALS + metadata | true validation 20k | 24.99% | 30.94% | 37.89% | 48.90% | 0.1869 |
+
+The Level 2 model was evaluated on only 5k candidate books, while the Level 3 and Level 4 models were evaluated on a harder 20k validation universe. That makes the Level 4 result more impressive than it looks at first, because it is choosing from about four times more books and still ranks the hidden liked book better.
+
+In the end, I decided to run the latest model on a user who rated 'Percy Jackson and the Lightning Thief' 5 stars and nothing else. Here are the top 10 results:
+
+1. The Sea of Monsters
+2. The Battle of the Labyrinth
+3.	The Titan's Curse
+4.	The Last Olympian
+5.	The Lost Hero
+6.	The Lost Hero
+7.	The Last Olympian
+8.	The Son of Neptune
+9.	The Mark of Athena
+10.	The House of Hades
+
+Incredible stuff. These are exactly the 9 books that are the direct continuations of 'The Lightning Thief'. Except you wouldn't read 'The Lost Hero' twice, it just got 2 editions here.
 
 Also, some notes to my future self:
 1. Start with experimenting with iterations first. Would've saved a ton of time here.
 2. Use the validation split from the start to avoid too optimistic results.
 3. Test lambda on a log scale. Changing it from 0.1 to 0.2 did absolutely nothing, but 0.01, 0.1, 1.0 and 10.0 all had some differences.
+4. Adding more candidates is not automatically better. Ranking quality matters more than candidate pool size.
+
+## References
+
+- Hu, Y., Koren, Y., & Volinsky, C. (2008). *Collaborative Filtering for Implicit Feedback Datasets*. IEEE International Conference on Data Mining.
+- UCSD Goodreads Dataset by Mengting Wan and Julian McAuley: <https://github.com/MengtingWan/goodreads>

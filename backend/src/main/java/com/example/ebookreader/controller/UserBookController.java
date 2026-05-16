@@ -21,12 +21,17 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.ebookreader.config.JwtUtil;
+import com.example.ebookreader.dto.BookAnnotationDTO;
+import com.example.ebookreader.dto.BookAnnotationRequest;
 import com.example.ebookreader.model.Book;
+import com.example.ebookreader.model.BookAnnotation;
 import com.example.ebookreader.model.ProgressMode;
 import com.example.ebookreader.model.ReadingStatus;
 import com.example.ebookreader.model.User;
 import com.example.ebookreader.model.UserBook;
+import com.example.ebookreader.repository.BookAnnotationRepository;
 import com.example.ebookreader.repository.BookRepository;
+import com.example.ebookreader.repository.ChapterRepository;
 import com.example.ebookreader.repository.UserBookRepository;
 import com.example.ebookreader.repository.UserRepository;
 
@@ -43,6 +48,12 @@ public class UserBookController {
 
     @Autowired
     private BookRepository bookRepository;
+
+    @Autowired
+    private ChapterRepository chapterRepository;
+
+    @Autowired
+    private BookAnnotationRepository bookAnnotationRepository;
 
     @Autowired
     private JwtUtil jwtUtil;
@@ -138,6 +149,11 @@ public class UserBookController {
                                 item.put("author", ub.getBook().getAuthor());
                                 item.put("coverUrl", ub.getBook().getCoverUrl());
                                 item.put("currentChapter", ub.getCurrentChapter());
+                                item.put("segmentOrder", ub.getSegmentOrder());
+                                item.put("segmentProgress", ub.getSegmentProgress());
+                                item.put("audioPositionMs", ub.getAudioPositionMs());
+                                item.put("lastMode", ub.getLastMode().name());
+                                item.put("availability", ub.getBook().getAvailability().name());
                                 return item;
                             })
                             .collect(Collectors.toList());
@@ -313,6 +329,123 @@ public class UserBookController {
                 )));
     }
 
+    @GetMapping("/{bookId}/annotations")
+    public ResponseEntity<?> getBookAnnotations(
+            @RequestHeader("Authorization") String token,
+            @PathVariable Long bookId) {
+        Optional<User> userOpt = getUserFromToken(token);
+        if (userOpt.isEmpty() || !bookRepository.existsById(bookId)) {
+            return ResponseEntity.notFound().build();
+        }
+
+        List<BookAnnotationDTO> annotations = bookAnnotationRepository
+                .findByUserIdAndBookIdOrderByChapterOrderAscStartOffsetAsc(userOpt.get().getId(), bookId)
+                .stream()
+                .map(BookAnnotationDTO::fromEntity)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(annotations);
+    }
+
+    @GetMapping("/{bookId}/chapters/{chapterOrder}/annotations")
+    public ResponseEntity<?> getChapterAnnotations(
+            @RequestHeader("Authorization") String token,
+            @PathVariable Long bookId,
+            @PathVariable Integer chapterOrder) {
+        Optional<User> userOpt = getUserFromToken(token);
+        if (userOpt.isEmpty() || !bookRepository.existsById(bookId)) {
+            return ResponseEntity.notFound().build();
+        }
+
+        List<BookAnnotationDTO> annotations = bookAnnotationRepository
+                .findByUserIdAndBookIdAndChapterOrderOrderByStartOffsetAsc(
+                        userOpt.get().getId(),
+                        bookId,
+                        chapterOrder)
+                .stream()
+                .map(BookAnnotationDTO::fromEntity)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(annotations);
+    }
+
+    @PostMapping("/{bookId}/annotations")
+    public ResponseEntity<?> createAnnotation(
+            @RequestHeader("Authorization") String token,
+            @PathVariable Long bookId,
+            @RequestBody BookAnnotationRequest request) {
+        Optional<User> userOpt = getUserFromToken(token);
+        Optional<Book> bookOpt = bookRepository.findById(bookId);
+        if (userOpt.isEmpty() || bookOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        String validationError = validateAnnotationRequest(bookId, request, true);
+        if (!validationError.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("message", validationError));
+        }
+
+        BookAnnotation annotation = new BookAnnotation();
+        annotation.setUser(userOpt.get());
+        annotation.setBook(bookOpt.get());
+        annotation.setChapterOrder(request.getChapterOrder());
+        annotation.setStartOffset(request.getStartOffset());
+        annotation.setEndOffset(request.getEndOffset());
+        annotation.setHighlightedText(request.getHighlightedText().trim());
+        annotation.setNote(normalizeNote(request.getNote()));
+        annotation.setColor(request.getColor());
+
+        BookAnnotation saved = bookAnnotationRepository.save(annotation);
+        return ResponseEntity.ok(BookAnnotationDTO.fromEntity(saved));
+    }
+
+    @PutMapping("/{bookId}/annotations/{annotationId}")
+    public ResponseEntity<?> updateAnnotation(
+            @RequestHeader("Authorization") String token,
+            @PathVariable Long bookId,
+            @PathVariable Long annotationId,
+            @RequestBody BookAnnotationRequest request) {
+        Optional<User> userOpt = getUserFromToken(token);
+        if (userOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        Optional<BookAnnotation> annotationOpt = bookAnnotationRepository
+                .findByIdAndUserIdAndBookId(annotationId, userOpt.get().getId(), bookId);
+        if (annotationOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        BookAnnotation annotation = annotationOpt.get();
+        if (request.getNote() != null) {
+            annotation.setNote(normalizeNote(request.getNote()));
+        }
+        if (request.getColor() != null) {
+            annotation.setColor(request.getColor());
+        }
+
+        BookAnnotation saved = bookAnnotationRepository.save(annotation);
+        return ResponseEntity.ok(BookAnnotationDTO.fromEntity(saved));
+    }
+
+    @DeleteMapping("/{bookId}/annotations/{annotationId}")
+    public ResponseEntity<?> deleteAnnotation(
+            @RequestHeader("Authorization") String token,
+            @PathVariable Long bookId,
+            @PathVariable Long annotationId) {
+        Optional<User> userOpt = getUserFromToken(token);
+        if (userOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        Optional<BookAnnotation> annotationOpt = bookAnnotationRepository
+                .findByIdAndUserIdAndBookId(annotationId, userOpt.get().getId(), bookId);
+        if (annotationOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        bookAnnotationRepository.delete(annotationOpt.get());
+        return ResponseEntity.ok(Map.of("message", "Закладка удалена"));
+    }
+
     private Map<String, Object> progressPayload(UserBook ub, String message) {
         Map<String, Object> result = new HashMap<>();
         result.put("message", message);
@@ -365,5 +498,33 @@ public class UserBookController {
         } catch (IllegalArgumentException ex) {
             return null;
         }
+    }
+
+    private String validateAnnotationRequest(Long bookId, BookAnnotationRequest request, boolean requireText) {
+        if (request.getChapterOrder() == null || request.getChapterOrder() < 1) {
+            return "Неверный номер главы";
+        }
+        if (request.getStartOffset() == null || request.getEndOffset() == null
+                || request.getStartOffset() < 0 || request.getEndOffset() <= request.getStartOffset()) {
+            return "Неверный диапазон выделения";
+        }
+        if (requireText && (request.getHighlightedText() == null || request.getHighlightedText().trim().isEmpty())) {
+            return "Текст выделения обязателен";
+        }
+        return chapterRepository.findByBookIdAndChapterOrder(bookId, request.getChapterOrder())
+                .map(chapter -> {
+                    String content = chapter.getContent() == null ? "" : chapter.getContent();
+                    return request.getEndOffset() > content.length()
+                            ? "Диапазон выделения выходит за пределы главы"
+                            : "";
+                })
+                .orElse("Глава не найдена");
+    }
+
+    private String normalizeNote(String note) {
+        if (note == null || note.trim().isEmpty()) {
+            return "";
+        }
+        return note.trim();
     }
 }

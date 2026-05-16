@@ -22,6 +22,10 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.ebookreader.dto.AudioTrackDTO;
 import com.example.ebookreader.dto.ChapterDTO;
 import com.example.ebookreader.model.Book;
+import com.example.ebookreader.model.ReadingStatus;
+import com.example.ebookreader.repository.UserBookRepository;
+import com.example.ebookreader.repository.UserRepository;
+import com.example.ebookreader.config.JwtUtil;
 import com.example.ebookreader.service.AdminService;
 import com.example.ebookreader.service.BookService; // Импортируем сервис
 
@@ -32,11 +36,17 @@ public class BookController {
 
     private final BookService bookService; // Используем сервис
     private final AdminService adminService;
+    private final UserBookRepository userBookRepository;
+    private final UserRepository userRepository;
+    private final JwtUtil jwtUtil;
 
     @Autowired
-    public BookController(BookService bookService, AdminService adminService) {
+    public BookController(BookService bookService, AdminService adminService, UserBookRepository userBookRepository, UserRepository userRepository, JwtUtil jwtUtil) {
         this.bookService = bookService;
         this.adminService = adminService;
+        this.userBookRepository = userBookRepository;
+        this.userRepository = userRepository;
+        this.jwtUtil = jwtUtil;
     }
 
     @GetMapping
@@ -45,8 +55,25 @@ public class BookController {
     }
 
     @GetMapping("/library")
-    public ResponseEntity<List<Book>> getLibraryBooks() {
-        return ResponseEntity.ok(bookService.getLibraryBooks());
+    public ResponseEntity<List<Book>> getLibraryBooks(
+            @RequestHeader(value = "Authorization", required = false) String token) {
+        if (token == null || !token.startsWith("Bearer ")) {
+            return ResponseEntity.ok(List.of());
+        }
+
+        try {
+            String username = jwtUtil.extractUsername(token.replace("Bearer ", ""));
+            return userRepository.findByNickname(username)
+                    .map(user -> userBookRepository
+                            .findByUserIdAndStatusOrderByLastReadAtDesc(user.getId(), ReadingStatus.READING)
+                            .stream()
+                            .map(userBook -> userBook.getBook())
+                            .toList())
+                    .map(ResponseEntity::ok)
+                    .orElseGet(() -> ResponseEntity.ok(List.of()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
     }
 
     @GetMapping("/search")

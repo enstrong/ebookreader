@@ -54,7 +54,7 @@ class AdminService {
   /// [title], [author], [description] и файлом обложки [coverFile].
   /// MIME-тип обложки определяется автоматически по расширению файла.
   /// Выбрасывает [Exception] при ошибке или отсутствии прав доступа.
-  Future<void> addBookMultipart({
+  Future<Map<String, dynamic>> addBookMultipart({
     required String title,
     required String author,
     String? description,
@@ -119,6 +119,13 @@ class AdminService {
       }
       throw Exception('Ошибка добавления книги: ${response.statusCode} — ${response.body}');
     }
+    if (response.body.isEmpty) {
+      return {};
+    }
+    final data = jsonDecode(response.body);
+    if (data is Map<String, dynamic>) return data;
+    if (data is Map) return Map<String, dynamic>.from(data);
+    return {};
   }
 
   /// Загружает аудиофайл, привязанный к сегменту книги.

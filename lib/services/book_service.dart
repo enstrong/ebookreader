@@ -56,7 +56,7 @@ class BookService {
     }
   }
 
-  /// Возвращает только книги, у которых есть текст или аудио.
+  /// Возвращает книги, которые текущий пользователь сейчас читает.
   Future<List<dynamic>> getLibraryBooks(String token) async {
     try {
       print('=== GET LIBRARY BOOKS REQUEST ===');

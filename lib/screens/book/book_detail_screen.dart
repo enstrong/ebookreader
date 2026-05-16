@@ -9,7 +9,7 @@ import 'package:ebookreader/constants/api_constants.dart';
 ///
 /// Отображает обложку, название, автора, жанр и описание книги,
 /// а также список глав с возможностью перехода к чтению.
-/// Поддерживает добавление книги в закладки и сохранение прогресса чтения.
+/// Поддерживает сохранение книги в библиотеку и сохранение прогресса чтения.
 class BookDetailScreen extends StatefulWidget {
   final String token;
   final int bookId;
@@ -108,9 +108,9 @@ class _BookDetailScreenState extends State<BookDetailScreen>
             SnackBar(
               content: const Row(
                 children: [
-                  Icon(Icons.bookmark_remove, color: Colors.white),
+                  Icon(Icons.library_add_check_outlined, color: Colors.white),
                   SizedBox(width: 12),
-                  Text('Удалено из закладок'),
+                  Text('Удалено из сохранённых'),
                 ],
               ),
               backgroundColor: Colors.orange.shade600,
@@ -127,9 +127,9 @@ class _BookDetailScreenState extends State<BookDetailScreen>
             SnackBar(
               content: const Row(
                 children: [
-                  Icon(Icons.bookmark_added, color: Colors.white),
+                  Icon(Icons.library_add_check, color: Colors.white),
                   SizedBox(width: 12),
-                  Text('Добавлено в закладки'),
+                  Text('Книга сохранена'),
                 ],
               ),
               backgroundColor: Colors.green.shade600,
@@ -273,7 +273,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                 shape: BoxShape.circle,
               ),
               child: Icon(
-                _isBookmarked ? Icons.bookmark : Icons.bookmark_border,
+                _isBookmarked ? Icons.library_add_check : Icons.library_add_outlined,
                 color: _isBookmarked ? const Color(0xFF14FFEC) : Colors.white,
               ),
             ),
@@ -448,7 +448,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                         child: IconButton(
                           onPressed: _toggleBookmark,
                           icon: Icon(
-                            _isBookmarked ? Icons.bookmark : Icons.bookmark_border,
+                            _isBookmarked ? Icons.library_add_check : Icons.library_add_outlined,
                             color: _isBookmarked ? const Color(0xFF14FFEC) : Colors.white,
                           ),
                         ),

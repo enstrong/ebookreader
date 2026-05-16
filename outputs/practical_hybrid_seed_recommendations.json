@@ -1,0 +1,2046 @@
+{
+  "Percy Jackson and the Lightning Thief": {
+    "seed": {
+      "goodreads_book_id": 28187,
+      "title": "The Lightning Thief (Percy Jackson and the Olympians, #1)",
+      "author": "15872",
+      "seed_signal": 9.801556951025455,
+      "ratings_count": 1411728
+    },
+    "recommendations": [
+      {
+        "rank": 1,
+        "goodreads_book_id": 28186,
+        "title": "The Sea of Monsters (Percy Jackson and the Olympians, #2)",
+        "author": "15872",
+        "score": 0.9568906426429749,
+        "als_score": 0.35175207257270813,
+        "content_score": 0.8834268450737,
+        "ratings_count": 527320
+      },
+      {
+        "rank": 2,
+        "goodreads_book_id": 2120932,
+        "title": "The Battle of the Labyrinth (Percy Jackson and the Olympians, #4)",
+        "author": "15872",
+        "score": 0.9065706729888916,
+        "als_score": 0.3233008086681366,
+        "content_score": 0.8834450244903564,
+        "ratings_count": 519213
+      },
+      {
+        "rank": 3,
+        "goodreads_book_id": 561456,
+        "title": "The Titan's Curse (Percy Jackson and the Olympians, #3)",
+        "author": "15872",
+        "score": 0.8995240926742554,
+        "als_score": 0.30588001012802124,
+        "content_score": 0.9320416450500488,
+        "ratings_count": 463156
+      },
+      {
+        "rank": 4,
+        "goodreads_book_id": 4502507,
+        "title": "The Last Olympian (Percy Jackson and the Olympians, #5)",
+        "author": "15872",
+        "score": 0.8500403761863708,
+        "als_score": 0.29733115434646606,
+        "content_score": 0.8617913722991943,
+        "ratings_count": 398036
+      },
+      {
+        "rank": 5,
+        "goodreads_book_id": 7736182,
+        "title": "The Lost Hero (The Heroes of Olympus, #1)",
+        "author": "15872",
+        "score": 0.5979970097541809,
+        "als_score": 0.13798487186431885,
+        "content_score": 0.9227818846702576,
+        "ratings_count": 279906
+      },
+      {
+        "rank": 6,
+        "goodreads_book_id": 7624272,
+        "title": "The Lost Hero (The Heroes of Olympus, #1)",
+        "author": "15872, 3343082",
+        "score": 0.5831468105316162,
+        "als_score": 0.13252080976963043,
+        "content_score": 0.9121821522712708,
+        "ratings_count": 199075
+      },
+      {
+        "rank": 7,
+        "goodreads_book_id": 4556058,
+        "title": "The Last Olympian (Percy Jackson and the Olympians, #5)",
+        "author": "15872",
+        "score": 0.5733861923217773,
+        "als_score": 0.1381956934928894,
+        "content_score": 0.8717034459114075,
+        "ratings_count": 87712
+      },
+      {
+        "rank": 8,
+        "goodreads_book_id": 9520360,
+        "title": "The Son of Neptune (The Heroes of Olympus, #2)",
+        "author": "15872",
+        "score": 0.5677663087844849,
+        "als_score": 0.1347091645002365,
+        "content_score": 0.8728230595588684,
+        "ratings_count": 307188
+      },
+      {
+        "rank": 9,
+        "goodreads_book_id": 12127750,
+        "title": "The Mark of Athena (The Heroes of Olympus, #3)",
+        "author": "15872",
+        "score": 0.5318261981010437,
+        "als_score": 0.11554139107465744,
+        "content_score": 0.8686659336090088,
+        "ratings_count": 298181
+      },
+      {
+        "rank": 10,
+        "goodreads_book_id": 12127810,
+        "title": "The House of Hades (The Heroes of Olympus, #4)",
+        "author": "15872",
+        "score": 0.47389352321624756,
+        "als_score": 0.08435065299272537,
+        "content_score": 0.8630276322364807,
+        "ratings_count": 166160
+      },
+      {
+        "rank": 11,
+        "goodreads_book_id": 15724396,
+        "title": "The Sword of Summer (Magnus Chase and the Gods of Asgard, #1)",
+        "author": "15872",
+        "score": 0.44953298568725586,
+        "als_score": 0.04056887701153755,
+        "content_score": 0.9715625047683716,
+        "ratings_count": 83801
+      },
+      {
+        "rank": 12,
+        "goodreads_book_id": 7090447,
+        "title": "The Red Pyramid (Kane Chronicles, #1)",
+        "author": "15872",
+        "score": 0.43953391909599304,
+        "als_score": 0.05821743234992027,
+        "content_score": 0.887292742729187,
+        "ratings_count": 239434
+      },
+      {
+        "rank": 13,
+        "goodreads_book_id": 1581365,
+        "title": "The Titan's Curse (Percy Jackson and the Olympians, #3)",
+        "author": "15872",
+        "score": 0.4197063446044922,
+        "als_score": 0.04021432250738144,
+        "content_score": 0.911865234375,
+        "ratings_count": 10951
+      },
+      {
+        "rank": 14,
+        "goodreads_book_id": 26252859,
+        "title": "The Hidden Oracle (The Trials of Apollo, #1)",
+        "author": "15872",
+        "score": 0.40772420167922974,
+        "als_score": 0.03299742937088013,
+        "content_score": 0.9134684205055237,
+        "ratings_count": 49842
+      },
+      {
+        "rank": 15,
+        "goodreads_book_id": 9067850,
+        "title": "The Throne of Fire (Kane Chronicles, #2)",
+        "author": "15872",
+        "score": 0.4017942249774933,
+        "als_score": 0.026246322318911552,
+        "content_score": 0.9257605075836182,
+        "ratings_count": 118908
+      },
+      {
+        "rank": 16,
+        "goodreads_book_id": 18705209,
+        "title": "The Blood of Olympus (The Heroes of Olympus, #5)",
+        "author": "15872",
+        "score": 0.3887873888015747,
+        "als_score": 0.03475113958120346,
+        "content_score": 0.8684104084968567,
+        "ratings_count": 115576
+      },
+      {
+        "rank": 17,
+        "goodreads_book_id": 12893742,
+        "title": "The Serpent's Shadow (Kane Chronicles, #3)",
+        "author": "15872",
+        "score": 0.3843531906604767,
+        "als_score": 0.016379404813051224,
+        "content_score": 0.9257871508598328,
+        "ratings_count": 84994
+      },
+      {
+        "rank": 18,
+        "goodreads_book_id": 44187,
+        "title": "The Sea of Monsters (Percy Jackson and the Olympians, #2)",
+        "author": "15872",
+        "score": 0.3829003870487213,
+        "als_score": 0.03316999971866608,
+        "content_score": 0.8620928525924683,
+        "ratings_count": 9196
+      },
+      {
+        "rank": 19,
+        "goodreads_book_id": 3992598,
+        "title": "The Demigod Files",
+        "author": "15872",
+        "score": 0.3798810541629791,
+        "als_score": 0.031901318579912186,
+        "content_score": 0.8605082035064697,
+        "ratings_count": 56796
+      },
+      {
+        "rank": 20,
+        "goodreads_book_id": 2921082,
+        "title": "The Maze of Bones  (The 39 Clues, #1)",
+        "author": "15872",
+        "score": 0.378742516040802,
+        "als_score": 0.017829636111855507,
+        "content_score": 0.9090714454650879,
+        "ratings_count": 60840
+      },
+      {
+        "rank": 21,
+        "goodreads_book_id": 5169728,
+        "title": "The Battle of the Labyrinth (Percy Jackson and the Olympians, #4)",
+        "author": "15872",
+        "score": 0.37847650051116943,
+        "als_score": 0.03108513355255127,
+        "content_score": 0.8605883717536926,
+        "ratings_count": 6851
+      },
+      {
+        "rank": 22,
+        "goodreads_book_id": 28185,
+        "title": "The Titan's Curse (Percy Jackson and the Olympians, #3)",
+        "author": "15872",
+        "score": 0.3779340982437134,
+        "als_score": 0.017691846936941147,
+        "content_score": 0.9079170823097229,
+        "ratings_count": 5185
+      },
+      {
+        "rank": 23,
+        "goodreads_book_id": 4837112,
+        "title": "Percy Jackson and the Sword of Hades (Percy Jackson and the Olympians, #4.5)",
+        "author": "15872",
+        "score": 0.37501925230026245,
+        "als_score": 0.018507104367017746,
+        "content_score": 0.8990093469619751,
+        "ratings_count": 15093
+      },
+      {
+        "rank": 24,
+        "goodreads_book_id": 6948214,
+        "title": "The Last Olympian (Percy Jackson and the Olympians, #5)",
+        "author": "15872",
+        "score": 0.37384071946144104,
+        "als_score": 0.02967761643230915,
+        "content_score": 0.8562011122703552,
+        "ratings_count": 4658
+      },
+      {
+        "rank": 25,
+        "goodreads_book_id": 3165162,
+        "title": "Percy Jackson and the Olympians (Percy Jackson and the Olympians, #1-3)",
+        "author": "15872",
+        "score": 0.370498925447464,
+        "als_score": 0.04237736389040947,
+        "content_score": 0.8034395575523376,
+        "ratings_count": 33127
+      },
+      {
+        "rank": 26,
+        "goodreads_book_id": 6443349,
+        "title": "Percy Jackson and the Olympians Boxed Set (Percy Jackson and the Olympians, #1-5)",
+        "author": "15872, 4629237",
+        "score": 0.36403968930244446,
+        "als_score": 0.022409677505493164,
+        "content_score": 0.8624480962753296,
+        "ratings_count": 20008
+      },
+      {
+        "rank": 27,
+        "goodreads_book_id": 3,
+        "title": "Harry Potter and the Sorcerer's Stone (Harry Potter, #1)",
+        "author": "1077326, 2927",
+        "score": 0.35469937324523926,
+        "als_score": 0.11967053264379501,
+        "content_score": 0.4916030466556549,
+        "ratings_count": 4765497
+      },
+      {
+        "rank": 28,
+        "goodreads_book_id": 12959086,
+        "title": "The Demigod Diaries (The Heroes of Olympus, #2.5)",
+        "author": "15872, 13673487",
+        "score": 0.35397377610206604,
+        "als_score": 0.015899473801255226,
+        "content_score": 0.8654131889343262,
+        "ratings_count": 29303
+      },
+      {
+        "rank": 29,
+        "goodreads_book_id": 20829994,
+        "title": "Percy Jackson's Greek Gods",
+        "author": "15872, 14920",
+        "score": 0.32795822620391846,
+        "als_score": 0.02291639894247055,
+        "content_score": 0.7868481874465942,
+        "ratings_count": 26437
+      },
+      {
+        "rank": 30,
+        "goodreads_book_id": 100915,
+        "title": "The Lion, the Witch, and the Wardrobe (Chronicles of Narnia, #1)",
+        "author": "1069006",
+        "score": 0.2634468674659729,
+        "als_score": 0.0866234228014946,
+        "content_score": 0.42455706000328064,
+        "ratings_count": 1575387
+      },
+      {
+        "rank": 31,
+        "goodreads_book_id": 119322,
+        "title": "The Golden Compass (His Dark Materials, #1)",
+        "author": "3618",
+        "score": 0.2465609610080719,
+        "als_score": 0.06091427803039551,
+        "content_score": 0.48301294445991516,
+        "ratings_count": 973154
+      },
+      {
+        "rank": 32,
+        "goodreads_book_id": 113436,
+        "title": "Eragon (The Inheritance Cycle, #1)",
+        "author": "8349",
+        "score": 0.23821628093719482,
+        "als_score": 0.08562161773443222,
+        "content_score": 0.3765970766544342,
+        "ratings_count": 1128913
+      },
+      {
+        "rank": 33,
+        "goodreads_book_id": 256683,
+        "title": "City of Bones (The Mortal Instruments, #1)",
+        "author": "150038",
+        "score": 0.23541896045207977,
+        "als_score": 0.08192739635705948,
+        "content_score": 0.3842383921146393,
+        "ratings_count": 1181693
+      },
+      {
+        "rank": 34,
+        "goodreads_book_id": 249747,
+        "title": "Artemis Fowl (Artemis Fowl, #1)",
+        "author": "10896",
+        "score": 0.2279006838798523,
+        "als_score": 0.05300206318497658,
+        "content_score": 0.4734775424003601,
+        "ratings_count": 393254
+      },
+      {
+        "rank": 35,
+        "goodreads_book_id": 43641,
+        "title": "Water for Elephants",
+        "author": "24556",
+        "score": 0.22229048609733582,
+        "als_score": 0.10561177134513855,
+        "content_score": 0.2717418372631073,
+        "ratings_count": 1082952
+      },
+      {
+        "rank": 36,
+        "goodreads_book_id": 38709,
+        "title": "Holes (Holes, #1)",
+        "author": "6569",
+        "score": 0.20050352811813354,
+        "als_score": 0.03692641109228134,
+        "content_score": 0.47560349106788635,
+        "ratings_count": 766680
+      },
+      {
+        "rank": 37,
+        "goodreads_book_id": 6186357,
+        "title": "The Maze Runner (Maze Runner, #1)",
+        "author": "348878",
+        "score": 0.20020464062690735,
+        "als_score": 0.061918340623378754,
+        "content_score": 0.38460779190063477,
+        "ratings_count": 745820
+      },
+      {
+        "rank": 38,
+        "goodreads_book_id": 22628,
+        "title": "The Perks of Being a Wallflower",
+        "author": "12898",
+        "score": 0.19949716329574585,
+        "als_score": 0.08975537121295929,
+        "content_score": 0.2824871838092804,
+        "ratings_count": 906322
+      },
+      {
+        "rank": 39,
+        "goodreads_book_id": 375802,
+        "title": "Ender's Game (Ender's Saga, #1)",
+        "author": "589",
+        "score": 0.19868004322052002,
+        "als_score": 0.049523141235113144,
+        "content_score": 0.4263186454772949,
+        "ratings_count": 829380
+      },
+      {
+        "rank": 40,
+        "goodreads_book_id": 19543,
+        "title": "Where the Wild Things Are",
+        "author": "4489",
+        "score": 0.19848471879959106,
+        "als_score": 0.05335364490747452,
+        "content_score": 0.41206610202789307,
+        "ratings_count": 635947
+      },
+      {
+        "rank": 41,
+        "goodreads_book_id": 13335037,
+        "title": "Divergent (Divergent, #1)",
+        "author": "4039811",
+        "score": 0.19354146718978882,
+        "als_score": 0.056779973208904266,
+        "content_score": 0.3895683288574219,
+        "ratings_count": 1962813
+      },
+      {
+        "rank": 42,
+        "goodreads_book_id": 2767052,
+        "title": "The Hunger Games (The Hunger Games, #1)",
+        "author": "153394",
+        "score": 0.19156628847122192,
+        "als_score": 0.05355319008231163,
+        "content_score": 0.39719998836517334,
+        "ratings_count": 4899965
+      },
+      {
+        "rank": 43,
+        "goodreads_book_id": 29056083,
+        "title": "Harry Potter and the Cursed Child - Parts One and Two (Harry Potter, #8)",
+        "author": "5042201, 3439408, 1077326",
+        "score": 0.18750979006290436,
+        "als_score": 0.03080330789089203,
+        "content_score": 0.47118276357650757,
+        "ratings_count": 288018
+      },
+      {
+        "rank": 44,
+        "goodreads_book_id": 78411,
+        "title": "The Bad Beginning (A Series of Unfortunate Events, #1)",
+        "author": "36746, 44524",
+        "score": 0.1860283762216568,
+        "als_score": 0.031201066449284554,
+        "content_score": 0.46671557426452637,
+        "ratings_count": 281697
+      },
+      {
+        "rank": 45,
+        "goodreads_book_id": 4214,
+        "title": "Life of Pi",
+        "author": "811",
+        "score": 0.18428102135658264,
+        "als_score": 0.060087963938713074,
+        "content_score": 0.3586721122264862,
+        "ratings_count": 1012471
+      },
+      {
+        "rank": 46,
+        "goodreads_book_id": 136251,
+        "title": "Harry Potter and the Deathly Hallows (Harry Potter, #7)",
+        "author": "1077326, 2927",
+        "score": 0.1825278401374817,
+        "als_score": 0.043323926627635956,
+        "content_score": 0.41571587324142456,
+        "ratings_count": 1784684
+      },
+      {
+        "rank": 47,
+        "goodreads_book_id": 17061,
+        "title": "Coraline",
+        "author": "1221698",
+        "score": 0.17752523720264435,
+        "als_score": 0.03930304944515228,
+        "content_score": 0.420029878616333,
+        "ratings_count": 325562
+      },
+      {
+        "rank": 48,
+        "goodreads_book_id": 28194,
+        "title": "Inkheart (Inkworld, #1)",
+        "author": "15873, 25355",
+        "score": 0.1763247549533844,
+        "als_score": 0.039424847811460495,
+        "content_score": 0.4171350598335266,
+        "ratings_count": 288143
+      },
+      {
+        "rank": 49,
+        "goodreads_book_id": 7677,
+        "title": "Jurassic Park (Jurassic Park, #1)",
+        "author": "5194",
+        "score": 0.1759241819381714,
+        "als_score": 0.03961867839097977,
+        "content_score": 0.41561517119407654,
+        "ratings_count": 447936
+      },
+      {
+        "rank": 50,
+        "goodreads_book_id": 11235712,
+        "title": "Cinder (The Lunar Chronicles, #1)",
+        "author": "4684322",
+        "score": 0.17293010652065277,
+        "als_score": 0.0603441447019577,
+        "content_score": 0.3345390856266022,
+        "ratings_count": 441530
+      }
+    ]
+  },
+  "The Count of Monte Cristo": {
+    "seed": {
+      "goodreads_book_id": 7126,
+      "title": "The Count of Monte Cristo",
+      "author": "4785, 224319",
+      "seed_signal": 9.801556951025455,
+      "ratings_count": 564778
+    },
+    "recommendations": [
+      {
+        "rank": 1,
+        "goodreads_book_id": 7190,
+        "title": "The Three Musketeers (The D'Artagnan Romances, #1)",
+        "author": "4785",
+        "score": 1.0,
+        "als_score": 0.26376569271087646,
+        "content_score": 0.8545773029327393,
+        "ratings_count": 198892
+      },
+      {
+        "rank": 2,
+        "goodreads_book_id": 24280,
+        "title": "Les Mis\u00e9rables",
+        "author": "13661, 655301, 444488",
+        "score": 0.6088767647743225,
+        "als_score": 0.21501079201698303,
+        "content_score": 0.3568005859851837,
+        "ratings_count": 519758
+      },
+      {
+        "rank": 3,
+        "goodreads_book_id": 54499,
+        "title": "The Man in the Iron Mask (The D'Artagnan Romances, #3.3)",
+        "author": "4785, 33949, 10749",
+        "score": 0.5876805782318115,
+        "als_score": 0.099648118019104,
+        "content_score": 0.8295286297798157,
+        "ratings_count": 52857
+      },
+      {
+        "rank": 4,
+        "goodreads_book_id": 7184,
+        "title": "Twenty Years After (The D'Artagnan Romances, #2)",
+        "author": "4785, 7586, 3141704",
+        "score": 0.48969748616218567,
+        "als_score": 0.057011473923921585,
+        "content_score": 0.8396947979927063,
+        "ratings_count": 14769
+      },
+      {
+        "rank": 5,
+        "goodreads_book_id": 153875,
+        "title": "Queen Margot, or Marguerite de Valois (The Last Valois, #1)",
+        "author": "4785",
+        "score": 0.40702828764915466,
+        "als_score": 0.030324704945087433,
+        "content_score": 0.8071053624153137,
+        "ratings_count": 7922
+      },
+      {
+        "rank": 6,
+        "goodreads_book_id": 18490,
+        "title": "Frankenstein",
+        "author": "11139, 45882, 52850",
+        "score": 0.39397290349006653,
+        "als_score": 0.11021808534860611,
+        "content_score": 0.4290980100631714,
+        "ratings_count": 826144
+      },
+      {
+        "rank": 7,
+        "goodreads_book_id": 388223,
+        "title": "Robin Hood, The Prince of Thieves",
+        "author": "4785",
+        "score": 0.38063037395477295,
+        "als_score": 0.02436438575387001,
+        "content_score": 0.7853443622589111,
+        "ratings_count": 14969
+      },
+      {
+        "rank": 8,
+        "goodreads_book_id": 7182,
+        "title": "The Black Tulip",
+        "author": "4785, 224319",
+        "score": 0.34757232666015625,
+        "als_score": 0.024246102198958397,
+        "content_score": 0.7255281805992126,
+        "ratings_count": 8664
+      },
+      {
+        "rank": 9,
+        "goodreads_book_id": 30597,
+        "title": "The Hunchback of Notre-Dame",
+        "author": "13661, 2975831",
+        "score": 0.3425523638725281,
+        "als_score": 0.10102897882461548,
+        "content_score": 0.37597712874412537,
+        "ratings_count": 122720
+      },
+      {
+        "rank": 10,
+        "goodreads_book_id": 1953,
+        "title": "A Tale of Two Cities",
+        "author": "239579, 61986, 3128534",
+        "score": 0.32944923639297485,
+        "als_score": 0.11503786593675613,
+        "content_score": 0.2899569571018219,
+        "ratings_count": 646983
+      },
+      {
+        "rank": 11,
+        "goodreads_book_id": 21787,
+        "title": "The Princess Bride",
+        "author": "12521",
+        "score": 0.3218834102153778,
+        "als_score": 0.10605694353580475,
+        "content_score": 0.31596067547798157,
+        "ratings_count": 631865
+      },
+      {
+        "rank": 12,
+        "goodreads_book_id": 7144,
+        "title": "Crime and Punishment",
+        "author": "3137322, 10837",
+        "score": 0.29653483629226685,
+        "als_score": 0.09118133783340454,
+        "content_score": 0.335637629032135,
+        "ratings_count": 390293
+      },
+      {
+        "rank": 13,
+        "goodreads_book_id": 14050,
+        "title": "The Time Traveler's Wife",
+        "author": "498072",
+        "score": 0.28983795642852783,
+        "als_score": 0.07708221673965454,
+        "content_score": 0.3859170377254486,
+        "ratings_count": 747127
+      },
+      {
+        "rank": 14,
+        "goodreads_book_id": 656,
+        "title": "War and Peace",
+        "author": "128382, 72229, 72230, 235013",
+        "score": 0.28385037183761597,
+        "als_score": 0.08186513185501099,
+        "content_score": 0.3537846803665161,
+        "ratings_count": 172803
+      },
+      {
+        "rank": 15,
+        "goodreads_book_id": 4934,
+        "title": "The Brothers Karamazov",
+        "author": "3137322, 3357, 3358",
+        "score": 0.28202781081199646,
+        "als_score": 0.07167652994394302,
+        "content_score": 0.39562538266181946,
+        "ratings_count": 158410
+      },
+      {
+        "rank": 16,
+        "goodreads_book_id": 15931,
+        "title": "The Notebook (The Notebook, #1)",
+        "author": "2345",
+        "score": 0.2772224545478821,
+        "als_score": 0.09393312782049179,
+        "content_score": 0.2881878912448883,
+        "ratings_count": 1064723
+      },
+      {
+        "rank": 17,
+        "goodreads_book_id": 6752378,
+        "title": "City of Fallen Angels (The Mortal Instruments, #4)",
+        "author": "150038",
+        "score": 0.27650728821754456,
+        "als_score": 0.09279152750968933,
+        "content_score": 0.29194337129592896,
+        "ratings_count": 348757
+      },
+      {
+        "rank": 18,
+        "goodreads_book_id": 136116,
+        "title": "The Scarlet Pimpernel",
+        "author": "2893961",
+        "score": 0.27635347843170166,
+        "als_score": 0.08524239808320999,
+        "content_score": 0.32512885332107544,
+        "ratings_count": 94174
+      },
+      {
+        "rank": 19,
+        "goodreads_book_id": 480204,
+        "title": "The Phantom of the Opera",
+        "author": "9057, 1319502",
+        "score": 0.2675054371356964,
+        "als_score": 0.0580889992415905,
+        "content_score": 0.42935308814048767,
+        "ratings_count": 144859
+      },
+      {
+        "rank": 20,
+        "goodreads_book_id": 402093,
+        "title": "Sh\u014dgun (Asian Saga, #1)",
+        "author": "6417",
+        "score": 0.2634425461292267,
+        "als_score": 0.04728701710700989,
+        "content_score": 0.4698236882686615,
+        "ratings_count": 106404
+      },
+      {
+        "rank": 21,
+        "goodreads_book_id": 12873,
+        "title": "Rebecca",
+        "author": "2001717, 52956",
+        "score": 0.24760869145393372,
+        "als_score": 0.06091976910829544,
+        "content_score": 0.3804865777492523,
+        "ratings_count": 177846
+      },
+      {
+        "rank": 22,
+        "goodreads_book_id": 153747,
+        "title": "Moby-Dick or, The Whale",
+        "author": "1624, 13903, 21818",
+        "score": 0.24278202652931213,
+        "als_score": 0.07264100015163422,
+        "content_score": 0.31971484422683716,
+        "ratings_count": 363694
+      },
+      {
+        "rank": 23,
+        "goodreads_book_id": 7869,
+        "title": "The Bourne Identity (Jason Bourne, #1)",
+        "author": "5293",
+        "score": 0.2412477433681488,
+        "als_score": 0.08451545238494873,
+        "content_score": 0.26427334547042847,
+        "ratings_count": 331374
+      },
+      {
+        "rank": 24,
+        "goodreads_book_id": 1381,
+        "title": "The Odyssey",
+        "author": "903, 1005, 880408, 14660239, 280215",
+        "score": 0.23983459174633026,
+        "als_score": 0.08283407986164093,
+        "content_score": 0.269147664308548,
+        "ratings_count": 680823
+      },
+      {
+        "rank": 25,
+        "goodreads_book_id": 1232,
+        "title": "The Shadow of the Wind (The Cemetery of Forgotten Books,  #1)",
+        "author": "815, 221645",
+        "score": 0.23723894357681274,
+        "als_score": 0.04221257194876671,
+        "content_score": 0.4444901645183563,
+        "ratings_count": 269927
+      },
+      {
+        "rank": 26,
+        "goodreads_book_id": 8755776,
+        "title": "City of Lost Souls (The Mortal Instruments, #5)",
+        "author": "150038",
+        "score": 0.22754304111003876,
+        "als_score": 0.0727616399526596,
+        "content_score": 0.2913644313812256,
+        "ratings_count": 306686
+      },
+      {
+        "rank": 27,
+        "goodreads_book_id": 19288043,
+        "title": "Gone Girl",
+        "author": "2383",
+        "score": 0.222335085272789,
+        "als_score": 0.06393090635538101,
+        "content_score": 0.3210061490535736,
+        "ratings_count": 588451
+      },
+      {
+        "rank": 28,
+        "goodreads_book_id": 865,
+        "title": "The Alchemist",
+        "author": "566, 488758",
+        "score": 0.22051700949668884,
+        "als_score": 0.06688490509986877,
+        "content_score": 0.30459222197532654,
+        "ratings_count": 1342863
+      },
+      {
+        "rank": 29,
+        "goodreads_book_id": 297673,
+        "title": "The Brief Wondrous Life of Oscar Wao",
+        "author": "55215",
+        "score": 0.2204606831073761,
+        "als_score": 0.052841249853372574,
+        "content_score": 0.3667466938495636,
+        "ratings_count": 163633
+      },
+      {
+        "rank": 30,
+        "goodreads_book_id": 3836,
+        "title": "Don Quixote",
+        "author": "4037220, 69766, 492304",
+        "score": 0.21536654233932495,
+        "als_score": 0.05695490539073944,
+        "content_score": 0.339212030172348,
+        "ratings_count": 137092
+      },
+      {
+        "rank": 31,
+        "goodreads_book_id": 5890,
+        "title": "The Woman in White",
+        "author": "4012, 4011",
+        "score": 0.21006932854652405,
+        "als_score": 0.044907622039318085,
+        "content_score": 0.38295021653175354,
+        "ratings_count": 94556
+      },
+      {
+        "rank": 32,
+        "goodreads_book_id": 8755785,
+        "title": "City of Heavenly Fire (The Mortal Instruments, #6)",
+        "author": "150038",
+        "score": 0.2071940004825592,
+        "als_score": 0.06275159120559692,
+        "content_score": 0.2985973656177521,
+        "ratings_count": 183343
+      },
+      {
+        "rank": 33,
+        "goodreads_book_id": 10210,
+        "title": "Jane Eyre",
+        "author": "1036615, 6674",
+        "score": 0.20718340575695038,
+        "als_score": 0.05089165270328522,
+        "content_score": 0.351154625415802,
+        "ratings_count": 1207986
+      },
+      {
+        "rank": 34,
+        "goodreads_book_id": 10357575,
+        "title": "1Q84",
+        "author": "3354, 7306, 403782",
+        "score": 0.20699529349803925,
+        "als_score": 0.04092496633529663,
+        "content_score": 0.394994854927063,
+        "ratings_count": 129101
+      },
+      {
+        "rank": 35,
+        "goodreads_book_id": 662,
+        "title": "Atlas Shrugged",
+        "author": "432, 1421",
+        "score": 0.20683132112026215,
+        "als_score": 0.03609003871679306,
+        "content_score": 0.4161294102668762,
+        "ratings_count": 287835
+      },
+      {
+        "rank": 36,
+        "goodreads_book_id": 117833,
+        "title": "The Master and Margarita",
+        "author": "3873, 9667, 3057900, 40254",
+        "score": 0.2052789032459259,
+        "als_score": 0.03161542862653732,
+        "content_score": 0.43313226103782654,
+        "ratings_count": 136321
+      },
+      {
+        "rank": 37,
+        "goodreads_book_id": 49628,
+        "title": "Cloud Atlas",
+        "author": "6538289",
+        "score": 0.20061485469341278,
+        "als_score": 0.028560679405927658,
+        "content_score": 0.43816113471984863,
+        "ratings_count": 155020
+      },
+      {
+        "rank": 38,
+        "goodreads_book_id": 6440,
+        "title": "Ivanhoe",
+        "author": "4345",
+        "score": 0.19866418838500977,
+        "als_score": 0.052388496696949005,
+        "content_score": 0.32896888256073,
+        "ratings_count": 66849
+      },
+      {
+        "rank": 39,
+        "goodreads_book_id": 32542,
+        "title": "A Time to Kill",
+        "author": "721",
+        "score": 0.19744421541690826,
+        "als_score": 0.052521977573633194,
+        "content_score": 0.3261503577232361,
+        "ratings_count": 604739
+      },
+      {
+        "rank": 40,
+        "goodreads_book_id": 2767052,
+        "title": "The Hunger Games (The Hunger Games, #1)",
+        "author": "153394",
+        "score": 0.1967102587223053,
+        "als_score": 0.04641130939126015,
+        "content_score": 0.35190001130104065,
+        "ratings_count": 4899965
+      },
+      {
+        "rank": 41,
+        "goodreads_book_id": 17245,
+        "title": "Dracula",
+        "author": "6988, 28273, 44926",
+        "score": 0.1966136395931244,
+        "als_score": 0.02563583478331566,
+        "content_score": 0.4438239634037018,
+        "ratings_count": 636895
+      },
+      {
+        "rank": 42,
+        "goodreads_book_id": 17333223,
+        "title": "The Goldfinch",
+        "author": "8719",
+        "score": 0.19617566466331482,
+        "als_score": 0.0639549046754837,
+        "content_score": 0.2731512486934662,
+        "ratings_count": 410269
+      },
+      {
+        "rank": 43,
+        "goodreads_book_id": 188572,
+        "title": "The Complete Sherlock Holmes",
+        "author": "2448",
+        "score": 0.19527357816696167,
+        "als_score": 0.03789772093296051,
+        "content_score": 0.38701948523521423,
+        "ratings_count": 111473
+      },
+      {
+        "rank": 44,
+        "goodreads_book_id": 157993,
+        "title": "The Little Prince",
+        "author": "1020792, 27112, 4479191, 5358171",
+        "score": 0.1944047510623932,
+        "als_score": 0.07422402501106262,
+        "content_score": 0.22439450025558472,
+        "ratings_count": 763309
+      },
+      {
+        "rank": 45,
+        "goodreads_book_id": 4912857,
+        "title": "The Angel's Game (The Cemetery of Forgotten Books, #2)",
+        "author": "815, 221645",
+        "score": 0.19393013417720795,
+        "als_score": 0.027845045551657677,
+        "content_score": 0.4291320741176605,
+        "ratings_count": 46326
+      },
+      {
+        "rank": 46,
+        "goodreads_book_id": 9460487,
+        "title": "Miss Peregrine\u2019s Home for Peculiar Children (Miss Peregrine\u2019s Peculiar Children, #1)",
+        "author": "3046613",
+        "score": 0.19314095377922058,
+        "als_score": 0.045573100447654724,
+        "content_score": 0.34910088777542114,
+        "ratings_count": 641884
+      },
+      {
+        "rank": 47,
+        "goodreads_book_id": 6690798,
+        "title": "The Passage (The Passage, #1)",
+        "author": "45315",
+        "score": 0.19143009185791016,
+        "als_score": 0.048997584730386734,
+        "content_score": 0.33079689741134644,
+        "ratings_count": 129151
+      },
+      {
+        "rank": 48,
+        "goodreads_book_id": 2595138,
+        "title": "The Gargoyle",
+        "author": "149883",
+        "score": 0.19110740721225739,
+        "als_score": 0.02726423740386963,
+        "content_score": 0.4265545904636383,
+        "ratings_count": 33087
+      },
+      {
+        "rank": 49,
+        "goodreads_book_id": 2728527,
+        "title": "The Guernsey Literary and Potato Peel Pie Society",
+        "author": "1194527, 63116",
+        "score": 0.18957620859146118,
+        "als_score": 0.05195266380906105,
+        "content_score": 0.31431281566619873,
+        "ratings_count": 399653
+      },
+      {
+        "rank": 50,
+        "goodreads_book_id": 9736930,
+        "title": "Before I Go to Sleep",
+        "author": "4470653",
+        "score": 0.18822431564331055,
+        "als_score": 0.06633128225803375,
+        "content_score": 0.24810294806957245,
+        "ratings_count": 185283
+      }
+    ]
+  },
+  "Harry Potter and the Philosopher's Stone": {
+    "seed": {
+      "goodreads_book_id": 72193,
+      "title": "Harry Potter and the Philosopher's Stone (Harry Potter, #1)",
+      "author": "1077326",
+      "seed_signal": 9.801556951025455,
+      "ratings_count": 31614
+    },
+    "recommendations": [
+      {
+        "rank": 1,
+        "goodreads_book_id": 464164,
+        "title": "Harry Potter and the Prisoner of Azkaban (Harry Potter, #3)",
+        "author": "1077326",
+        "score": 0.9897744655609131,
+        "als_score": 0.283324271440506,
+        "content_score": 0.9649366140365601,
+        "ratings_count": 22794
+      },
+      {
+        "rank": 2,
+        "goodreads_book_id": 224912,
+        "title": "Harry Potter and the Chamber of Secrets (Harry Potter, #2)",
+        "author": "1077326",
+        "score": 0.9613212943077087,
+        "als_score": 0.27001261711120605,
+        "content_score": 0.9684496521949768,
+        "ratings_count": 22635
+      },
+      {
+        "rank": 3,
+        "goodreads_book_id": 93124,
+        "title": "Harry Potter and the Half-Blood Prince (Harry Potter, #6)",
+        "author": "1077326",
+        "score": 0.9146307706832886,
+        "als_score": 0.26334691047668457,
+        "content_score": 0.8998124599456787,
+        "ratings_count": 21235
+      },
+      {
+        "rank": 4,
+        "goodreads_book_id": 43509,
+        "title": "Harry Potter and the Goblet of Fire (Harry Potter, #4)",
+        "author": "1077326",
+        "score": 0.8591523170471191,
+        "als_score": 0.2495158165693283,
+        "content_score": 0.847230851650238,
+        "ratings_count": 16347
+      },
+      {
+        "rank": 5,
+        "goodreads_book_id": 818056,
+        "title": "Harry Potter and the Deathly Hallows (Harry Potter, #7)",
+        "author": "1077326",
+        "score": 0.8329150676727295,
+        "als_score": 0.2280365228652954,
+        "content_score": 0.8955889344215393,
+        "ratings_count": 13938
+      },
+      {
+        "rank": 6,
+        "goodreads_book_id": 820343,
+        "title": "Harry Potter and the Deathly Hallows (Harry Potter, #7)",
+        "author": "1077326",
+        "score": 0.8283060789108276,
+        "als_score": 0.22604398429393768,
+        "content_score": 0.8953554034233093,
+        "ratings_count": 13335
+      },
+      {
+        "rank": 7,
+        "goodreads_book_id": 444327,
+        "title": "Harry Potter and the Order of the Phoenix (Harry Potter, #5)",
+        "author": "1077326",
+        "score": 0.8246017694473267,
+        "als_score": 0.2252035140991211,
+        "content_score": 0.8914375901222229,
+        "ratings_count": 14067
+      },
+      {
+        "rank": 8,
+        "goodreads_book_id": 864890,
+        "title": "Harry Potter and the Goblet of Fire (Harry Potter, #4)",
+        "author": "1077326",
+        "score": 0.7667282223701477,
+        "als_score": 0.20902742445468903,
+        "content_score": 0.8451536893844604,
+        "ratings_count": 11031
+      },
+      {
+        "rank": 9,
+        "goodreads_book_id": 862631,
+        "title": "Harry Potter and the Order of the Phoenix (Harry Potter, #5)",
+        "author": "1077326",
+        "score": 0.7211608290672302,
+        "als_score": 0.17981937527656555,
+        "content_score": 0.8894538879394531,
+        "ratings_count": 9662
+      },
+      {
+        "rank": 10,
+        "goodreads_book_id": 848654,
+        "title": "Harry Potter and the Philosopher's Stone (Harry Potter, #1)",
+        "author": "1077326",
+        "score": 0.6551816463470459,
+        "als_score": 0.13547846674919128,
+        "content_score": 0.9636431336402893,
+        "ratings_count": 5017
+      },
+      {
+        "rank": 11,
+        "goodreads_book_id": 297566,
+        "title": "Harry Potter and the Prisoner of Azkaban (Harry Potter, #3)",
+        "author": "1077326",
+        "score": 0.623747706413269,
+        "als_score": 0.12336482107639313,
+        "content_score": 0.9548159837722778,
+        "ratings_count": 3450
+      },
+      {
+        "rank": 12,
+        "goodreads_book_id": 822147,
+        "title": "Harry Potter and the Chamber of Secrets (Harry Potter, #2)",
+        "author": "1077326",
+        "score": 0.6143171787261963,
+        "als_score": 0.11822647601366043,
+        "content_score": 0.9595407843589783,
+        "ratings_count": 4189
+      },
+      {
+        "rank": 13,
+        "goodreads_book_id": 840699,
+        "title": "Harry Potter and the Half-Blood Prince (Harry Potter, #6)",
+        "author": "1077326",
+        "score": 0.6107923984527588,
+        "als_score": 0.1303616762161255,
+        "content_score": 0.8924069404602051,
+        "ratings_count": 5274
+      },
+      {
+        "rank": 14,
+        "goodreads_book_id": 110933,
+        "title": "Harry Potter and the Order of the Phoenix (Harry Potter, #5)",
+        "author": "1077326",
+        "score": 0.5935152769088745,
+        "als_score": 0.1240663230419159,
+        "content_score": 0.8857772350311279,
+        "ratings_count": 4816
+      },
+      {
+        "rank": 15,
+        "goodreads_book_id": 820344,
+        "title": "Harry Potter and the Deathly Hallows (Harry Potter, #7)",
+        "author": "1077326",
+        "score": 0.565056324005127,
+        "als_score": 0.11040856689214706,
+        "content_score": 0.8909744024276733,
+        "ratings_count": 5817
+      },
+      {
+        "rank": 16,
+        "goodreads_book_id": 24548235,
+        "title": "Harry Potter and the Philosopher's Stone (Harry Potter, #1)",
+        "author": "1077326, 3911856",
+        "score": 0.5640838742256165,
+        "als_score": 0.09522782266139984,
+        "content_score": 0.9632786512374878,
+        "ratings_count": 5933
+      },
+      {
+        "rank": 17,
+        "goodreads_book_id": 5,
+        "title": "Harry Potter and the Prisoner of Azkaban (Harry Potter, #3)",
+        "author": "1077326, 2927",
+        "score": 0.5561832785606384,
+        "als_score": 0.08784402906894684,
+        "content_score": 0.9823301434516907,
+        "ratings_count": 1876252
+      },
+      {
+        "rank": 18,
+        "goodreads_book_id": 3950967,
+        "title": "The Tales of Beedle the Bard",
+        "author": "1077326",
+        "score": 0.5538643598556519,
+        "als_score": 0.10160021483898163,
+        "content_score": 0.909866988658905,
+        "ratings_count": 289889
+      },
+      {
+        "rank": 19,
+        "goodreads_book_id": 6,
+        "title": "Harry Potter and the Goblet of Fire (Harry Potter, #4)",
+        "author": "1077326, 2927",
+        "score": 0.5283956527709961,
+        "als_score": 0.09904290735721588,
+        "content_score": 0.8671391010284424,
+        "ratings_count": 1792561
+      },
+      {
+        "rank": 20,
+        "goodreads_book_id": 15881,
+        "title": "Harry Potter and the Chamber of Secrets (Harry Potter, #2)",
+        "author": "1077326, 2927",
+        "score": 0.5253917574882507,
+        "als_score": 0.073235884308815,
+        "content_score": 0.9871245622634888,
+        "ratings_count": 1821802
+      },
+      {
+        "rank": 21,
+        "goodreads_book_id": 41899,
+        "title": "Fantastic Beasts and Where to Find Them",
+        "author": "57983, 1077326, 14877156",
+        "score": 0.4885697364807129,
+        "als_score": 0.07419730722904205,
+        "content_score": 0.9025132656097412,
+        "ratings_count": 194645
+      },
+      {
+        "rank": 22,
+        "goodreads_book_id": 77523,
+        "title": "Harry Potter and the Sorcerer's Stone (Harry Potter, #1)",
+        "author": "1077326, 2927",
+        "score": 0.4523138999938965,
+        "als_score": 0.04485645517706871,
+        "content_score": 0.9676692485809326,
+        "ratings_count": 24276
+      },
+      {
+        "rank": 23,
+        "goodreads_book_id": 111450,
+        "title": "Quidditch Through the Ages",
+        "author": "57990, 1077326",
+        "score": 0.4436436891555786,
+        "als_score": 0.06373484432697296,
+        "content_score": 0.8563161492347717,
+        "ratings_count": 92186
+      },
+      {
+        "rank": 24,
+        "goodreads_book_id": 1317181,
+        "title": "Harry Potter and the Order of the Phoenix (Harry Potter, #5, Part 1)",
+        "author": "1077326",
+        "score": 0.43888288736343384,
+        "als_score": 0.049195803701877594,
+        "content_score": 0.9172547459602356,
+        "ratings_count": 16735
+      },
+      {
+        "rank": 25,
+        "goodreads_book_id": 7955579,
+        "title": "Harry Potter and the Philosopher's Stone (Harry Potter, #1)",
+        "author": "1077326",
+        "score": 0.4371909499168396,
+        "als_score": 0.03934492915868759,
+        "content_score": 0.9618715643882751,
+        "ratings_count": 3587
+      },
+      {
+        "rank": 26,
+        "goodreads_book_id": 29069989,
+        "title": "Harry Potter and the Cursed Child, Parts 1 & 2 (Harry Potter, #8)",
+        "author": "1077326, 5042201, 3439408",
+        "score": 0.4363243877887726,
+        "als_score": 0.04000842571258545,
+        "content_score": 0.9567388296127319,
+        "ratings_count": 88302
+      },
+      {
+        "rank": 27,
+        "goodreads_book_id": 2,
+        "title": "Harry Potter and the Order of the Phoenix (Harry Potter, #5)",
+        "author": "1077326, 2927",
+        "score": 0.43252497911453247,
+        "als_score": 0.047501787543296814,
+        "content_score": 0.9117629528045654,
+        "ratings_count": 1766895
+      },
+      {
+        "rank": 28,
+        "goodreads_book_id": 121121,
+        "title": "Harry Potter and the Sorcerer's Stone (Harry Potter, #1)",
+        "author": "1077326, 2927",
+        "score": 0.42984628677368164,
+        "als_score": 0.035804953426122665,
+        "content_score": 0.9632872343063354,
+        "ratings_count": 10588
+      },
+      {
+        "rank": 29,
+        "goodreads_book_id": 31538635,
+        "title": "Short Stories from Hogwarts of Heroism, Hardship and Dangerous Hobbies (Pottermore Presents, #1)",
+        "author": "1077326, 13746479",
+        "score": 0.4239136576652527,
+        "als_score": 0.046706587076187134,
+        "content_score": 0.896975576877594,
+        "ratings_count": 16961
+      },
+      {
+        "rank": 30,
+        "goodreads_book_id": 30030950,
+        "title": "Fantastic Beasts and Where to Find Them: The Original Screenplay",
+        "author": "1077326",
+        "score": 0.4226543605327606,
+        "als_score": 0.05089937895536423,
+        "content_score": 0.8736904859542847,
+        "ratings_count": 5580
+      },
+      {
+        "rank": 31,
+        "goodreads_book_id": 6351469,
+        "title": "Fantastic Beasts and Where to Find Them",
+        "author": "57983, 1077326",
+        "score": 0.42212939262390137,
+        "als_score": 0.04777563735842705,
+        "content_score": 0.8878636360168457,
+        "ratings_count": 6628
+      },
+      {
+        "rank": 32,
+        "goodreads_book_id": 29056083,
+        "title": "Harry Potter and the Cursed Child - Parts One and Two (Harry Potter, #8)",
+        "author": "5042201, 3439408, 1077326",
+        "score": 0.4201640486717224,
+        "als_score": 0.031927965581417084,
+        "content_score": 0.9612827897071838,
+        "ratings_count": 288018
+      },
+      {
+        "rank": 33,
+        "goodreads_book_id": 24490481,
+        "title": "Harry Potter and the Sorcerer's Stone (Harry Potter, #1)",
+        "author": "1077326, 3911856",
+        "score": 0.41585463285446167,
+        "als_score": 0.029439469799399376,
+        "content_score": 0.9641303420066833,
+        "ratings_count": 7520
+      },
+      {
+        "rank": 34,
+        "goodreads_book_id": 1,
+        "title": "Harry Potter and the Half-Blood Prince (Harry Potter, #6)",
+        "author": "1077326, 2927",
+        "score": 0.4146377146244049,
+        "als_score": 0.037750083953142166,
+        "content_score": 0.9207520484924316,
+        "ratings_count": 1713866
+      },
+      {
+        "rank": 35,
+        "goodreads_book_id": 31538647,
+        "title": "Hogwarts: An Incomplete and Unreliable Guide (Pottermore Presents, #3)",
+        "author": "1077326",
+        "score": 0.414050430059433,
+        "als_score": 0.04237766191363335,
+        "content_score": 0.8967937231063843,
+        "ratings_count": 15928
+      },
+      {
+        "rank": 36,
+        "goodreads_book_id": 30065028,
+        "title": "Fantastic Beasts and Where to Find Them: The Original Screenplay",
+        "author": "1077326",
+        "score": 0.4092217683792114,
+        "als_score": 0.043755002319812775,
+        "content_score": 0.879564642906189,
+        "ratings_count": 18657
+      },
+      {
+        "rank": 37,
+        "goodreads_book_id": 31538614,
+        "title": "Short Stories from Hogwarts of Power, Politics and Pesky Poltergeists (Pottermore Presents, #2)",
+        "author": "1077326, 13746479",
+        "score": 0.4073813855648041,
+        "als_score": 0.04004191234707832,
+        "content_score": 0.8937724828720093,
+        "ratings_count": 10659
+      },
+      {
+        "rank": 38,
+        "goodreads_book_id": 22841994,
+        "title": "Harry Potter and the Philosopher's Stone",
+        "author": "1077326",
+        "score": 0.40433451533317566,
+        "als_score": 0.025126606225967407,
+        "content_score": 0.9602745771408081,
+        "ratings_count": 7441
+      },
+      {
+        "rank": 39,
+        "goodreads_book_id": 29363501,
+        "title": "Fantastic Beasts and Where to Find Them: The Original Screenplay",
+        "author": "1077326",
+        "score": 0.3971222937107086,
+        "als_score": 0.03821109980344772,
+        "content_score": 0.8804861903190613,
+        "ratings_count": 20017
+      },
+      {
+        "rank": 40,
+        "goodreads_book_id": 29241319,
+        "title": "Harry Potter and the Chamber of Secrets (Harry Potter, #2)",
+        "author": "1077326, 3911856",
+        "score": 0.3902905583381653,
+        "als_score": 0.01967843808233738,
+        "content_score": 0.9565075635910034,
+        "ratings_count": 2520
+      },
+      {
+        "rank": 41,
+        "goodreads_book_id": 224926,
+        "title": "Harry Potter and the Prisoner of Azkaban (Harry Potter, #3)",
+        "author": "1077326",
+        "score": 0.38954585790634155,
+        "als_score": 0.01946587674319744,
+        "content_score": 0.9559335708618164,
+        "ratings_count": 12666
+      },
+      {
+        "rank": 42,
+        "goodreads_book_id": 22842001,
+        "title": "Harry Potter and the Prisoner of Azkaban (Harry Potter, #3)",
+        "author": "1077326",
+        "score": 0.38587334752082825,
+        "als_score": 0.01889675110578537,
+        "content_score": 0.9507545828819275,
+        "ratings_count": 6134
+      },
+      {
+        "rank": 43,
+        "goodreads_book_id": 6398824,
+        "title": "Quidditch Through the Ages",
+        "author": "57990, 1077326",
+        "score": 0.38077953457832336,
+        "als_score": 0.039071571081876755,
+        "content_score": 0.8408068418502808,
+        "ratings_count": 3316
+      },
+      {
+        "rank": 44,
+        "goodreads_book_id": 136251,
+        "title": "Harry Potter and the Deathly Hallows (Harry Potter, #7)",
+        "author": "1077326, 2927",
+        "score": 0.37993791699409485,
+        "als_score": 0.023845773190259933,
+        "content_score": 0.913615882396698,
+        "ratings_count": 1784684
+      },
+      {
+        "rank": 45,
+        "goodreads_book_id": 5907,
+        "title": "The Hobbit",
+        "author": "656983",
+        "score": 0.37955060601234436,
+        "als_score": 0.12368488311767578,
+        "content_score": 0.42337432503700256,
+        "ratings_count": 2099680
+      },
+      {
+        "rank": 46,
+        "goodreads_book_id": 8933944,
+        "title": "Harry Potter: The Prequel (Harry Potter, #0.5)",
+        "author": "1077326",
+        "score": 0.37447017431259155,
+        "als_score": 0.025819161906838417,
+        "content_score": 0.8920783996582031,
+        "ratings_count": 13267
+      },
+      {
+        "rank": 47,
+        "goodreads_book_id": 142293,
+        "title": "Harry Potter und der Stein der Weisen (Harry Potter, #1)",
+        "author": "1077326, 436443",
+        "score": 0.3687630891799927,
+        "als_score": 0.019004549831151962,
+        "content_score": 0.9130993485450745,
+        "ratings_count": 4526
+      },
+      {
+        "rank": 48,
+        "goodreads_book_id": 49852,
+        "title": "Harry Potter and the Half-Blood Prince (Harry Potter, #6)",
+        "author": "1077326, 2927",
+        "score": 0.36425262689590454,
+        "als_score": 0.020077316090464592,
+        "content_score": 0.8980537056922913,
+        "ratings_count": 23305
+      },
+      {
+        "rank": 49,
+        "goodreads_book_id": 22844208,
+        "title": "Harry Potter and the Deathly Hallows (Harry Potter, #7)",
+        "author": "1077326",
+        "score": 0.3541357219219208,
+        "als_score": 0.017730435356497765,
+        "content_score": 0.887605607509613,
+        "ratings_count": 3476
+      },
+      {
+        "rank": 50,
+        "goodreads_book_id": 22844196,
+        "title": "Harry Potter and the Order of the Phoenix (Harry Potter, #5)",
+        "author": "1077326",
+        "score": 0.35358190536499023,
+        "als_score": 0.018364883959293365,
+        "content_score": 0.8832939267158508,
+        "ratings_count": 4152
+      }
+    ]
+  },
+  "Pride and Prejudice": {
+    "seed": {
+      "goodreads_book_id": 1885,
+      "title": "Pride and Prejudice",
+      "author": "1265, 3500, 16378912, 14532, 1244, 13771732, 15258855, 6765",
+      "seed_signal": 9.801556951025455,
+      "ratings_count": 2078406
+    },
+    "recommendations": [
+      {
+        "rank": 1,
+        "goodreads_book_id": 14935,
+        "title": "Sense and Sensibility",
+        "author": "1265, 43605, 9321",
+        "score": 0.9983525276184082,
+        "als_score": 0.22796155512332916,
+        "content_score": 0.9037971496582031,
+        "ratings_count": 744318
+      },
+      {
+        "rank": 2,
+        "goodreads_book_id": 2156,
+        "title": "Persuasion",
+        "author": "1265, 362983, 26484",
+        "score": 0.7311172485351562,
+        "als_score": 0.12986420094966888,
+        "content_score": 0.9069024920463562,
+        "ratings_count": 373298
+      },
+      {
+        "rank": 3,
+        "goodreads_book_id": 6969,
+        "title": "Emma",
+        "author": "1265, 3487324",
+        "score": 0.7287224531173706,
+        "als_score": 0.1310282200574875,
+        "content_score": 0.8963745832443237,
+        "ratings_count": 470489
+      },
+      {
+        "rank": 4,
+        "goodreads_book_id": 10210,
+        "title": "Jane Eyre",
+        "author": "1036615, 6674",
+        "score": 0.5298652052879333,
+        "als_score": 0.15117564797401428,
+        "content_score": 0.4174546003341675,
+        "ratings_count": 1207986
+      },
+      {
+        "rank": 5,
+        "goodreads_book_id": 45032,
+        "title": "Mansfield Park",
+        "author": "1265",
+        "score": 0.4773789644241333,
+        "als_score": 0.041713934391736984,
+        "content_score": 0.8840569257736206,
+        "ratings_count": 209707
+      },
+      {
+        "rank": 6,
+        "goodreads_book_id": 5899779,
+        "title": "Pride and Prejudice and Zombies (Pride and Prejudice and Zombies, #1)",
+        "author": "169377, 1265",
+        "score": 0.46684005856513977,
+        "als_score": 0.04379687458276749,
+        "content_score": 0.8534305095672607,
+        "ratings_count": 105537
+      },
+      {
+        "rank": 7,
+        "goodreads_book_id": 50398,
+        "title": "Northanger Abbey",
+        "author": "1265, 4449011",
+        "score": 0.44062530994415283,
+        "als_score": 0.03475980833172798,
+        "content_score": 0.8507081270217896,
+        "ratings_count": 209755
+      },
+      {
+        "rank": 8,
+        "goodreads_book_id": 14942,
+        "title": "Mrs. Dalloway",
+        "author": "6765, 26993",
+        "score": 0.40946322679519653,
+        "als_score": 0.01573525369167328,
+        "content_score": 0.8902606964111328,
+        "ratings_count": 141006
+      },
+      {
+        "rank": 9,
+        "goodreads_book_id": 14905,
+        "title": "The Complete Novels",
+        "author": "1265",
+        "score": 0.386593759059906,
+        "als_score": 0.017475800588726997,
+        "content_score": 0.8381612300872803,
+        "ratings_count": 18950
+      },
+      {
+        "rank": 10,
+        "goodreads_book_id": 4671,
+        "title": "The Great Gatsby",
+        "author": "3190",
+        "score": 0.31945541501045227,
+        "als_score": 0.06172143667936325,
+        "content_score": 0.4830162227153778,
+        "ratings_count": 2758812
+      },
+      {
+        "rank": 11,
+        "goodreads_book_id": 11870085,
+        "title": "The Fault in Our Stars",
+        "author": "1406384",
+        "score": 0.29226136207580566,
+        "als_score": 0.06412409991025925,
+        "content_score": 0.4193444848060608,
+        "ratings_count": 2429317
+      },
+      {
+        "rank": 12,
+        "goodreads_book_id": 1934,
+        "title": "Little Women (Little Women, #1)",
+        "author": "1315",
+        "score": 0.2767689824104309,
+        "als_score": 0.05850999802350998,
+        "content_score": 0.4191479980945587,
+        "ratings_count": 1276989
+      },
+      {
+        "rank": 13,
+        "goodreads_book_id": 18135,
+        "title": "Romeo and Juliet",
+        "author": "947, 16347186",
+        "score": 0.24675965309143066,
+        "als_score": 0.04714050143957138,
+        "content_score": 0.4213235676288605,
+        "ratings_count": 1656919
+      },
+      {
+        "rank": 14,
+        "goodreads_book_id": 6185,
+        "title": "Wuthering Heights",
+        "author": "4191, 183563",
+        "score": 0.23664888739585876,
+        "als_score": 0.04827621579170227,
+        "content_score": 0.39639800786972046,
+        "ratings_count": 916820
+      },
+      {
+        "rank": 15,
+        "goodreads_book_id": 2657,
+        "title": "To Kill a Mockingbird",
+        "author": "1825",
+        "score": 0.23103997111320496,
+        "als_score": 0.05030566453933716,
+        "content_score": 0.3753405511379242,
+        "ratings_count": 3255518
+      },
+      {
+        "rank": 16,
+        "goodreads_book_id": 92303,
+        "title": "The Importance of Being Earnest",
+        "author": "3565",
+        "score": 0.21111458539962769,
+        "als_score": 0.04667757451534271,
+        "content_score": 0.3565274775028229,
+        "ratings_count": 216590
+      },
+      {
+        "rank": 17,
+        "goodreads_book_id": 2865,
+        "title": "Girl with a Pearl Earring",
+        "author": "1973",
+        "score": 0.21056894958019257,
+        "als_score": 0.023460889235138893,
+        "content_score": 0.4754481017589569,
+        "ratings_count": 481621
+      },
+      {
+        "rank": 18,
+        "goodreads_book_id": 43641,
+        "title": "Water for Elephants",
+        "author": "24556",
+        "score": 0.20652762055397034,
+        "als_score": 0.02019040286540985,
+        "content_score": 0.48472753167152405,
+        "ratings_count": 1082952
+      },
+      {
+        "rank": 19,
+        "goodreads_book_id": 18405,
+        "title": "Gone with the Wind",
+        "author": "11081",
+        "score": 0.20414429903030396,
+        "als_score": 0.04010837525129318,
+        "content_score": 0.37732893228530884,
+        "ratings_count": 887935
+      },
+      {
+        "rank": 20,
+        "goodreads_book_id": 11422,
+        "title": "Redeeming Love",
+        "author": "6492",
+        "score": 0.20174002647399902,
+        "als_score": 0.021943312138319016,
+        "content_score": 0.4666469097137451,
+        "ratings_count": 159057
+      },
+      {
+        "rank": 21,
+        "goodreads_book_id": 3473,
+        "title": "A Walk to Remember",
+        "author": "2345",
+        "score": 0.19658273458480835,
+        "als_score": 0.01670365408062935,
+        "content_score": 0.4839966297149658,
+        "ratings_count": 549725
+      },
+      {
+        "rank": 22,
+        "goodreads_book_id": 33917,
+        "title": "The Namesake",
+        "author": "3670",
+        "score": 0.18656441569328308,
+        "als_score": 0.02932833880186081,
+        "content_score": 0.39988747239112854,
+        "ratings_count": 186498
+      },
+      {
+        "rank": 23,
+        "goodreads_book_id": 156538,
+        "title": "North and South",
+        "author": "1413437, 206835",
+        "score": 0.18653126060962677,
+        "als_score": 0.031376563012599945,
+        "content_score": 0.38924282789230347,
+        "ratings_count": 98068
+      },
+      {
+        "rank": 24,
+        "goodreads_book_id": 12820360,
+        "title": "Edenbrooke (Edenbrooke, #1)",
+        "author": "5363257",
+        "score": 0.18509894609451294,
+        "als_score": 0.01523592323064804,
+        "content_score": 0.46993371844291687,
+        "ratings_count": 29140
+      },
+      {
+        "rank": 25,
+        "goodreads_book_id": 21480930,
+        "title": "Gone Girl",
+        "author": "2383",
+        "score": 0.18508487939834595,
+        "als_score": 0.050507329404354095,
+        "content_score": 0.2876773774623871,
+        "ratings_count": 416225
+      },
+      {
+        "rank": 26,
+        "goodreads_book_id": 10507293,
+        "title": "The Selection (The Selection, #1)",
+        "author": "2987125",
+        "score": 0.18212756514549255,
+        "als_score": 0.03486635163426399,
+        "content_score": 0.36291226744651794,
+        "ratings_count": 530867
+      },
+      {
+        "rank": 27,
+        "goodreads_book_id": 4502877,
+        "title": "Midnight Sun (Twilight, #1.5)",
+        "author": "941441",
+        "score": 0.18082758784294128,
+        "als_score": 0.035937171429395676,
+        "content_score": 0.35492950677871704,
+        "ratings_count": 138855
+      },
+      {
+        "rank": 28,
+        "goodreads_book_id": 136116,
+        "title": "The Scarlet Pimpernel",
+        "author": "2893961",
+        "score": 0.17900130152702332,
+        "als_score": 0.024490023031830788,
+        "content_score": 0.4106288552284241,
+        "ratings_count": 94174
+      },
+      {
+        "rank": 29,
+        "goodreads_book_id": 22544764,
+        "title": "Uprooted",
+        "author": "8730",
+        "score": 0.17741982638835907,
+        "als_score": 0.024773243814706802,
+        "content_score": 0.4061846435070038,
+        "ratings_count": 65791
+      },
+      {
+        "rank": 30,
+        "goodreads_book_id": 1953,
+        "title": "A Tale of Two Cities",
+        "author": "239579, 61986, 3128534",
+        "score": 0.1769293248653412,
+        "als_score": 0.012618625536561012,
+        "content_score": 0.46805697679519653,
+        "ratings_count": 646983
+      },
+      {
+        "rank": 31,
+        "goodreads_book_id": 15795357,
+        "title": "Eleanor and Park",
+        "author": "4208569",
+        "score": 0.17598982155323029,
+        "als_score": 0.012476197443902493,
+        "content_score": 0.4670219421386719,
+        "ratings_count": 31661
+      },
+      {
+        "rank": 32,
+        "goodreads_book_id": 21853621,
+        "title": "The Nightingale",
+        "author": "54493",
+        "score": 0.17492732405662537,
+        "als_score": 0.026140619069337845,
+        "content_score": 0.39442193508148193,
+        "ratings_count": 271556
+      },
+      {
+        "rank": 33,
+        "goodreads_book_id": 2623,
+        "title": "Great Expectations",
+        "author": "239579",
+        "score": 0.169631689786911,
+        "als_score": 0.010779816657304764,
+        "content_score": 0.4638018012046814,
+        "ratings_count": 468462
+      },
+      {
+        "rank": 34,
+        "goodreads_book_id": 248483,
+        "title": "Austenland (Austenland, #1)",
+        "author": "49177",
+        "score": 0.16825567185878754,
+        "als_score": 0.02350175380706787,
+        "content_score": 0.3954801857471466,
+        "ratings_count": 66992
+      },
+      {
+        "rank": 35,
+        "goodreads_book_id": 15823480,
+        "title": "Anna Karenina",
+        "author": "128382, 235013, 72230",
+        "score": 0.1681947112083435,
+        "als_score": 0.028338097035884857,
+        "content_score": 0.370378315448761,
+        "ratings_count": 307493
+      },
+      {
+        "rank": 36,
+        "goodreads_book_id": 9717,
+        "title": "The Unbearable Lightness of Being",
+        "author": "6343, 66349",
+        "score": 0.16759037971496582,
+        "als_score": 0.021985940635204315,
+        "content_score": 0.40205761790275574,
+        "ratings_count": 209734
+      },
+      {
+        "rank": 37,
+        "goodreads_book_id": 128029,
+        "title": "A Thousand Splendid Suns",
+        "author": "569",
+        "score": 0.16481244564056396,
+        "als_score": 0.01677275262773037,
+        "content_score": 0.423755407333374,
+        "ratings_count": 835172
+      },
+      {
+        "rank": 38,
+        "goodreads_book_id": 890,
+        "title": "Of Mice and Men",
+        "author": "585",
+        "score": 0.16481193900108337,
+        "als_score": 0.021344931796193123,
+        "content_score": 0.40013226866722107,
+        "ratings_count": 1495516
+      },
+      {
+        "rank": 39,
+        "goodreads_book_id": 930,
+        "title": "Memoirs of a Geisha",
+        "author": "614",
+        "score": 0.16257868707180023,
+        "als_score": 0.028104346245527267,
+        "content_score": 0.36100026965141296,
+        "ratings_count": 1301962
+      },
+      {
+        "rank": 40,
+        "goodreads_book_id": 6867,
+        "title": "Atonement",
+        "author": "2408",
+        "score": 0.1610005646944046,
+        "als_score": 0.029031816869974136,
+        "content_score": 0.35323387384414673,
+        "ratings_count": 351442
+      },
+      {
+        "rank": 41,
+        "goodreads_book_id": 18143977,
+        "title": "All the Light We Cannot See",
+        "author": "28186",
+        "score": 0.1598372906446457,
+        "als_score": 0.0197816900908947,
+        "content_score": 0.3988319933414459,
+        "ratings_count": 498685
+      },
+      {
+        "rank": 42,
+        "goodreads_book_id": 10964,
+        "title": "Outlander (Outlander, #1)",
+        "author": "3617",
+        "score": 0.1595514565706253,
+        "als_score": 0.03131349757313728,
+        "content_score": 0.3387141227722168,
+        "ratings_count": 531055
+      },
+      {
+        "rank": 43,
+        "goodreads_book_id": 8909152,
+        "title": "Attachments",
+        "author": "4208569",
+        "score": 0.15877372026443481,
+        "als_score": 0.020094722509384155,
+        "content_score": 0.39520999789237976,
+        "ratings_count": 109186
+      },
+      {
+        "rank": 44,
+        "goodreads_book_id": 5472,
+        "title": "Animal Farm / 1984",
+        "author": "3706, 3956",
+        "score": 0.15586824715137482,
+        "als_score": 0.026987753808498383,
+        "content_score": 0.3541205823421478,
+        "ratings_count": 120269
+      },
+      {
+        "rank": 45,
+        "goodreads_book_id": 17788401,
+        "title": "Ugly Love",
+        "author": "5430144",
+        "score": 0.1544625610113144,
+        "als_score": 0.017430545762181282,
+        "content_score": 0.40084829926490784,
+        "ratings_count": 111027
+      },
+      {
+        "rank": 46,
+        "goodreads_book_id": 39999,
+        "title": "The Boy in the Striped Pajamas",
+        "author": "7195",
+        "score": 0.15432074666023254,
+        "als_score": 0.025542739778757095,
+        "content_score": 0.35866931080818176,
+        "ratings_count": 295562
+      },
+      {
+        "rank": 47,
+        "goodreads_book_id": 6131164,
+        "title": "Clockwork Princess (The Infernal Devices, #3)",
+        "author": "150038",
+        "score": 0.15234807133674622,
+        "als_score": 0.02563806250691414,
+        "content_score": 0.3544585406780243,
+        "ratings_count": 69293
+      },
+      {
+        "rank": 48,
+        "goodreads_book_id": 366522,
+        "title": "P.S. I Love You",
+        "author": "7116",
+        "score": 0.15054136514663696,
+        "als_score": 0.017308220267295837,
+        "content_score": 0.3940891921520233,
+        "ratings_count": 267335
+      },
+      {
+        "rank": 49,
+        "goodreads_book_id": 3087,
+        "title": "A Room with a View",
+        "author": "86404",
+        "score": 0.14915183186531067,
+        "als_score": 0.01788286492228508,
+        "content_score": 0.3885011672973633,
+        "ratings_count": 111087
+      },
+      {
+        "rank": 50,
+        "goodreads_book_id": 8667848,
+        "title": "A Discovery of Witches (All Souls Trilogy, #1)",
+        "author": "3849415",
+        "score": 0.14861652255058289,
+        "als_score": 0.022746415808796883,
+        "content_score": 0.36236459016799927,
+        "ratings_count": 230866
+      }
+    ]
+  }
+}

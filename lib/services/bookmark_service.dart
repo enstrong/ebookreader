@@ -69,7 +69,7 @@ class BookmarkService {
   /// Возвращает список книг, добавленных пользователем в закладки.
   ///
   /// Отправляет GET-запрос на `/user/books/bookmarks`.
-  /// При ошибке или пустом ответе возвращает пустой список.
+  /// При пустом ответе возвращает пустой список.
   Future<List<dynamic>> getBookmarks(String token) async {
     try {
       print('=== GET BOOKMARKS ===');
@@ -94,11 +94,11 @@ class BookmarkService {
       } else if (response.statusCode == 404) {
         return [];
       } else {
-        throw Exception('Ошибка загрузки закладок: ${response.statusCode}');
+        throw Exception('Ошибка загрузки сохранённых книг: ${response.statusCode} ${response.body}');
       }
     } catch (e) {
       print('Error in getBookmarks: $e');
-      return [];
+      rethrow;
     }
   }
 

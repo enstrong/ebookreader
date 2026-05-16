@@ -39,6 +39,9 @@ class _AddBookFromFileScreenState extends State<AddBookFromFileScreen>
   List<bool> _selectedChapters = [];
   bool _loading = false;
   bool _epubParsed = false;
+  String _uploadStatus = '';
+  int _uploadSuccessCount = 0;
+  int _uploadErrorCount = 0;
   late AnimationController _animController;
   late Animation<double> _fadeAnimation;
 
@@ -448,13 +451,22 @@ class _AddBookFromFileScreenState extends State<AddBookFromFileScreen>
       _showSnackBar('Выберите хотя бы одну главу', isError: true);
       return;
     }
+    if (selectedChapters.any((chapter) => (chapter['content'] ?? '').trim().length <= 50)) {
+      _showSnackBar('Выбранные главы должны содержать достаточно текста', isError: true);
+      return;
+    }
 
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _uploadStatus = 'Creating book';
+      _uploadSuccessCount = 0;
+      _uploadErrorCount = 0;
+    });
 
     try {
       // 1. Создаём книгу
       final svc = AdminService(widget.token);
-      await svc.addBookMultipart(
+      final createdBook = await svc.addBookMultipart(
         title: _titleController.text.trim(),
         author: _authorController.text.trim(),
         description: _descController.text.trim(),
@@ -462,38 +474,23 @@ class _AddBookFromFileScreenState extends State<AddBookFromFileScreen>
         coverFile: _cover,
       );
 
-      // 2. Получаем ID созданной книги
+      final bookId = _asInt(createdBook['id']);
+      if (bookId == null) {
+        throw Exception('Сервер создал книгу, но не вернул её ID');
+      }
       final adminUrl = ApiConstants.adminUrl;
-      final booksRes = await http.get(
-        Uri.parse('$adminUrl/books'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ${widget.token}',
-        },
-      );
-
-      if (booksRes.statusCode != 200) {
-        throw Exception('Не удалось получить список книг');
-      }
-
-      final books = jsonDecode(booksRes.body) as List;
-      // Ищем только что созданную книгу по названию
-      final newBook = books.lastWhere(
-        (b) => b['title'] == _titleController.text.trim(),
-        orElse: () => null,
-      );
-
-      if (newBook == null) {
-        throw Exception('Не удалось найти созданную книгу');
-      }
-
-      final bookId = newBook['id'] as int;
 
       // 3. Добавляем главы
       int successCount = 0;
       int errorCount = 0;
 
-      for (var chapter in selectedChapters) {
+      for (var i = 0; i < selectedChapters.length; i++) {
+        final chapter = selectedChapters[i];
+        setState(() {
+          _uploadStatus = 'Uploading chapter ${i + 1} / ${selectedChapters.length}';
+          _uploadSuccessCount = successCount;
+          _uploadErrorCount = errorCount;
+        });
         try {
           final payload = {
             'title': chapter['title']!,
@@ -521,7 +518,14 @@ class _AddBookFromFileScreenState extends State<AddBookFromFileScreen>
       }
 
       if (!mounted) return;
-      setState(() => _loading = false);
+      setState(() {
+        _loading = false;
+        _uploadStatus = errorCount == 0
+            ? 'Import complete'
+            : 'Import finished with $errorCount chapter error${errorCount == 1 ? '' : 's'}';
+        _uploadSuccessCount = successCount;
+        _uploadErrorCount = errorCount;
+      });
 
       if (errorCount == 0) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -547,15 +551,24 @@ class _AddBookFromFileScreenState extends State<AddBookFromFileScreen>
         Navigator.pop(context, true);
       } else {
         _showSnackBar(
-          'Книга создана. Глав добавлено: $successCount, ошибок: $errorCount',
+          'Книга создана. Глав добавлено: $successCount, ошибок: $errorCount. Можно повторить импорт недостающих глав вручную.',
           isError: errorCount > successCount,
         );
         if (successCount > 0) Navigator.pop(context, true);
       }
     } catch (e) {
-      setState(() => _loading = false);
+      setState(() {
+        _loading = false;
+        _uploadStatus = '';
+      });
       _showSnackBar('Ошибка: $e', isError: true);
     }
+  }
+
+  int? _asInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '');
   }
 
   @override
@@ -611,7 +624,7 @@ class _AddBookFromFileScreenState extends State<AddBookFromFileScreen>
                         child: IconButton(
                           icon: const Icon(Icons.arrow_back,
                               color: Color(0xFF14FFEC)),
-                          onPressed: () => Navigator.pop(context),
+                          onPressed: _loading ? null : () => Navigator.pop(context),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -784,7 +797,7 @@ class _AddBookFromFileScreenState extends State<AddBookFromFileScreen>
                         const SizedBox(height: 8),
                         Center(
                           child: GestureDetector(
-                            onTap: _pickCover,
+                            onTap: _loading ? null : _pickCover,
                             child: Container(
                               width: 160,
                               height: 220,
@@ -926,6 +939,11 @@ class _AddBookFromFileScreenState extends State<AddBookFromFileScreen>
                           icon: Icons.translate_rounded,
                         ),
 
+                        if (_epubParsed && _extractedChapters.isNotEmpty) ...[
+                          const SizedBox(height: 28),
+                          _buildImportPreview(),
+                        ],
+
                         // Chapters selection - Collapsible
                         if (_epubParsed && _extractedChapters.isNotEmpty) ...[
                           const SizedBox(height: 28),
@@ -937,6 +955,7 @@ class _AddBookFromFileScreenState extends State<AddBookFromFileScreen>
                                 children: [
                                   TextButton(
                                     onPressed: () {
+                                      if (_loading) return;
                                       setState(() {
                                         for (int i = 0;
                                             i < _selectedChapters.length;
@@ -953,6 +972,7 @@ class _AddBookFromFileScreenState extends State<AddBookFromFileScreen>
                                   ),
                                   TextButton(
                                     onPressed: () {
+                                      if (_loading) return;
                                       setState(() {
                                         for (int i = 0;
                                             i < _selectedChapters.length;
@@ -1015,6 +1035,7 @@ class _AddBookFromFileScreenState extends State<AddBookFromFileScreen>
                                       return CheckboxListTile(
                                         value: _selectedChapters[index],
                                         onChanged: (value) {
+                                          if (_loading) return;
                                           setState(() {
                                             _selectedChapters[index] =
                                                 value ?? false;
@@ -1049,6 +1070,11 @@ class _AddBookFromFileScreenState extends State<AddBookFromFileScreen>
                         ],
 
                         const SizedBox(height: 40),
+
+                        if (_uploadStatus.isNotEmpty) ...[
+                          _buildUploadStatus(),
+                          const SizedBox(height: 18),
+                        ],
 
                         // Submit button
                         Container(
@@ -1107,7 +1133,7 @@ class _AddBookFromFileScreenState extends State<AddBookFromFileScreen>
                                 : const Icon(Icons.cloud_upload_rounded),
                             label: Text(
                               _loading
-                                  ? 'Создание книги...'
+                                  ? _uploadStatus
                                   : _epubParsed
                                       ? 'Создать книгу с главами'
                                       : 'Сначала выберите файл книги',
@@ -1140,6 +1166,143 @@ class _AddBookFromFileScreenState extends State<AddBookFromFileScreen>
         fontSize: 14,
         fontWeight: FontWeight.w600,
         letterSpacing: 0.5,
+      ),
+    );
+  }
+
+  Widget _buildImportPreview() {
+    final selectedCount = _selectedChapters.where((selected) => selected).length;
+    final previewChapters = _extractedChapters.take(3).toList();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.045),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF14FFEC).withValues(alpha: 0.16)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.fact_check_rounded, color: Color(0xFF14FFEC)),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  'Предпросмотр импорта',
+                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ),
+              Text(
+                '$selectedCount/${_extractedChapters.length}',
+                style: const TextStyle(color: Color(0xFF14FFEC), fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _buildPreviewChip(_titleController.text.trim().isEmpty ? 'Без названия' : _titleController.text.trim()),
+              _buildPreviewChip(_authorController.text.trim().isEmpty ? 'Автор не указан' : _authorController.text.trim()),
+              if (_languageController.text.trim().isNotEmpty) _buildPreviewChip(_languageController.text.trim()),
+              if (_cover != null) _buildPreviewChip('Обложка готова'),
+            ],
+          ),
+          const SizedBox(height: 14),
+          ...previewChapters.map(
+            (chapter) => Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${chapter['order']}.',
+                    style: const TextStyle(color: Color(0xFF14FFEC), fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '${chapter['title']} • ${chapter['content']?.length ?? 0} символов',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: Colors.white.withValues(alpha: 0.68), fontSize: 13),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_extractedChapters.length > previewChapters.length)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                'И ещё ${_extractedChapters.length - previewChapters.length} глав...',
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.42), fontSize: 12),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPreviewChip(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(color: Colors.white.withValues(alpha: 0.72), fontSize: 12),
+      ),
+    );
+  }
+
+  Widget _buildUploadStatus() {
+    final total = _selectedChapters.where((selected) => selected).length;
+    final done = (_uploadSuccessCount + _uploadErrorCount).clamp(0, total);
+    final progress = total == 0 ? null : done / total;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.cloud_sync_rounded, color: Color(0xFF14FFEC)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  _uploadStatus,
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          LinearProgressIndicator(
+            value: _loading ? progress : 1,
+            color: const Color(0xFF14FFEC),
+            backgroundColor: Colors.white.withValues(alpha: 0.1),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Добавлено: $_uploadSuccessCount • Ошибок: $_uploadErrorCount',
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.62), fontSize: 12),
+          ),
+        ],
       ),
     );
   }

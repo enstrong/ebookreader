@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:ebookreader/services/bookmark_service.dart';
+import 'package:ebookreader/constants/api_constants.dart';
+import 'package:ebookreader/screens/audio/audio_player_screen.dart';
 import 'package:ebookreader/screens/book/book_detail_screen.dart';
+import 'package:ebookreader/screens/reader/reader_screen.dart';
+import 'package:ebookreader/services/bookmark_service.dart';
 
-/// Экран закладок.
+/// Экран сохранённых книг.
 ///
-/// Отображает список книг, добавленных пользователем в закладки.
-/// Позволяет быстро перейти к детальной странице книги или удалить закладку.
+/// Отображает список книг, сохранённых пользователем.
+/// Позволяет быстро перейти к детальной странице книги или убрать книгу из сохранённых.
 /// Для каждой книги отображается обложка, название, автор и номер текущей главы.
 class BookmarksScreen extends StatefulWidget {
   final String token;
@@ -16,9 +19,10 @@ class BookmarksScreen extends StatefulWidget {
   State<BookmarksScreen> createState() => _BookmarksScreenState();
 }
 
-class _BookmarksScreenState extends State<BookmarksScreen> with SingleTickerProviderStateMixin {
+class _BookmarksScreenState extends State<BookmarksScreen>
+    with SingleTickerProviderStateMixin {
   final BookmarkService _bookmarkService = BookmarkService();
-  
+
   List<dynamic> _bookmarks = [];
   bool _isLoading = true;
   late AnimationController _animController;
@@ -57,12 +61,14 @@ class _BookmarksScreenState extends State<BookmarksScreen> with SingleTickerProv
               children: [
                 const Icon(Icons.error_outline, color: Colors.white),
                 const SizedBox(width: 12),
-                Expanded(child: Text('Ошибка загрузки закладок: $e')),
+                Expanded(child: Text('Ошибка загрузки сохранённых книг: $e')),
               ],
             ),
             backgroundColor: Colors.red.shade600,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
         );
       }
@@ -80,20 +86,22 @@ class _BookmarksScreenState extends State<BookmarksScreen> with SingleTickerProv
               children: [
                 Icon(Icons.check_circle, color: Colors.white),
                 SizedBox(width: 12),
-                Text('Удалено из закладок'),
+                Text('Удалено из сохранённых'),
               ],
             ),
             backgroundColor: Colors.green.shade600,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Ошибка: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Ошибка: $e')));
       }
     }
   }
@@ -102,9 +110,55 @@ class _BookmarksScreenState extends State<BookmarksScreen> with SingleTickerProv
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => BookDetailScreen(
+        builder: (_) => BookDetailScreen(token: widget.token, bookId: bookId),
+      ),
+    ).then((_) => _loadBookmarks());
+  }
+
+  void _resumeBook(Map<String, dynamic> bookmark) {
+    final bookId = bookmark['id'] as int;
+    final title = bookmark['title']?.toString() ?? 'Без названия';
+    final author = bookmark['author']?.toString() ?? '';
+    final chapter = _asInt(
+      bookmark['segmentOrder'] ?? bookmark['currentChapter'] ?? 1,
+    );
+    final progress = _asProgress(bookmark['segmentProgress']);
+    final audioPositionMs = _asInt(bookmark['audioPositionMs']);
+    final lastMode = (bookmark['lastMode'] ?? 'TEXT').toString();
+    final availability = (bookmark['availability'] ?? 'TEXT').toString();
+
+    if (lastMode == 'AUDIO' &&
+        (availability == 'AUDIO' || availability == 'SYNCED')) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => AudioPlayerScreen(
+            token: widget.token,
+            bookId: bookId,
+            title: title,
+            author: author,
+            initialSegmentOrder: chapter,
+            initialSegmentProgress: progress,
+            initialAudioPositionMs: audioPositionMs,
+          ),
+        ),
+      ).then((_) => _loadBookmarks());
+      return;
+    }
+
+    if (availability != 'TEXT' && availability != 'SYNCED') {
+      _openBookDetail(bookId);
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ReaderScreen(
           token: widget.token,
           bookId: bookId,
+          chapterOrder: chapter,
+          initialSegmentProgress: progress,
         ),
       ),
     ).then((_) => _loadBookmarks());
@@ -119,10 +173,7 @@ class _BookmarksScreenState extends State<BookmarksScreen> with SingleTickerProv
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              const Color(0xFF0A0E27),
-              const Color(0xFF1A1F3A),
-            ],
+            colors: [const Color(0xFF0A0E27), const Color(0xFF1A1F3A)],
           ),
         ),
         child: SafeArea(
@@ -145,7 +196,10 @@ class _BookmarksScreenState extends State<BookmarksScreen> with SingleTickerProv
                           ),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Icon(Icons.arrow_back, color: Colors.white),
+                        child: const Icon(
+                          Icons.arrow_back,
+                          color: Colors.white,
+                        ),
                       ),
                       onPressed: () => Navigator.pop(context),
                     ),
@@ -155,7 +209,7 @@ class _BookmarksScreenState extends State<BookmarksScreen> with SingleTickerProv
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            'Закладки',
+                            'Сохранённые книги',
                             style: TextStyle(
                               fontSize: 28,
                               fontWeight: FontWeight.bold,
@@ -164,7 +218,7 @@ class _BookmarksScreenState extends State<BookmarksScreen> with SingleTickerProv
                             ),
                           ),
                           Text(
-                            'Ваши сохранённые книги',
+                            'Книги, к которым вы хотите вернуться',
                             style: TextStyle(
                               fontSize: 14,
                               color: Colors.white.withValues(alpha: 0.6),
@@ -210,8 +264,8 @@ class _BookmarksScreenState extends State<BookmarksScreen> with SingleTickerProv
                         ),
                       )
                     : _bookmarks.isEmpty
-                        ? _buildEmptyState()
-                        : _buildBookmarksList(),
+                    ? _buildEmptyState()
+                    : _buildBookmarksList(),
               ),
             ],
           ),
@@ -237,7 +291,7 @@ class _BookmarksScreenState extends State<BookmarksScreen> with SingleTickerProv
               ),
             ),
             child: Icon(
-              Icons.bookmark_border_rounded,
+              Icons.library_books_outlined,
               size: 100,
               color: Colors.white.withValues(alpha: 0.3),
             ),
@@ -255,7 +309,7 @@ class _BookmarksScreenState extends State<BookmarksScreen> with SingleTickerProv
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 48),
             child: Text(
-              'Здесь будут отображаться книги, которые вы добавили в избранное',
+              'Здесь будут отображаться книги, которые вы сохранили для чтения',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 15,
@@ -293,10 +347,13 @@ class _BookmarksScreenState extends State<BookmarksScreen> with SingleTickerProv
 
   Widget _buildBookmarkCard(Map<String, dynamic> bookmark) {
     final bookId = bookmark['id'] as int;
-    final title = bookmark['title'] ?? 'Без названия';
-    final author = bookmark['author'] ?? 'Неизвестный автор';
+    final title = (bookmark['title'] ?? 'Без названия').toString();
+    final author = (bookmark['author'] ?? 'Неизвестный автор').toString();
     final coverUrl = bookmark['coverUrl'];
-    final currentChapter = bookmark['currentChapter'] ?? 1;
+    final currentChapter =
+        bookmark['segmentOrder'] ?? bookmark['currentChapter'] ?? 1;
+    final progress = _asProgress(bookmark['segmentProgress']);
+    final lastMode = (bookmark['lastMode'] ?? 'TEXT').toString();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -349,16 +406,17 @@ class _BookmarksScreenState extends State<BookmarksScreen> with SingleTickerProv
                       borderRadius: BorderRadius.circular(12),
                       child: coverUrl != null
                           ? Image.network(
-                              coverUrl,
+                              ApiConstants.getCoverUrl(coverUrl.toString()),
                               fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => _buildPlaceholder(),
+                              errorBuilder: (context, error, stackTrace) =>
+                                  _buildPlaceholder(),
                             )
                           : _buildPlaceholder(),
                     ),
                   ),
                 ),
 
-                const SizedBox(width: 16),
+                const SizedBox(width: 14),
 
                 // Info
                 Expanded(
@@ -386,130 +444,179 @@ class _BookmarksScreenState extends State<BookmarksScreen> with SingleTickerProv
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF14FFEC), Color(0xFF0D7377)],
-                          ),
-                          borderRadius: BorderRadius.circular(8),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF14FFEC).withValues(alpha: 0.3),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.bookmark_rounded,
-                              size: 14,
-                              color: Colors.white,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'Глава $currentChapter',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      _buildProgressChip(lastMode, currentChapter, progress),
                     ],
                   ),
                 ),
 
-                // Remove button
-                IconButton(
-                  icon: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.red.withValues(alpha: 0.2),
-                          Colors.red.withValues(alpha: 0.1),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(
-                      Icons.bookmark_remove_rounded,
-                      color: Colors.redAccent,
-                      size: 20,
-                    ),
-                  ),
-                  onPressed: () {
-                    showDialog(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        backgroundColor: const Color(0xFF1A1F3A),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                          side: BorderSide(
-                            color: Colors.white.withValues(alpha: 0.1),
-                            width: 1.5,
-                          ),
-                        ),
-                        title: const Text(
-                          'Удалить закладку?',
-                          style: TextStyle(color: Colors.white),
-                        ),
-                        content: Text(
-                          'Вы уверены, что хотите удалить "$title" из закладок?',
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.7),
-                          ),
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: Text(
-                              'Отмена',
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.6),
-                              ),
-                            ),
-                          ),
-                          Container(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  Colors.red.shade400,
-                                  Colors.red.shade600,
-                                ],
-                              ),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: ElevatedButton(
-                              onPressed: () {
-                                Navigator.pop(context);
-                                _removeBookmark(bookId);
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.transparent,
-                                shadowColor: Colors.transparent,
-                              ),
-                              child: const Text('Удалить'),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
+                const SizedBox(width: 8),
+                _buildCardActions(bookmark, bookId, title),
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildProgressChip(
+    String lastMode,
+    dynamic currentChapter,
+    double progress,
+  ) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF14FFEC), Color(0xFF0D7377)],
+              ),
+              borderRadius: BorderRadius.circular(8),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF14FFEC).withValues(alpha: 0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  lastMode == 'AUDIO'
+                      ? Icons.headphones_rounded
+                      : Icons.menu_book_rounded,
+                  size: 14,
+                  color: Colors.white,
+                ),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    'Глава $currentChapter • ${(progress * 100).round()}%',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCardActions(
+    Map<String, dynamic> bookmark,
+    int bookId,
+    String title,
+  ) {
+    return SizedBox(
+      width: 92,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          _buildActionButton(
+            tooltip: 'Продолжить',
+            color: const Color(0xFF14FFEC),
+            icon: Icons.play_arrow_rounded,
+            onPressed: () => _resumeBook(bookmark),
+          ),
+          const SizedBox(width: 8),
+          _buildActionButton(
+            tooltip: 'Убрать из сохранённых',
+            color: Colors.redAccent,
+            icon: Icons.library_add_check_rounded,
+            onPressed: () => _confirmRemoveBookmark(bookId, title),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required String tooltip,
+    required Color color,
+    required IconData icon,
+    required VoidCallback onPressed,
+  }) {
+    return SizedBox(
+      width: 42,
+      height: 42,
+      child: IconButton(
+        tooltip: tooltip,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints.tightFor(width: 42, height: 42),
+        icon: Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, color: color, size: 21),
+        ),
+        onPressed: onPressed,
+      ),
+    );
+  }
+
+  void _confirmRemoveBookmark(int bookId, String title) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1F3A),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(
+            color: Colors.white.withValues(alpha: 0.1),
+            width: 1.5,
+          ),
+        ),
+        title: const Text(
+          'Убрать из сохранённых?',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: Text(
+          'Вы уверены, что хотите убрать "$title" из сохранённых книг?',
+          style: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Отмена',
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
+            ),
+          ),
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.red.shade400, Colors.red.shade600],
+              ),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _removeBookmark(bookId);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                shadowColor: Colors.transparent,
+              ),
+              child: const Text('Удалить'),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -532,5 +639,18 @@ class _BookmarksScreenState extends State<BookmarksScreen> with SingleTickerProv
         ),
       ),
     );
+  }
+
+  double _asProgress(dynamic value) {
+    if (value is num) return value.toDouble().clamp(0.0, 1.0).toDouble();
+    return (double.tryParse(value?.toString() ?? '') ?? 0.0)
+        .clamp(0.0, 1.0)
+        .toDouble();
+  }
+
+  int _asInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '') ?? 0;
   }
 }
