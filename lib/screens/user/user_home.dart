@@ -17,7 +17,7 @@ class UserHome extends StatefulWidget {
 }
 
 class _UserHomeState extends State<UserHome> {
-  int _selectedIndex = 0;
+  int _selectedIndex = 1;
   final StorageService _storage = StorageService();
   String? _currentToken;
 
@@ -39,28 +39,29 @@ class _UserHomeState extends State<UserHome> {
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
-    final List<Widget> screens = [
+    final token = _currentToken ?? widget.token;
+    final screens = [
       HomeScreen(
-        key: const ValueKey('catalog-home'),
-        token: _currentToken ?? widget.token,
+        key: const PageStorageKey('catalog-home'),
+        token: token,
         title: 'Каталог',
         subtitle: 'Goodreads и рекомендации',
       ),
       HomeScreen(
-        key: const ValueKey('reading-library-home'),
-        token: _currentToken ?? widget.token,
+        key: const PageStorageKey('reading-library-home'),
+        token: token,
         libraryOnly: true,
         title: 'Библиотека',
         subtitle: 'Для чтения и прослушивания',
       ),
-      ProfileScreen(token: _currentToken ?? widget.token),
+      ProfileScreen(token: token),
     ];
 
     return Scaffold(
       backgroundColor: palette.background,
       body: Container(
         decoration: BoxDecoration(gradient: palette.pageGradient),
-        child: screens[_selectedIndex],
+        child: IndexedStack(index: _selectedIndex, children: screens),
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(

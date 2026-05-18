@@ -28,7 +28,7 @@ public class Chapter {
     @Column
     private String title;
 
-    @Column(length = 50000)
+    @Column(columnDefinition = "TEXT")
     private String content;
 
     @ManyToOne(fetch = FetchType.LAZY)

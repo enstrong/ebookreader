@@ -33,6 +33,9 @@ public class User {
     @Column(nullable = false)
     private String role = "USER";
 
+    @Column
+    private Boolean audioSubscriptionActive = false;
+
     // 🔹 Добавлено: связь с user_books
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     @JsonIgnore // ❗ предотвращает рекурсивную сериализацию
@@ -87,6 +90,14 @@ public class User {
 
     public void setRole(String role) {
         this.role = role;
+    }
+
+    public boolean isAudioSubscriptionActive() {
+        return Boolean.TRUE.equals(audioSubscriptionActive);
+    }
+
+    public void setAudioSubscriptionActive(boolean audioSubscriptionActive) {
+        this.audioSubscriptionActive = audioSubscriptionActive;
     }
 
     public List<UserBook> getUserBooks() {

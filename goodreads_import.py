@@ -254,12 +254,36 @@ def get_or_create_genre_id(cursor, genre_name: str):
 def upsert_book(cursor, row):
     if getattr(row, 'goodreads_id', None):
         cursor.execute(
-            'SELECT id FROM books WHERE goodreads_id = %s',
-            (row.goodreads_id,)
+            '''INSERT INTO books
+               (title, author, description, cover_url, goodreads_id, average_rating, ratings_count, review_count, external_url, language, page_count, availability)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'METADATA_ONLY')
+               ON CONFLICT (goodreads_id) DO UPDATE SET
+                   title = EXCLUDED.title,
+                   author = EXCLUDED.author,
+                   description = EXCLUDED.description,
+                   cover_url = EXCLUDED.cover_url,
+                   average_rating = EXCLUDED.average_rating,
+                   ratings_count = EXCLUDED.ratings_count,
+                   review_count = EXCLUDED.review_count,
+                   external_url = EXCLUDED.external_url,
+                   language = EXCLUDED.language,
+                   page_count = EXCLUDED.page_count
+               RETURNING id''',
+            (
+                row.title,
+                row.author,
+                row.description,
+                row.cover_url,
+                row.goodreads_id,
+                row.average_rating,
+                row.ratings_count,
+                row.review_count,
+                row.external_url,
+                row.language,
+                row.page_count,
+            )
         )
-        row_data = cursor.fetchone()
-        if row_data:
-            return row_data[0]
+        return cursor.fetchone()[0]
 
     cursor.execute(
         'SELECT id FROM books WHERE title = %s',
@@ -376,34 +400,44 @@ def main():
     if 'ratings_count' not in books.columns:
         raise ValueError('The input books data must include a ratings_count field.')
 
-    if 'image_url' not in books.columns:
-        print('Warning: input books data does not include image_url. coverUrl will be empty.')
+    if 'image_url' not in books.columns and 'cover_url' not in books.columns:
+        print('Warning: input books data does not include image_url or cover_url. coverUrl will be empty.')
 
     if 'genres' not in books.columns:
         print('Warning: input books data does not include genres. genres will be empty.')
 
     if 'authors' in books.columns:
         books['author'] = books['authors'].apply(normalize_author)
+    elif 'author' in books.columns:
+        books['author'] = books['author'].fillna('').astype(str).apply(normalize_author)
     else:
         books['author'] = ''
 
     if 'image_url' in books.columns:
         books['cover_url'] = books['image_url'].apply(normalize_cover_url)
+    elif 'cover_url' in books.columns:
+        books['cover_url'] = books['cover_url'].apply(normalize_cover_url)
     else:
         books['cover_url'] = ''
 
     if 'book_id' in books.columns:
         books['goodreads_id'] = books['book_id'].astype(str)
+    elif 'goodreads_id' in books.columns:
+        books['goodreads_id'] = books['goodreads_id'].astype(str)
     else:
         books['goodreads_id'] = ''
 
     if 'text_reviews_count' in books.columns:
         books['review_count'] = books['text_reviews_count'].fillna(0).astype(int)
+    elif 'review_count' in books.columns:
+        books['review_count'] = books['review_count'].fillna(0).astype(int)
     else:
         books['review_count'] = 0
 
     if 'uri' in books.columns:
         books['external_url'] = books['uri'].apply(normalize_external_url)
+    elif 'external_url' in books.columns:
+        books['external_url'] = books['external_url'].apply(normalize_external_url)
     else:
         books['external_url'] = ''
 

@@ -26,16 +26,16 @@ public class Book {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false, length = 1000)
     private String title;
 
-    @Column
+    @Column(length = 1000)
     private String author;
 
     @Column(length = 2000)
     private String description;
 
-    @Column
+    @Column(length = 1000)
     private String coverUrl;
 
     @ManyToMany(cascade = {CascadeType.PERSIST, CascadeType.MERGE}, fetch = FetchType.LAZY)
@@ -46,7 +46,7 @@ public class Book {
     )
     private Set<Genre> genres = new HashSet<>();
 
-    @Column
+    @Column(unique = true)
     private String goodreadsId;
 
     @Column
@@ -58,10 +58,10 @@ public class Book {
     @Column
     private Integer reviewCount;
 
-    @Column
+    @Column(length = 1000)
     private String externalUrl;
 
-    @Column(name = "language")
+    @Column(name = "language", length = 64)
     private String languageCode;
 
     @Column(name = "page_count")

@@ -90,6 +90,31 @@ class UserService {
     return updateNickname(token, newNickname);
   }
 
+  /// Включает или отключает демо-подписку на аудиокниги.
+  Future<Map<String, dynamic>> updateAudioSubscription(
+    String token,
+    bool active,
+  ) async {
+    final response = await http.put(
+      Uri.parse('$baseUrl/user/audio-subscription'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: json.encode({'active': active}),
+    );
+
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    }
+
+    if (response.body.isNotEmpty) {
+      final error = json.decode(response.body);
+      throw Exception(error['message'] ?? 'Ошибка обновления подписки');
+    }
+    throw Exception('Ошибка обновления подписки: ${response.statusCode}');
+  }
+
   /// Обновляет JWT-токен пользователя.
   ///
   /// Отправляет POST-запрос на `/auth/refresh`.

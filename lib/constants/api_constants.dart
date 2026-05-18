@@ -23,18 +23,28 @@ class ApiConstants {
   /// В противном случае добавляется разделитель `/`.
   static String getCoverUrl(String coverPath) {
     final apiBase = dotenv.env['API_BASE_URL'] ?? 'http://192.168.1.90:8080';
-    
+
     // Если это уже полный URL
-    if (coverPath.startsWith('http')) return coverPath;
-    
+    if (coverPath.startsWith('http')) {
+      return _preferLargeGoodreadsCover(coverPath);
+    }
+
     // Получаем имя файла
     String filename = coverPath;
     if (coverPath.contains('/')) {
       filename = coverPath.split('/').last;
     }
-    
+
     // Возвращаем прямой путь к статике
     return '$apiBase/covers/$filename';
+  }
+
+  static String _preferLargeGoodreadsCover(String url) {
+    if (!url.contains('gr-assets.com/books/')) return url;
+    return url.replaceFirstMapped(
+      RegExp(r'/books/(\d+)[ms]/'),
+      (match) => '/books/${match.group(1)}l/',
+    );
   }
 
   /// Формирует полный URL для потокового аудио.

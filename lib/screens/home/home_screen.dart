@@ -1,8 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:ebookreader/services/book_service.dart';
+import 'package:ebookreader/services/bookmark_service.dart';
 import 'package:ebookreader/screens/book/book_detail_screen.dart';
+import 'package:ebookreader/screens/reader/reader_screen.dart';
 import 'package:ebookreader/constants/api_constants.dart';
 import 'package:ebookreader/theme/app_theme.dart';
+import 'package:ebookreader/utils/book_display.dart';
 
 enum SortOption { title, rating, popularity, language }
 
@@ -34,20 +39,42 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   final BookService _bookService = BookService();
+  final BookmarkService _bookmarkService = BookmarkService();
   final TextEditingController _searchController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  Timer? _searchDebounce;
+  int _requestSerial = 0;
 
   List<dynamic> _books = [];
   List<dynamic> _filteredBooks = [];
   Set<String> _availableGenres = {};
   Set<String> _availableLanguages = {};
-  String? _selectedGenre;
+  Set<String> _selectedGenres = {};
   Set<String> _selectedLanguages = {};
+  Set<String> _selectedContentFeatures = {};
   double? _selectedMinRating;
-  SortOption _sortOption = SortOption.title;
-  SortDirection _sortDirection = SortDirection.ascending;
+  SortOption _sortOption = SortOption.popularity;
+  SortDirection _sortDirection = SortDirection.descending;
   String _searchQuery = '';
   bool _isLoading = true;
   bool _isSearching = false;
+  bool _isLoadingMore = false;
+  bool _hasNextPage = false;
+  int _currentPage = 0;
+  int _totalItems = 0;
+  static const int _pageSize = 50;
+  static const List<String> _defaultCatalogGenres = [
+    'fiction',
+    'fantasy, paranormal',
+    'young-adult',
+    'children',
+    'romance',
+    'mystery, thriller, crime',
+    'history, historical fiction, biography',
+    'comics, graphic',
+    'poetry',
+    'classics',
+  ];
   late AnimationController _animController;
 
   @override
@@ -57,13 +84,16 @@ class _HomeScreenState extends State<HomeScreen>
       duration: const Duration(milliseconds: 600),
       vsync: this,
     );
+    _scrollController.addListener(_onScroll);
     _loadBooks();
   }
 
   @override
   void dispose() {
     _animController.dispose();
+    _searchDebounce?.cancel();
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -73,32 +103,92 @@ class _HomeScreenState extends State<HomeScreen>
     if (oldWidget.token != widget.token ||
         oldWidget.libraryOnly != widget.libraryOnly) {
       _resetFilters();
-      _loadBooks();
+      _loadBooks(reset: true);
     }
   }
 
-  Future<void> _loadBooks() async {
-    setState(() => _isLoading = true);
+  Future<void> _loadBooks({bool reset = true}) async {
+    if (_isLoadingMore || (!reset && !_hasNextPage)) return;
+    final requestId = ++_requestSerial;
+    setState(() {
+      if (reset) {
+        _isLoading = true;
+        _currentPage = 0;
+        _hasNextPage = false;
+      } else {
+        _isLoadingMore = true;
+      }
+    });
     try {
-      final books = widget.libraryOnly
-          ? await _bookService.getLibraryBooks(widget.token)
-          : await _bookService.getAllBooks(widget.token);
-      final cleanBooks = books.cast<dynamic>().toList();
+      final cleanBooks = <dynamic>[];
+      var totalItems = 0;
+      var hasNext = false;
+
+      if (widget.libraryOnly) {
+        final books = await _bookService.getLibraryBooks(widget.token);
+        cleanBooks.addAll(books.cast<dynamic>());
+        totalItems = cleanBooks.length;
+      } else {
+        final page = await _bookService.getBooksPage(
+          widget.token,
+          page: reset ? 0 : _currentPage + 1,
+          size: _pageSize,
+          query: _searchQuery,
+          languages: _selectedLanguages.map(_languageCode).toList(),
+          genres: _selectedGenres.toList(),
+          minRating: _selectedMinRating,
+          contentFeatures: _selectedContentFeatures,
+          sort: _sortQueryValue(),
+        );
+        cleanBooks.addAll((page['items'] as List? ?? []).cast<dynamic>());
+        totalItems = _asInt(page['totalItems']);
+        hasNext = page['hasNext'] == true;
+      }
+
+      if (!mounted || requestId != _requestSerial) {
+        return;
+      }
       setState(() {
-        _books = cleanBooks;
-        _availableGenres = _extractGenres(cleanBooks);
-        _availableLanguages = _extractLanguages(cleanBooks);
-        _applyFilters();
+        _books = reset ? cleanBooks : [..._books, ...cleanBooks];
+        _filteredBooks = _books;
+        _availableGenres = widget.libraryOnly
+            ? _extractGenres(_books)
+            : {..._defaultCatalogGenres, ..._extractGenres(_books)};
+        _availableLanguages = widget.libraryOnly
+            ? _extractLanguages(_books)
+            : {
+                'English',
+                'Español',
+                'العربية',
+                'Português',
+                'Русский',
+                'Қазақша',
+              };
+        _totalItems = totalItems;
+        _hasNextPage = widget.libraryOnly ? false : hasNext;
+        if (!reset && cleanBooks.isNotEmpty) {
+          _currentPage += 1;
+        }
         _isLoading = false;
+        _isLoadingMore = false;
+        _isSearching = false;
       });
       _animController.forward();
     } catch (e) {
+      if (!mounted || requestId != _requestSerial) {
+        return;
+      }
       setState(() {
-        _books = [];
-        _filteredBooks = [];
-        _availableGenres = {};
-        _availableLanguages = {};
+        if (reset) {
+          _books = [];
+          _filteredBooks = [];
+          _availableGenres = {};
+          _availableLanguages = {};
+          _totalItems = 0;
+        }
         _isLoading = false;
+        _isLoadingMore = false;
+        _isSearching = false;
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -122,11 +212,74 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _searchBooks(String query) {
+    _searchDebounce?.cancel();
     setState(() {
       _searchQuery = query;
       _isSearching = query.isNotEmpty;
-      _applyFilters();
     });
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+      _loadBooks(reset: true);
+    });
+  }
+
+  void _onScroll() {
+    if (widget.libraryOnly || !_hasNextPage || _isLoading || _isLoadingMore) {
+      return;
+    }
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 600) {
+      _loadBooks(reset: false);
+    }
+  }
+
+  int _asInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  String _languageCode(String label) {
+    switch (label.trim().toLowerCase()) {
+      case 'english':
+      case 'eng':
+        return 'eng';
+      case 'español':
+      case 'spanish':
+      case 'spa':
+        return 'spa';
+      case 'العربية':
+      case 'arabic':
+      case 'ara':
+        return 'ara';
+      case 'português':
+      case 'portuguese':
+      case 'por':
+        return 'por';
+      case 'русский':
+      case 'russian':
+      case 'rus':
+        return 'rus';
+      case 'қазақша':
+      case 'kazakh':
+      case 'kaz':
+        return 'kaz';
+      default:
+        return label;
+    }
+  }
+
+  String _sortQueryValue() {
+    final suffix = _sortDirection == SortDirection.descending ? 'desc' : 'asc';
+    switch (_sortOption) {
+      case SortOption.rating:
+        return 'rating_$suffix';
+      case SortOption.popularity:
+        return 'popularity_$suffix';
+      case SortOption.language:
+        return 'language_$suffix';
+      case SortOption.title:
+        return 'title_$suffix';
+    }
   }
 
   void _openBookDetail(int bookId) {
@@ -134,6 +287,47 @@ class _HomeScreenState extends State<HomeScreen>
       context,
       MaterialPageRoute(
         builder: (_) => BookDetailScreen(token: widget.token, bookId: bookId),
+      ),
+    );
+  }
+
+  Future<void> _openBookPrimaryAction(Map<String, dynamic> book) async {
+    final bookId = _asInt(book['id']);
+    if (bookId <= 0) return;
+    final availability = _bookAvailability(book);
+    if (!_hasTextAvailability(availability)) {
+      _openBookDetail(bookId);
+      return;
+    }
+
+    final progress = await _bookmarkService.getProgress(widget.token, bookId);
+    final chapters = await _bookService.getBookChapters(widget.token, bookId);
+    if (!mounted) return;
+    if (chapters.isEmpty) {
+      _openBookDetail(bookId);
+      return;
+    }
+
+    final currentChapter = _asInt(
+      progress['segmentOrder'] ?? progress['currentChapter'],
+    ).clamp(1, chapters.length).toInt();
+    final rawProgress = progress['segmentProgress'];
+    final segmentProgress = rawProgress is num
+        ? rawProgress.toDouble().clamp(0.0, 1.0).toDouble()
+        : double.tryParse(rawProgress?.toString() ?? '')?.clamp(0.0, 1.0) ??
+              0.0;
+    final rating = _asInt(progress['rating']).clamp(0, 5).toInt();
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ReaderScreen(
+          token: widget.token,
+          bookId: bookId,
+          chapterOrder: currentChapter,
+          initialSegmentProgress: segmentProgress,
+          initialRating: rating,
+        ),
       ),
     );
   }
@@ -189,7 +383,7 @@ class _HomeScreenState extends State<HomeScreen>
                                 ),
                               ),
                               Text(
-                                '${widget.subtitle} • ${_books.length} книг',
+                                '${widget.subtitle} • ${_totalItems > 0 ? _totalItems : _books.length} книг',
                                 style: TextStyle(
                                   fontSize: 13,
                                   color: palette.mutedText,
@@ -278,7 +472,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildFilterBar() {
     final palette = context.palette;
-    final genres = _availableGenres.toList()..sort();
+    final activeFilterCount = _activeFilterCount();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -287,7 +481,7 @@ class _HomeScreenState extends State<HomeScreen>
           children: [
             Expanded(
               child: Text(
-                '${_filteredBooks.length} результатов • ${_sortLabel()}',
+                '${_totalItems > 0 ? _totalItems : _filteredBooks.length} результатов • ${_sortLabel()}',
                 overflow: TextOverflow.ellipsis,
                 maxLines: 1,
                 style: TextStyle(color: palette.mutedText, fontSize: 13),
@@ -295,7 +489,11 @@ class _HomeScreenState extends State<HomeScreen>
             ),
             IconButton(
               onPressed: _openFilterScreen,
-              icon: Icon(Icons.filter_list_rounded, color: palette.accent),
+              icon: Badge.count(
+                count: activeFilterCount,
+                isLabelVisible: activeFilterCount > 0,
+                child: Icon(Icons.filter_list_rounded, color: palette.accent),
+              ),
               tooltip: 'Фильтры',
             ),
             PopupMenuButton<String>(
@@ -342,8 +540,8 @@ class _HomeScreenState extends State<HomeScreen>
                       _sortDirection = SortDirection.descending;
                       break;
                   }
-                  _applyFilters();
                 });
+                _loadBooks(reset: true);
               },
               itemBuilder: (context) => [
                 PopupMenuItem(
@@ -406,39 +604,17 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           ],
         ),
-        const SizedBox(height: 12),
-        if (genres.isNotEmpty) ...[
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: genres.take(8).map((genre) {
-              final selected = _selectedGenre == genre;
-              return ChoiceChip(
-                label: Text(genre),
-                selected: selected,
-                selectedColor: palette.accent,
-                backgroundColor: palette.text.withValues(
-                  alpha: palette.isDark ? 0.07 : 0.16,
-                ),
-                labelStyle: TextStyle(
-                  color: selected
-                      ? palette.onAccent
-                      : palette.text.withValues(alpha: 0.8),
-                  fontSize: 12,
-                ),
-                onSelected: (_) {
-                  setState(() {
-                    _selectedGenre = selected ? null : genre;
-                    _applyFilters();
-                  });
-                },
-              );
-            }).toList(),
-          ),
-        ],
       ],
     );
+  }
+
+  int _activeFilterCount() {
+    var count =
+        _selectedLanguages.length +
+        _selectedContentFeatures.length +
+        _selectedGenres.length;
+    if (_selectedMinRating != null) count += 1;
+    return count;
   }
 
   Future<void> _openFilterScreen() async {
@@ -446,8 +622,11 @@ class _HomeScreenState extends State<HomeScreen>
       MaterialPageRoute(
         fullscreenDialog: true,
         builder: (context) => FilterScreen(
+          genres: _availableGenres.toList()..sort(),
+          selectedGenres: Set.of(_selectedGenres),
           languages: _availableLanguages.toList()..sort(),
           selectedLanguages: Set.of(_selectedLanguages),
+          selectedContentFeatures: Set.of(_selectedContentFeatures),
           selectedMinRating: _selectedMinRating,
         ),
       ),
@@ -455,76 +634,15 @@ class _HomeScreenState extends State<HomeScreen>
 
     if (result != null && mounted) {
       setState(() {
+        _selectedGenres = Set.of(result['selectedGenres'] as Set<String>);
         _selectedLanguages = Set.of(result['selectedLanguages'] as Set<String>);
+        _selectedContentFeatures = Set.of(
+          result['selectedContentFeatures'] as Set<String>,
+        );
         _selectedMinRating = result['selectedMinRating'] as double?;
-        _applyFilters();
       });
+      _loadBooks(reset: true);
     }
-  }
-
-  void _applyFilters() {
-    final query = _searchQuery.toLowerCase();
-    final filtered = _books.where((book) {
-      final title = (book['title'] ?? '').toString().toLowerCase();
-      final author = (book['author'] ?? '').toString().toLowerCase();
-      final language = _bookLanguage(book).toLowerCase();
-      final genres = _bookGenres(
-        book,
-      ).map((genre) => genre.toLowerCase()).toList();
-      final textMatches =
-          query.isEmpty ||
-          title.contains(query) ||
-          author.contains(query) ||
-          language.contains(query) ||
-          genres.any((genre) => genre.contains(query));
-      final selectedLanguages = _selectedLanguages
-          .map((lang) => lang.toLowerCase())
-          .toSet();
-      final selectedGenre = _selectedGenre?.toLowerCase();
-      final languageMatches =
-          selectedLanguages.isEmpty || selectedLanguages.contains(language);
-      final genreMatches =
-          selectedGenre == null || genres.contains(selectedGenre);
-      final rating =
-          (book['average_rating'] ?? book['averageRating'] ?? 0) as num;
-      final ratingMatches =
-          _selectedMinRating == null || rating >= _selectedMinRating!;
-      return textMatches && languageMatches && genreMatches && ratingMatches;
-    }).toList();
-
-    filtered.sort((a, b) {
-      int result;
-      switch (_sortOption) {
-        case SortOption.rating:
-          final aRating =
-              (a['average_rating'] ?? a['averageRating'] ?? 0) as num;
-          final bRating =
-              (b['average_rating'] ?? b['averageRating'] ?? 0) as num;
-          result = aRating.compareTo(bRating);
-          break;
-        case SortOption.popularity:
-          final aCount = (a['ratings_count'] ?? a['ratingsCount'] ?? 0) as num;
-          final bCount = (b['ratings_count'] ?? b['ratingsCount'] ?? 0) as num;
-          result = aCount.compareTo(bCount);
-          break;
-        case SortOption.language:
-          result = _bookLanguage(a).compareTo(_bookLanguage(b));
-          break;
-        case SortOption.title:
-          result = (a['title'] ?? '').toString().compareTo(
-            (b['title'] ?? '').toString(),
-          );
-          break;
-      }
-      if (_sortDirection == SortDirection.descending) {
-        return -result;
-      }
-      return result;
-    });
-
-    setState(() {
-      _filteredBooks = filtered;
-    });
   }
 
   Set<String> _extractGenres(List<dynamic> books) {
@@ -590,6 +708,11 @@ class _HomeScreenState extends State<HomeScreen>
       case 'русский':
       case 'russian':
         return 'Русский';
+      case 'kk':
+      case 'kaz':
+      case 'kazakh':
+      case 'қазақша':
+        return 'Қазақша';
       case 'es':
       case 'spa':
       case 'español':
@@ -722,17 +845,19 @@ class _HomeScreenState extends State<HomeScreen>
 
   void _resetFilters() {
     _searchController.clear();
-    _selectedGenre = null;
+    _selectedGenres = {};
     _selectedLanguages = {};
+    _selectedContentFeatures = {};
     _selectedMinRating = null;
-    _sortOption = SortOption.title;
-    _sortDirection = SortDirection.ascending;
+    _sortOption = SortOption.popularity;
+    _sortDirection = SortDirection.descending;
     _searchQuery = '';
     _isSearching = false;
   }
 
   Widget _buildBooksGrid() {
     return GridView.builder(
+      controller: _scrollController,
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
@@ -740,8 +865,16 @@ class _HomeScreenState extends State<HomeScreen>
         crossAxisSpacing: 14,
         mainAxisSpacing: 18,
       ),
-      itemCount: _filteredBooks.length,
+      itemCount: _filteredBooks.length + (_isLoadingMore ? 2 : 0),
       itemBuilder: (context, index) {
+        if (index >= _filteredBooks.length) {
+          return Center(
+            child: CircularProgressIndicator(
+              color: context.palette.accent,
+              strokeWidth: 2,
+            ),
+          );
+        }
         return TweenAnimationBuilder(
           duration: Duration(milliseconds: 300 + (index * 50)),
           tween: Tween<double>(begin: 0, end: 1),
@@ -761,7 +894,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildBookCard(Map<String, dynamic> book) {
     final palette = context.palette;
-    final bookId = book['id'] as int;
+    final bookId = _asInt(book['id']);
     final rating = (book['average_rating'] ?? book['averageRating'] ?? 0)
         .toString();
     final ratingsCount = _bookRatingsCount(book);
@@ -887,7 +1020,7 @@ class _HomeScreenState extends State<HomeScreen>
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              book['author'] ?? 'Неизвестный автор',
+                              authorLabel(book['author']),
                               style: TextStyle(
                                 fontSize: 12,
                                 color: palette.mutedText,
@@ -915,49 +1048,52 @@ class _HomeScreenState extends State<HomeScreen>
                           ],
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          gradient: _isUsableAvailability(availability)
-                              ? palette.accentGradient
-                              : LinearGradient(
-                                  colors: [
-                                    palette.text.withValues(alpha: 0.08),
-                                    palette.text.withValues(alpha: 0.04),
-                                  ],
-                                ),
-                          borderRadius: BorderRadius.circular(10),
-                          boxShadow: [
-                            BoxShadow(
-                              color: palette.accent.withValues(alpha: 0.24),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.play_arrow_rounded,
-                              size: 16,
-                              color: palette.onAccent,
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              _isUsableAvailability(availability)
-                                  ? 'Открыть'
-                                  : 'Детали',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: palette.onAccent,
-                                fontWeight: FontWeight.w600,
+                      GestureDetector(
+                        onTap: () => _openBookPrimaryAction(book),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            gradient: _isUsableAvailability(availability)
+                                ? palette.accentGradient
+                                : LinearGradient(
+                                    colors: [
+                                      palette.text.withValues(alpha: 0.08),
+                                      palette.text.withValues(alpha: 0.04),
+                                    ],
+                                  ),
+                            borderRadius: BorderRadius.circular(10),
+                            boxShadow: [
+                              BoxShadow(
+                                color: palette.accent.withValues(alpha: 0.24),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.play_arrow_rounded,
+                                size: 16,
+                                color: palette.onAccent,
+                              ),
+                              const SizedBox(width: 5),
+                              Text(
+                                _isUsableAvailability(availability)
+                                    ? 'Открыть'
+                                    : 'Детали',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: palette.onAccent,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ],
@@ -999,6 +1135,10 @@ class _HomeScreenState extends State<HomeScreen>
         availability == 'SYNCED';
   }
 
+  bool _hasTextAvailability(String availability) {
+    return availability == 'TEXT' || availability == 'SYNCED';
+  }
+
   String _availabilityLabel(String availability) {
     switch (availability) {
       case 'TEXT':
@@ -1006,7 +1146,7 @@ class _HomeScreenState extends State<HomeScreen>
       case 'AUDIO':
         return 'Аудио';
       case 'SYNCED':
-        return 'Sync';
+        return 'Текст + аудио';
       case 'PDF_ONLY':
         return 'PDF';
       default:
@@ -1070,14 +1210,20 @@ class _HomeScreenState extends State<HomeScreen>
 }
 
 class FilterScreen extends StatefulWidget {
+  final List<String> genres;
+  final Set<String> selectedGenres;
   final List<String> languages;
   final Set<String> selectedLanguages;
+  final Set<String> selectedContentFeatures;
   final double? selectedMinRating;
 
   const FilterScreen({
     super.key,
+    required this.genres,
+    required this.selectedGenres,
     required this.languages,
     required this.selectedLanguages,
+    required this.selectedContentFeatures,
     this.selectedMinRating,
   });
 
@@ -1086,13 +1232,17 @@ class FilterScreen extends StatefulWidget {
 }
 
 class _FilterScreenState extends State<FilterScreen> {
+  late Set<String> _selectedGenres;
   late Set<String> _selectedLanguages;
+  late Set<String> _selectedContentFeatures;
   double? _selectedMinRating;
 
   @override
   void initState() {
     super.initState();
+    _selectedGenres = Set.of(widget.selectedGenres);
     _selectedLanguages = Set.of(widget.selectedLanguages);
+    _selectedContentFeatures = Set.of(widget.selectedContentFeatures);
     _selectedMinRating = widget.selectedMinRating;
   }
 
@@ -1109,6 +1259,11 @@ class _FilterScreenState extends State<FilterScreen> {
       case 'русский':
       case 'russian':
         return '🇷🇺';
+      case 'kk':
+      case 'kaz':
+      case 'kazakh':
+      case 'қазақша':
+        return '🇰🇿';
       case 'es':
       case 'spa':
       case 'español':
@@ -1196,6 +1351,101 @@ class _FilterScreenState extends State<FilterScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Text(
+                'Жанр',
+                style: TextStyle(
+                  color: palette.text,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  ChoiceChip(
+                    label: Text(
+                      'Все жанры',
+                      style: TextStyle(
+                        color: _selectedGenres.isEmpty
+                            ? palette.onAccent
+                            : palette.text,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    selected: _selectedGenres.isEmpty,
+                    selectedColor: palette.accent,
+                    backgroundColor: palette.elevated,
+                    side: BorderSide(
+                      color: _selectedGenres.isEmpty
+                          ? palette.accent
+                          : palette.border,
+                    ),
+                    onSelected: (_) {
+                      setState(() {
+                        _selectedGenres.clear();
+                      });
+                    },
+                  ),
+                  ...widget.genres.map((genre) {
+                    final selected = _selectedGenres.contains(genre);
+                    return FilterChip(
+                      label: Text(
+                        genreLabel(genre),
+                        style: TextStyle(
+                          color: selected ? palette.onAccent : palette.text,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      selected: selected,
+                      selectedColor: palette.accent,
+                      backgroundColor: palette.elevated,
+                      side: BorderSide(
+                        color: selected ? palette.accent : palette.border,
+                      ),
+                      onSelected: (_) {
+                        setState(() {
+                          if (selected) {
+                            _selectedGenres.remove(genre);
+                          } else {
+                            _selectedGenres.add(genre);
+                          }
+                        });
+                      },
+                    );
+                  }),
+                ],
+              ),
+              const SizedBox(height: 18),
+              Text(
+                'Доступность',
+                style: TextStyle(
+                  color: palette.text,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  _buildContentFeatureChip(
+                    feature: 'text',
+                    label: 'Есть текст',
+                    icon: Icons.menu_book_rounded,
+                  ),
+                  _buildContentFeatureChip(
+                    feature: 'audio',
+                    label: 'Есть аудио',
+                    icon: Icons.headphones_rounded,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
               Text(
                 'Язык',
                 style: TextStyle(
@@ -1349,16 +1599,57 @@ class _FilterScreenState extends State<FilterScreen> {
     );
   }
 
+  Widget _buildContentFeatureChip({
+    required String feature,
+    required String label,
+    required IconData icon,
+  }) {
+    final palette = context.palette;
+    final selected = _selectedContentFeatures.contains(feature);
+    return FilterChip(
+      avatar: Icon(
+        icon,
+        size: 18,
+        color: selected ? palette.onAccent : palette.accent,
+      ),
+      label: Text(
+        label,
+        style: TextStyle(
+          color: selected ? palette.onAccent : palette.text,
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      selected: selected,
+      selectedColor: palette.accent,
+      backgroundColor: palette.elevated,
+      side: BorderSide(color: selected ? palette.accent : palette.border),
+      onSelected: (_) {
+        setState(() {
+          if (selected) {
+            _selectedContentFeatures.remove(feature);
+          } else {
+            _selectedContentFeatures.add(feature);
+          }
+        });
+      },
+    );
+  }
+
   void _applyFilters() {
     Navigator.of(context).pop({
+      'selectedGenres': _selectedGenres,
       'selectedLanguages': _selectedLanguages,
+      'selectedContentFeatures': _selectedContentFeatures,
       'selectedMinRating': _selectedMinRating,
     });
   }
 
   void _clearFilters() {
     setState(() {
+      _selectedGenres.clear();
       _selectedLanguages.clear();
+      _selectedContentFeatures.clear();
       _selectedMinRating = null;
     });
   }
@@ -1377,6 +1668,11 @@ class _FilterScreenState extends State<FilterScreen> {
       case 'русский':
       case 'russian':
         return 'Русский';
+      case 'kk':
+      case 'kaz':
+      case 'kazakh':
+      case 'қазақша':
+        return 'Қазақша';
       case 'es':
       case 'spa':
       case 'español':

@@ -17,12 +17,53 @@ class BookService {
   /// Отправляет GET-запрос на `/books`.
   /// Выбрасывает [Exception] при ошибке авторизации или сервера.
   Future<List<dynamic>> getAllBooks(String token) async {
+    final page = await getBooksPage(token);
+    return page['items'] as List<dynamic>;
+  }
+
+  Future<Map<String, dynamic>> getBooksPage(
+    String token, {
+    int page = 0,
+    int size = 50,
+    String query = '',
+    List<String> languages = const [],
+    List<String> genres = const [],
+    double? minRating,
+    Set<String> contentFeatures = const {},
+    String sort = 'popular',
+  }) async {
     try {
-      print('=== GET ALL BOOKS REQUEST ===');
-      print('URL: $baseUrl/books');
+      final queryParts = <String>[];
+      void addParam(String name, String value) {
+        queryParts.add(Uri(queryParameters: {name: value}).query);
+      }
+
+      addParam('page', page.toString());
+      addParam('size', size.toString());
+      addParam('sort', sort);
+      if (query.trim().isNotEmpty) addParam('query', query.trim());
+      for (final language in languages) {
+        final cleanLanguage = language.trim();
+        if (cleanLanguage.isNotEmpty) addParam('languages', cleanLanguage);
+      }
+      for (final genre in genres) {
+        final cleanGenre = genre.trim();
+        if (cleanGenre.isNotEmpty) addParam('genres', cleanGenre);
+      }
+      if (minRating != null) addParam('minRating', minRating.toString());
+      for (final feature in contentFeatures) {
+        final cleanFeature = feature.trim();
+        if (cleanFeature.isNotEmpty) addParam('features', cleanFeature);
+      }
+      final uri = Uri.parse(
+        '$baseUrl/books',
+      ).replace(query: queryParts.join('&'));
+
+      print('=== GET BOOKS PAGE REQUEST ===');
+      print('URL: $uri');
 
       final response = await http.get(
-        Uri.parse('$baseUrl/books'),
+        uri,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -33,16 +74,21 @@ class BookService {
       print('Response body: ${response.body}');
 
       if (response.statusCode == 200) {
-        if (response.body.isEmpty || response.body == '[]') {
-          return [];
-        }
+        if (response.body.isEmpty) return _emptyPage(page, size);
         final data = json.decode(response.body);
-        if (data is List) {
+        if (data is Map<String, dynamic>) {
           return data;
-        } else if (data is Map && data.containsKey('books')) {
-          return data['books'];
+        } else if (data is Map) {
+          return Map<String, dynamic>.from(data);
+        } else if (data is List) {
+          return {
+            ..._emptyPage(page, size),
+            'items': data,
+            'totalItems': data.length,
+            'totalPages': 1,
+          };
         }
-        return [];
+        return _emptyPage(page, size);
       } else if (response.statusCode == 401) {
         throw Exception('Сессия истекла. Войдите заново');
       } else if (response.statusCode == 403) {
@@ -51,9 +97,20 @@ class BookService {
         throw Exception('Ошибка загрузки книг: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error in getAllBooks: $e');
+      print('Error in getBooksPage: $e');
       rethrow;
     }
+  }
+
+  Map<String, dynamic> _emptyPage(int page, int size) {
+    return {
+      'items': <dynamic>[],
+      'page': page,
+      'size': size,
+      'totalItems': 0,
+      'totalPages': 0,
+      'hasNext': false,
+    };
   }
 
   /// Возвращает книги, которые текущий пользователь сейчас читает.
@@ -173,7 +230,10 @@ class BookService {
   ///
   /// Отправляет POST-запрос на `/admin/books` с данными книги.
   /// Возвращает ответ сервера. Выбрасывает [Exception] при ошибке.
-  Future<Map<String, dynamic>> addBook(String token, Map<String, dynamic> bookData) async {
+  Future<Map<String, dynamic>> addBook(
+    String token,
+    Map<String, dynamic> bookData,
+  ) async {
     try {
       print('=== ADD BOOK REQUEST ===');
       print('URL: $baseUrl/admin/books');
@@ -216,7 +276,11 @@ class BookService {
   ///
   /// Отправляет PUT-запрос на `/admin/books/{bookId}`.
   /// Выбрасывает [Exception], если книга не найдена или данные некорректны.
-  Future<Map<String, dynamic>> updateBook(String token, int bookId, Map<String, dynamic> bookData) async {
+  Future<Map<String, dynamic>> updateBook(
+    String token,
+    int bookId,
+    Map<String, dynamic> bookData,
+  ) async {
     try {
       print('=== UPDATE BOOK REQUEST ===');
       print('URL: $baseUrl/admin/books/$bookId');
@@ -385,7 +449,11 @@ class BookService {
   ///
   /// Отправляет GET-запрос на `/books/{bookId}/chapters/{chapterOrder}`.
   /// Выбрасывает [Exception], если глава не найдена или произошла ошибка.
-  Future<Map<String, dynamic>> getChapter(String token, int bookId, int chapterOrder) async {
+  Future<Map<String, dynamic>> getChapter(
+    String token,
+    int bookId,
+    int chapterOrder,
+  ) async {
     try {
       print('=== GET CHAPTER REQUEST ===');
       print('URL: $baseUrl/books/$bookId/chapters/$chapterOrder');
@@ -440,7 +508,9 @@ class BookService {
         if (data is List) {
           return data
               .whereType<Map>()
-              .map((item) => AudioTrack.fromJson(Map<String, dynamic>.from(item)))
+              .map(
+                (item) => AudioTrack.fromJson(Map<String, dynamic>.from(item)),
+              )
               .toList();
         }
         return [];

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:ebookreader/services/book_service.dart';
 import 'package:ebookreader/services/bookmark_service.dart';
+import 'package:ebookreader/services/user_service.dart';
 import 'package:ebookreader/screens/reader/reader_screen.dart';
 import 'package:ebookreader/screens/audio/audio_player_screen.dart';
 import 'package:ebookreader/constants/api_constants.dart';
 import 'package:ebookreader/theme/app_theme.dart';
+import 'package:ebookreader/utils/book_display.dart';
 
 /// Экран детальной информации о книге.
 ///
@@ -29,11 +31,14 @@ class _BookDetailScreenState extends State<BookDetailScreen>
     with SingleTickerProviderStateMixin {
   final BookService _bookService = BookService();
   final BookmarkService _bookmarkService = BookmarkService();
+  final UserService _userService = UserService();
 
   Map<String, dynamic>? _book;
   List<dynamic> _chapters = [];
   bool _isLoading = true;
   bool _isBookmarked = false;
+  bool _audioSubscriptionActive = false;
+  bool _isSubscriptionSaving = false;
   bool _isRatingSaving = false;
   int _userRating = 0;
   int _currentChapter = 1;
@@ -73,10 +78,13 @@ class _BookDetailScreenState extends State<BookDetailScreen>
         widget.token,
         widget.bookId,
       );
+      final profile = await _userService.getProfile(widget.token);
 
       setState(() {
         _book = book;
         _chapters = chapters;
+        _audioSubscriptionActive =
+            profile['audioSubscriptionActive'] == true;
         _currentChapter =
             progress['segmentOrder'] ?? progress['currentChapter'] ?? 1;
         _segmentProgress = _asDouble(progress['segmentProgress']);
@@ -184,8 +192,9 @@ class _BookDetailScreenState extends State<BookDetailScreen>
   Future<void> _saveRating(int rating) async {
     if (_isRatingSaving || rating < 1 || rating > 5) return;
     final previous = _userRating;
+    final nextRating = previous == rating ? 0 : rating;
     setState(() {
-      _userRating = rating;
+      _userRating = nextRating;
       _isRatingSaving = true;
     });
 
@@ -193,7 +202,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
       final savedRating = await _bookmarkService.updateRating(
         widget.token,
         widget.bookId,
-        rating,
+        nextRating,
       );
       if (!mounted) return;
       setState(() {
@@ -202,7 +211,9 @@ class _BookDetailScreenState extends State<BookDetailScreen>
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Оценка сохранена'),
+          content: Text(
+            savedRating == 0 ? 'Оценка удалена' : 'Оценка сохранена',
+          ),
           backgroundColor: context.palette.success,
         ),
       );
@@ -221,7 +232,12 @@ class _BookDetailScreenState extends State<BookDetailScreen>
     }
   }
 
-  void _openAudioPlayer() {
+  Future<void> _openAudioPlayer() async {
+    if (!_audioSubscriptionActive) {
+      final activated = await _showAudioPaywall();
+      if (!activated || !mounted) return;
+    }
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -229,13 +245,87 @@ class _BookDetailScreenState extends State<BookDetailScreen>
           token: widget.token,
           bookId: widget.bookId,
           title: _book?['title'] ?? 'Без названия',
-          author: _book?['author'] ?? '',
+          author: authorLabel(_book?['author']),
           initialSegmentOrder: _currentChapter,
           initialSegmentProgress: _segmentProgress,
           initialAudioPositionMs: _audioPositionMs,
         ),
       ),
     ).then((_) => _loadBookDetails());
+  }
+
+  Future<bool> _showAudioPaywall() async {
+    final palette = context.palette;
+    final shouldActivate = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: palette.elevated,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Row(
+          children: [
+            Icon(Icons.workspace_premium_rounded, color: palette.accent),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Audio Premium',
+                style: TextStyle(color: palette.text),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'Аудиокниги доступны по подписке. Для демо можно активировать доступ без оплаты.',
+          style: TextStyle(color: palette.text.withValues(alpha: 0.78)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text('Позже', style: TextStyle(color: palette.mutedText)),
+          ),
+          FilledButton(
+            onPressed: _isSubscriptionSaving
+                ? null
+                : () => Navigator.pop(dialogContext, true),
+            child: const Text('Активировать демо'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldActivate != true) {
+      return false;
+    }
+
+    setState(() => _isSubscriptionSaving = true);
+    try {
+      final response = await _userService.updateAudioSubscription(
+        widget.token,
+        true,
+      );
+      if (!mounted) return false;
+      setState(() {
+        _audioSubscriptionActive =
+            response['audioSubscriptionActive'] == true;
+        _isSubscriptionSaving = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Аудиоподписка активирована'),
+          backgroundColor: palette.success,
+        ),
+      );
+      return _audioSubscriptionActive;
+    } catch (e) {
+      if (!mounted) return false;
+      setState(() => _isSubscriptionSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Ошибка подписки: $e'),
+          backgroundColor: palette.danger,
+        ),
+      );
+      return false;
+    }
   }
 
   bool get _hasText {
@@ -453,7 +543,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              _book!['author'] ?? 'Неизвестный автор',
+                              authorLabel(_book!['author']),
                               style: TextStyle(
                                 color: palette.mutedText,
                                 fontSize: 16,
@@ -467,7 +557,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                               children: [
                                 if (_detailGenres().isNotEmpty)
                                   for (final genre in _detailGenres().take(2))
-                                    _buildInfoChip(genre),
+                                    _buildInfoChip(genreLabel(genre)),
                                 _buildLanguageChip(_bookLanguage()),
                                 _buildInfoChip(_availabilityLabel()),
                                 if (_bookPages() > 0)
@@ -522,8 +612,12 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                           const SizedBox(width: 12),
                           Expanded(
                             child: _buildActionButton(
-                              icon: Icons.headphones_rounded,
-                              label: 'Слушать',
+                              icon: _audioSubscriptionActive
+                                  ? Icons.headphones_rounded
+                                  : Icons.lock_rounded,
+                              label: _audioSubscriptionActive
+                                  ? 'Слушать'
+                                  : 'Premium',
                               enabled: _hasAudio,
                               onPressed: _openAudioPlayer,
                             ),
@@ -834,6 +928,11 @@ class _BookDetailScreenState extends State<BookDetailScreen>
       case 'русский':
       case 'russian':
         return 'Русский';
+      case 'kk':
+      case 'kaz':
+      case 'kazakh':
+      case 'қазақша':
+        return 'Қазақша';
       case 'es':
       case 'spa':
       case 'español':

@@ -115,7 +115,10 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
     if (track == null) return;
 
     final url = ApiConstants.getAudioUrl(track.streamUrl);
-    await _player.setUrl(url);
+    await _player.setUrl(
+      url,
+      headers: {'Authorization': 'Bearer ${widget.token}'},
+    );
 
     if (restorePosition) {
       final explicitPosition = widget.initialAudioPositionMs > 0

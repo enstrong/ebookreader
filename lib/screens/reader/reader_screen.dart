@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:ebookreader/models/book_annotation.dart';
 import 'package:ebookreader/services/annotation_service.dart';
 import 'package:ebookreader/services/book_service.dart';
@@ -67,7 +68,7 @@ class _ReaderScreenState extends State<ReaderScreen>
     _animController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
-    );
+    )..value = 1.0;
     _scrollController.addListener(_onScrollProgressChanged);
     _loadChapter();
   }
@@ -467,6 +468,13 @@ class _ReaderScreenState extends State<ReaderScreen>
 
   void _onScrollProgressChanged() {
     if (!_scrollController.hasClients || _isLoading) return;
+    final direction = _scrollController.position.userScrollDirection;
+    if (_showControls &&
+        direction != ScrollDirection.idle &&
+        _scrollController.offset > 8) {
+      setState(() => _showControls = false);
+      _animController.reverse();
+    }
     final maxScroll = _scrollController.position.maxScrollExtent;
     if (maxScroll <= 0) {
       _segmentProgress = 0.0;
@@ -503,8 +511,9 @@ class _ReaderScreenState extends State<ReaderScreen>
   Future<void> _saveRating(int rating, StateSetter? setModalState) async {
     if (_isRatingSaving || rating < 1 || rating > 5) return;
     final previous = _userRating;
+    final nextRating = previous == rating ? 0 : rating;
     setState(() {
-      _userRating = rating;
+      _userRating = nextRating;
       _isRatingSaving = true;
     });
     setModalState?.call(() {});
@@ -513,7 +522,7 @@ class _ReaderScreenState extends State<ReaderScreen>
       final savedRating = await _bookmarkService.updateRating(
         widget.token,
         widget.bookId,
-        rating,
+        nextRating,
       );
       if (!mounted) return;
       setState(() {
@@ -523,7 +532,9 @@ class _ReaderScreenState extends State<ReaderScreen>
       setModalState?.call(() {});
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Оценка сохранена'),
+          content: Text(
+            savedRating == 0 ? 'Оценка удалена' : 'Оценка сохранена',
+          ),
           backgroundColor: context.palette.success,
         ),
       );

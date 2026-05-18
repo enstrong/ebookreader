@@ -106,14 +106,33 @@ class BookmarkService {
 
   /// Сохраняет личную оценку пользователя для книги.
   ///
-  /// Рейтинг 1-5 является явной оценкой; отсутствие значения в UI
-  /// отображается как 0/без оценки и не отправляется на этот endpoint.
+  /// Рейтинг 1-5 является явной оценкой; 0 удаляет оценку.
   Future<int> updateRating(String token, int bookId, int rating) async {
-    if (rating < 1 || rating > 5) {
-      throw Exception('Оценка должна быть от 1 до 5');
+    if (rating < 0 || rating > 5) {
+      throw Exception('Оценка должна быть от 0 до 5');
     }
 
     try {
+      if (rating == 0) {
+        print('=== CLEAR RATING ===');
+        print('URL: ${ApiConstants.baseUrl}/user/books/$bookId/rating');
+
+        final response = await http.delete(
+          Uri.parse('${ApiConstants.baseUrl}/user/books/$bookId/rating'),
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Content-Type': 'application/json',
+          },
+        );
+
+        print('Status: ${response.statusCode}');
+        print('Body: ${response.body}');
+
+        if (response.statusCode == 200) {
+          return 0;
+        }
+      }
+
       print('=== UPDATE RATING ===');
       print('URL: ${ApiConstants.baseUrl}/user/books/$bookId/rating');
       print('Rating: $rating');

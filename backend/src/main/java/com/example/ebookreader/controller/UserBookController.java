@@ -270,8 +270,8 @@ public class UserBookController {
             @PathVariable Long bookId,
             @RequestBody Map<String, Integer> request) {
         Integer rating = request.get("rating");
-        if (rating == null || rating < 1 || rating > 5) {
-            return ResponseEntity.badRequest().body(Map.of("message", "Оценка должна быть от 1 до 5"));
+        if (rating == null || rating < 0 || rating > 5) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Оценка должна быть от 0 до 5"));
         }
 
         Optional<User> userOpt = getUserFromToken(token);
@@ -281,7 +281,7 @@ public class UserBookController {
         }
 
         UserBook ub = getOrCreateUserBook(userOpt.get(), bookOpt.get());
-        ub.setRating(rating);
+        ub.setRating(rating == 0 ? null : rating);
         ub.setLastReadAt(LocalDateTime.now());
         if (ub.getStatus() == ReadingStatus.WANT_TO_READ) {
             applyStatus(ub, ReadingStatus.FINISHED);
@@ -290,7 +290,28 @@ public class UserBookController {
 
         return ResponseEntity.ok(Map.of(
                 "message", "Оценка сохранена",
-                "rating", ub.getRating()
+                "rating", ub.getRating() == null ? 0 : ub.getRating()
+        ));
+    }
+
+    @DeleteMapping("/{bookId}/rating")
+    public ResponseEntity<?> clearRating(
+            @RequestHeader("Authorization") String token,
+            @PathVariable Long bookId) {
+        Optional<User> userOpt = getUserFromToken(token);
+        Optional<Book> bookOpt = bookRepository.findById(bookId);
+        if (userOpt.isEmpty() || bookOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        UserBook ub = getOrCreateUserBook(userOpt.get(), bookOpt.get());
+        ub.setRating(null);
+        ub.setLastReadAt(LocalDateTime.now());
+        userBookRepository.save(ub);
+
+        return ResponseEntity.ok(Map.of(
+                "message", "Оценка удалена",
+                "rating", 0
         ));
     }
 
