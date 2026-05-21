@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.ebookreader.config.JwtUtil;
 import com.example.ebookreader.dto.BookAnnotationDTO;
 import com.example.ebookreader.dto.BookAnnotationRequest;
+import com.example.ebookreader.dto.LookupRequest;
 import com.example.ebookreader.model.Book;
 import com.example.ebookreader.model.BookAnnotation;
 import com.example.ebookreader.model.ProgressMode;
@@ -34,6 +35,7 @@ import com.example.ebookreader.repository.BookRepository;
 import com.example.ebookreader.repository.ChapterRepository;
 import com.example.ebookreader.repository.UserBookRepository;
 import com.example.ebookreader.repository.UserRepository;
+import com.example.ebookreader.service.LookupService;
 
 @RestController
 @RequestMapping("/api/user/books")
@@ -57,6 +59,9 @@ public class UserBookController {
 
     @Autowired
     private JwtUtil jwtUtil;
+
+    @Autowired
+    private LookupService lookupService;
 
     private Optional<User> getUserFromToken(String token) {
         String username = jwtUtil.extractUsername(token.replace("Bearer ", ""));
@@ -156,6 +161,21 @@ public class UserBookController {
                                 item.put("availability", ub.getBook().getAvailability().name());
                                 return item;
                             })
+                            .collect(Collectors.toList());
+                    return ResponseEntity.ok(result);
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/ratings")
+    public ResponseEntity<?> getRatedBooks(@RequestHeader("Authorization") String token) {
+        return getUserFromToken(token)
+                .map(user -> {
+                    List<UserBook> ratedBooks = userBookRepository
+                            .findRatedByUserIdOrderByRatingDateDesc(user.getId());
+                    double averageRating = userAverageRating(ratedBooks);
+                    List<Map<String, Object>> result = ratedBooks.stream()
+                            .map(ub -> ratedBookPayload(ub, averageRating))
                             .collect(Collectors.toList());
                     return ResponseEntity.ok(result);
                 })
@@ -281,8 +301,15 @@ public class UserBookController {
         }
 
         UserBook ub = getOrCreateUserBook(userOpt.get(), bookOpt.get());
-        ub.setRating(rating == 0 ? null : rating);
-        ub.setLastReadAt(LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+        if (rating == 0) {
+            ub.setRating(null);
+            ub.setRatedAt(null);
+        } else {
+            ub.setRating(rating);
+            ub.setRatedAt(now);
+        }
+        ub.setLastReadAt(now);
         if (ub.getStatus() == ReadingStatus.WANT_TO_READ) {
             applyStatus(ub, ReadingStatus.FINISHED);
         }
@@ -306,6 +333,7 @@ public class UserBookController {
 
         UserBook ub = getOrCreateUserBook(userOpt.get(), bookOpt.get());
         ub.setRating(null);
+        ub.setRatedAt(null);
         ub.setLastReadAt(LocalDateTime.now());
         userBookRepository.save(ub);
 
@@ -334,6 +362,7 @@ public class UserBookController {
                     result.put("isBookmarked", ub.isBookmarked());
                     result.put("status", ub.getStatus().name());
                     result.put("rating", ub.getRating());
+                    result.put("ratedAt", ub.getRatedAt());
                     result.put("startedAt", ub.getStartedAt());
                     result.put("finishedAt", ub.getFinishedAt());
                     result.put("lastReadAt", ub.getLastReadAt());
@@ -366,6 +395,20 @@ public class UserBookController {
                 .map(BookAnnotationDTO::fromEntity)
                 .collect(Collectors.toList());
         return ResponseEntity.ok(annotations);
+    }
+
+    @PostMapping("/lookup/selection")
+    public ResponseEntity<?> lookupSelection(
+            @RequestHeader("Authorization") String token,
+            @RequestBody LookupRequest request) {
+        String text = request.getText() == null ? "" : request.getText().trim();
+        if (text.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Текст обязателен"));
+        }
+        if (text.length() > 500) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Выделение слишком длинное"));
+        }
+        return ResponseEntity.ok(lookupService.lookup(request));
     }
 
     @GetMapping("/{bookId}/chapters/{chapterOrder}/annotations")
@@ -477,6 +520,50 @@ public class UserBookController {
         result.put("audioPositionMs", ub.getAudioPositionMs());
         result.put("lastMode", ub.getLastMode().name());
         return result;
+    }
+
+    private Map<String, Object> ratedBookPayload(UserBook ub, double userAverageRating) {
+        Book book = ub.getBook();
+        Map<String, Object> item = new HashMap<>();
+        LocalDateTime ratingDate = ub.getRatedAt() != null ? ub.getRatedAt() : ub.getLastReadAt();
+        double centeredSignal = recommendationSignal(ub, userAverageRating);
+
+        item.put("id", book.getId());
+        item.put("title", book.getTitle());
+        item.put("author", book.getAuthor());
+        item.put("coverUrl", book.getCoverUrl());
+        item.put("availability", book.getAvailability().name());
+        item.put("goodreadsId", book.getGoodreadsId());
+        item.put("averageRating", book.getAverageRating());
+        item.put("ratingsCount", book.getRatingsCount());
+        item.put("reviewCount", book.getReviewCount());
+        item.put("language", book.getLanguageCode());
+        item.put("rating", ub.getRating());
+        item.put("ratedAt", ub.getRatedAt());
+        item.put("ratingDate", ratingDate);
+        item.put("lastReadAt", ub.getLastReadAt());
+        item.put("status", ub.getStatus().name());
+        item.put("userAverageRating", userAverageRating);
+        item.put("recommendationSignal", centeredSignal);
+        item.put("recommendationWeight", centeredSignal);
+        return item;
+    }
+
+    private double userAverageRating(List<UserBook> ratedBooks) {
+        return ratedBooks.stream()
+                .map(UserBook::getRating)
+                .filter(rating -> rating != null && rating > 0)
+                .mapToInt(Integer::intValue)
+                .average()
+                .orElse(0.0);
+    }
+
+    private double recommendationSignal(UserBook ub, double userAverageRating) {
+        Integer rating = ub.getRating();
+        if (rating == null || rating <= 0 || userAverageRating <= 0) {
+            return 0.0;
+        }
+        return rating - userAverageRating;
     }
 
     private Integer readInteger(Map<String, Object> request, String key) {

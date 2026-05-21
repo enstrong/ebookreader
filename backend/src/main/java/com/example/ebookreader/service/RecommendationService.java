@@ -16,7 +16,13 @@ import java.util.Optional;
 import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 
 import com.example.ebookreader.model.Book;
 import com.example.ebookreader.model.ReadingStatus;
@@ -31,19 +37,32 @@ public class RecommendationService {
     private final BookRepository bookRepository;
     private final UserBookRepository userBookRepository;
     private final Path similarityPath;
+    private final RestTemplate restTemplate;
+    private final String hybridServiceUrl;
     private Map<String, List<ItemNeighbor>> neighborsByGoodreadsId;
 
     public RecommendationService(
             BookRepository bookRepository,
             UserBookRepository userBookRepository,
-            @Value("${recommendations.item-similarity-path:../data/recommendations/item_cf_similar.csv}") String similarityPath) {
+            @Value("${recommendations.item-similarity-path:../data/recommendations/item_cf_similar.csv}") String similarityPath,
+            @Value("${recommendations.hybrid-service-url:http://127.0.0.1:8001}") String hybridServiceUrl,
+            @Value("${recommendations.hybrid-timeout-ms:8000}") int hybridTimeoutMs) {
         this.bookRepository = bookRepository;
         this.userBookRepository = userBookRepository;
         this.similarityPath = Path.of(similarityPath);
+        this.hybridServiceUrl = hybridServiceUrl.replaceAll("/+$", "");
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(hybridTimeoutMs);
+        requestFactory.setReadTimeout(hybridTimeoutMs);
+        this.restTemplate = new RestTemplate(requestFactory);
     }
 
     public List<Map<String, Object>> recommendForUser(User user, int limit) {
-        List<UserBook> history = userBookRepository.findByUserId(user.getId());
+        List<UserBook> history = userBookRepository.findByUserIdWithBook(user.getId());
+        Optional<List<Map<String, Object>>> hybrid = recommendWithHybrid(history, limit);
+        if (hybrid.isPresent()) {
+            return hybrid.get();
+        }
         Map<String, Double> sourceWeights = buildSourceWeights(history);
         Set<String> alreadyInteracted = collectInteractedGoodreadsIds(history);
 
@@ -71,6 +90,10 @@ public class RecommendationService {
         if (book.isEmpty() || book.get().getGoodreadsId() == null || book.get().getGoodreadsId().isBlank()) {
             return List.of();
         }
+        Optional<List<Map<String, Object>>> hybrid = similarWithHybrid(book.get(), limit);
+        if (hybrid.isPresent()) {
+            return hybrid.get();
+        }
 
         List<ItemNeighbor> neighbors = getNeighborsByGoodreadsId()
                 .getOrDefault(book.get().getGoodreadsId(), List.of());
@@ -82,6 +105,156 @@ public class RecommendationService {
         return materializeResults(scores.values(), limit);
     }
 
+    public List<Map<String, Object>> previewRecommendations(List<Map<String, Object>> selectedBooks, int limit) {
+        Optional<List<Map<String, Object>>> hybrid = previewWithHybrid(selectedBooks, limit);
+        if (hybrid.isPresent()) {
+            return hybrid.get();
+        }
+
+        Map<String, CandidateScore> scores = new HashMap<>();
+        Map<String, List<ItemNeighbor>> neighbors = getNeighborsByGoodreadsId();
+        for (Map<String, Object> selected : selectedBooks) {
+            String goodreadsId = selected.get("goodreadsBookId") == null ? null : selected.get("goodreadsBookId").toString();
+            if (goodreadsId == null || goodreadsId.isBlank()) {
+                continue;
+            }
+            double rating = readDouble(selected.get("rating"), 5.0);
+            for (ItemNeighbor neighbor : neighbors.getOrDefault(goodreadsId, List.of())) {
+                CandidateScore score = scores.computeIfAbsent(neighbor.similarGoodreadsId(), CandidateScore::new);
+                score.add(neighbor.score() * Math.max(1.0, rating - 3.0), neighbor.coLikes());
+            }
+        }
+        return materializeResults(scores.values(), limit);
+    }
+
+    public int positiveSourceCount(User user) {
+        return (int) buildSourceWeights(userBookRepository.findByUserIdWithBook(user.getId()))
+                .values()
+                .stream()
+                .filter(weight -> weight > 0)
+                .count();
+    }
+
+    private Optional<List<Map<String, Object>>> recommendWithHybrid(List<UserBook> history, int limit) {
+        List<Map<String, Object>> interactions = history.stream()
+                .map(this::interactionPayload)
+                .filter(row -> row.get("goodreadsBookId") != null)
+                .toList();
+        if (interactions.isEmpty()) {
+            return Optional.empty();
+        }
+        return callHybridList("/recommend", Map.of("limit", limit, "interactions", interactions), "recommendations");
+    }
+
+    private Optional<List<Map<String, Object>>> previewWithHybrid(List<Map<String, Object>> selectedBooks, int limit) {
+        if (selectedBooks == null || selectedBooks.isEmpty()) {
+            return Optional.empty();
+        }
+        return callHybridList("/preview", Map.of("limit", limit, "interactions", selectedBooks), "recommendations");
+    }
+
+    private Optional<List<Map<String, Object>>> similarWithHybrid(Book book, int limit) {
+        try {
+            String url = hybridServiceUrl + "/similar/" + book.getGoodreadsId() + "?limit=" + limit;
+            ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
+            return materializeHybridResponse(response.getBody(), "similar");
+        } catch (Exception ex) {
+            return Optional.empty();
+        }
+    }
+
+    private Optional<List<Map<String, Object>>> callHybridList(String path, Map<String, Object> payload, String key) {
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            ResponseEntity<Map> response = restTemplate.postForEntity(
+                    hybridServiceUrl + path,
+                    new HttpEntity<>(payload, headers),
+                    Map.class
+            );
+            return materializeHybridResponse(response.getBody(), key);
+        } catch (Exception ex) {
+            return Optional.empty();
+        }
+    }
+
+    private Optional<List<Map<String, Object>>> materializeHybridResponse(Map<?, ?> response, String key) {
+        if (response == null || !(response.get(key) instanceof List<?> rows)) {
+            return Optional.empty();
+        }
+
+        List<HybridCandidate> ranked = rows.stream()
+                .filter(Map.class::isInstance)
+                .map(Map.class::cast)
+                .map(this::hybridCandidate)
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .toList();
+        if (ranked.isEmpty()) {
+            return Optional.of(List.of());
+        }
+
+        List<String> goodreadsIds = ranked.stream().map(HybridCandidate::goodreadsId).toList();
+        Map<String, Book> booksByGoodreadsId = new HashMap<>();
+        for (Book book : bookRepository.findByGoodreadsIdIn(goodreadsIds)) {
+            booksByGoodreadsId.put(book.getGoodreadsId(), book);
+        }
+
+        List<Map<String, Object>> results = new ArrayList<>();
+        for (HybridCandidate candidate : ranked) {
+            Book book = booksByGoodreadsId.get(candidate.goodreadsId());
+            if (book == null) {
+                continue;
+            }
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("book", book);
+            row.put("score", candidate.score());
+            row.put("alsScore", candidate.alsScore());
+            row.put("contentScore", candidate.contentScore());
+            row.put("reason", candidate.reason());
+            row.put("model", "hybrid_als_metadata");
+            results.add(row);
+        }
+        return Optional.of(results);
+    }
+
+    private Optional<HybridCandidate> hybridCandidate(Map<?, ?> row) {
+        Object rawId = row.get("goodreadsBookId");
+        if (rawId == null) {
+            rawId = row.get("goodreads_book_id");
+        }
+        if (rawId == null) {
+            return Optional.empty();
+        }
+        String goodreadsId = rawId.toString();
+        if (goodreadsId.isBlank()) {
+            return Optional.empty();
+        }
+        return Optional.of(new HybridCandidate(
+                goodreadsId,
+                readDouble(row.get("score"), 0.0),
+                readDouble(row.get("alsScore"), 0.0),
+                readDouble(row.get("contentScore"), 0.0),
+                row.get("reason") == null ? "Похоже на ваши оценки" : row.get("reason").toString()
+        ));
+    }
+
+    private Map<String, Object> interactionPayload(UserBook userBook) {
+        Map<String, Object> row = new LinkedHashMap<>();
+        Book book = userBook.getBook();
+        if (book == null || book.getGoodreadsId() == null || book.getGoodreadsId().isBlank()) {
+            row.put("goodreadsBookId", null);
+            return row;
+        }
+        row.put("goodreadsBookId", book.getGoodreadsId());
+        row.put("goodreads_book_id", book.getGoodreadsId());
+        row.put("goodreadsId", book.getGoodreadsId());
+        row.put("rating", userBook.getRating() == null ? 0 : userBook.getRating());
+        row.put("status", userBook.getStatus() == null ? null : userBook.getStatus().name());
+        row.put("bookmarked", userBook.isBookmarked());
+        return row;
+    }
+
     public synchronized void reload() {
         neighborsByGoodreadsId = null;
         getNeighborsByGoodreadsId();
@@ -89,6 +262,7 @@ public class RecommendationService {
 
     private Map<String, Double> buildSourceWeights(List<UserBook> history) {
         Map<String, Double> weights = new HashMap<>();
+        double averageRating = userAverageRating(history);
         for (UserBook userBook : history) {
             Book book = userBook.getBook();
             if (book == null || book.getGoodreadsId() == null || book.getGoodreadsId().isBlank()) {
@@ -98,9 +272,7 @@ public class RecommendationService {
             double weight = 0.0;
             Integer rating = userBook.getRating();
             if (rating != null) {
-                if (rating >= 4) {
-                    weight = rating - 3.0;
-                }
+                weight = rating - averageRating;
             } else if (userBook.getStatus() == ReadingStatus.FINISHED) {
                 weight = 1.0;
             } else if (userBook.getStatus() == ReadingStatus.READING) {
@@ -109,11 +281,34 @@ public class RecommendationService {
                 weight = 0.4;
             }
 
-            if (weight > 0) {
+            if (weight != 0) {
                 weights.put(book.getGoodreadsId(), weight);
             }
         }
         return weights;
+    }
+
+    private double userAverageRating(List<UserBook> history) {
+        return history.stream()
+                .map(UserBook::getRating)
+                .filter(rating -> rating != null && rating > 0)
+                .mapToInt(Integer::intValue)
+                .average()
+                .orElse(0.0);
+    }
+
+    private double readDouble(Object value, double fallback) {
+        if (value == null) {
+            return fallback;
+        }
+        if (value instanceof Number number) {
+            return number.doubleValue();
+        }
+        try {
+            return Double.parseDouble(value.toString());
+        } catch (NumberFormatException ex) {
+            return fallback;
+        }
     }
 
     private Set<String> collectInteractedGoodreadsIds(List<UserBook> history) {
@@ -129,6 +324,7 @@ public class RecommendationService {
 
     private List<Map<String, Object>> materializeResults(Collection<CandidateScore> candidateScores, int limit) {
         List<CandidateScore> ranked = candidateScores.stream()
+                .filter(candidate -> candidate.score() > 0)
                 .sorted(Comparator
                         .comparingDouble(CandidateScore::score).reversed()
                         .thenComparing(Comparator.comparingInt(CandidateScore::evidenceBooks).reversed()))
@@ -166,6 +362,10 @@ public class RecommendationService {
 
         Path path = resolveSimilarityPath();
         Map<String, List<ItemNeighbor>> loaded = new HashMap<>();
+        if (!Files.exists(path)) {
+            neighborsByGoodreadsId = loaded;
+            return neighborsByGoodreadsId;
+        }
         try (BufferedReader reader = Files.newBufferedReader(path)) {
             String header = reader.readLine();
             if (header == null) {
@@ -211,6 +411,9 @@ public class RecommendationService {
     }
 
     private record ItemNeighbor(String similarGoodreadsId, double score, int coLikes) {
+    }
+
+    private record HybridCandidate(String goodreadsId, double score, double alsScore, double contentScore, String reason) {
     }
 
     private static class CandidateScore {

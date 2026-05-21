@@ -27,11 +27,35 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/ebookreader
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: 12345
+      RECOMMENDATIONS_HYBRID_SERVICE_URL: http://recommender:8001
     volumes:
       - ./backend/assets:/app/assets
     depends_on:
       db:
         condition: service_healthy
+      recommender:
+        condition: service_healthy
+
+  recommender:
+    build:
+      context: .
+      dockerfile: scripts/recommendations/Dockerfile.hybrid
+    container_name: ebookreader_recommender
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./data/recommendations/experiments/als_reads_20k_f256_i10_lam1p0_validation_split:/app/data/recommendations/experiments/als_reads_20k_f256_i10_lam1p0_validation_split:ro
+      - ./data/recommendations/hybrid/book_metadata_20k.csv:/app/data/recommendations/hybrid/book_metadata_20k.csv:ro
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=2).read()
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 90s
 
 # Данные теперь сохраняются в локальные папки ./postgres_data и ./backend/assets
 # Это гарантирует, что они не пропадут при перезагрузке Docker.

@@ -3,9 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:ebookreader/models/book_annotation.dart';
+import 'package:ebookreader/models/lookup_result.dart';
 import 'package:ebookreader/services/annotation_service.dart';
 import 'package:ebookreader/services/book_service.dart';
 import 'package:ebookreader/services/bookmark_service.dart';
+import 'package:ebookreader/services/lookup_service.dart';
 import 'package:ebookreader/theme/app_theme.dart';
 
 /// Экран чтения книги.
@@ -38,6 +40,7 @@ class _ReaderScreenState extends State<ReaderScreen>
   final BookService _bookService = BookService();
   final BookmarkService _bookmarkService = BookmarkService();
   final AnnotationService _annotationService = AnnotationService();
+  final LookupService _lookupService = LookupService();
   final ScrollController _scrollController = ScrollController();
 
   Map<String, dynamic>? _chapter;
@@ -48,6 +51,7 @@ class _ReaderScreenState extends State<ReaderScreen>
   bool _isLoading = true;
   bool _showControls = true;
   bool _isRatingSaving = false;
+  bool _isLookupLoading = false;
   int _userRating = 0;
   TextSelection? _selection;
   String _selectedText = '';
@@ -246,6 +250,121 @@ class _ReaderScreenState extends State<ReaderScreen>
     } catch (e) {
       _showError('Ошибка сохранения выделения: $e');
     }
+  }
+
+  Future<void> _openLookupSheet() async {
+    final selection = _selection;
+    final selectedText = _selectedText;
+    if (selection == null || selectedText.trim().isEmpty) return;
+
+    setState(() => _isLookupLoading = true);
+    LookupResult result;
+    try {
+      result = await _lookupService.lookupSelection(
+        token: widget.token,
+        text: selectedText,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLookupLoading = false);
+      _showError('Ошибка словаря: $e');
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() => _isLookupLoading = false);
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _LookupSheet(
+        result: result,
+        selectedText: selectedText,
+        onSave: () => _saveLookupAnnotation(result, selection, selectedText),
+      ),
+    );
+  }
+
+  Future<void> _saveLookupAnnotation(
+    LookupResult result,
+    TextSelection selection,
+    String selectedText,
+  ) async {
+    final content = _chapter?['content']?.toString() ?? '';
+    if (selection.end > content.length || selection.start < 0) {
+      _showError('Выделение больше не совпадает с текстом главы');
+      return;
+    }
+
+    try {
+      final annotation = await _annotationService.createAnnotation(
+        token: widget.token,
+        bookId: widget.bookId,
+        chapterOrder: _currentChapter,
+        startOffset: selection.start,
+        endOffset: selection.end,
+        highlightedText: content.substring(selection.start, selection.end),
+        note: _buildLookupNote(result),
+        color: '#FFD166',
+      );
+      if (!mounted) return;
+      setState(() {
+        _annotations = [..._annotations, annotation]
+          ..sort((a, b) => a.startOffset.compareTo(b.startOffset));
+        _selection = null;
+        _selectedText = '';
+      });
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Сохранено в словарь'),
+          backgroundColor: context.palette.success,
+        ),
+      );
+    } catch (e) {
+      _showError('Ошибка сохранения в словарь: $e');
+    }
+  }
+
+  String _buildLookupNote(LookupResult result) {
+    String? definition;
+    for (final item in result.definitions) {
+      final candidate = item.definition.trim();
+      if (candidate.isNotEmpty) {
+        definition = candidate;
+        break;
+      }
+    }
+    final translation = result.translation?.text.trim();
+    final sources = <String>{
+      ...result.definitions
+          .map((item) => item.source)
+          .where((item) => item.trim().isNotEmpty),
+      if (result.translation?.source.trim().isNotEmpty == true)
+        result.translation!.source,
+    };
+
+    final lines = <String>['Словарь'];
+    if (definition != null && definition.isNotEmpty) {
+      lines.add('Определение: $definition');
+    }
+    if (translation != null && translation.isNotEmpty) {
+      lines.add('Перевод: $translation');
+    }
+    if (sources.isNotEmpty) {
+      lines.add('Источник: ${sources.join(' / ')}');
+    }
+    return lines.join('\n');
+  }
+
+  Color _annotationColor(String rawColor) {
+    final normalized = rawColor.trim().replaceFirst('#', '');
+    final value = int.tryParse(normalized, radix: 16);
+    if (value == null) {
+      return context.palette.highlight;
+    }
+    return Color(0xFF000000 | value);
   }
 
   Future<void> _showNoteEditor(BookAnnotation annotation) async {
@@ -808,8 +927,9 @@ class _ReaderScreenState extends State<ReaderScreen>
                           bottom: _showControls ? 116 : 28,
                           child: DecoratedBox(
                             decoration: BoxDecoration(
-                              gradient: palette.accentGradient,
+                              color: palette.elevated,
                               borderRadius: BorderRadius.circular(18),
+                              border: Border.all(color: palette.border),
                               boxShadow: [
                                 BoxShadow(
                                   color: palette.accent.withValues(alpha: 0.25),
@@ -818,18 +938,58 @@ class _ReaderScreenState extends State<ReaderScreen>
                                 ),
                               ],
                             ),
-                            child: TextButton.icon(
-                              onPressed: _createHighlight,
-                              icon: Icon(
-                                Icons.edit_note_rounded,
-                                color: palette.onAccent,
-                              ),
-                              label: Text(
-                                'Выделить',
-                                style: TextStyle(
-                                  color: palette.onAccent,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(4),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  TextButton.icon(
+                                    onPressed: _createHighlight,
+                                    icon: Icon(
+                                      Icons.edit_note_rounded,
+                                      color: palette.accent,
+                                    ),
+                                    label: Text(
+                                      'Выделить',
+                                      style: TextStyle(
+                                        color: palette.text,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                  Container(
+                                    width: 1,
+                                    height: 28,
+                                    color: palette.border,
+                                  ),
+                                  TextButton.icon(
+                                    onPressed: _isLookupLoading
+                                        ? null
+                                        : _openLookupSheet,
+                                    icon: _isLookupLoading
+                                        ? SizedBox(
+                                            width: 18,
+                                            height: 18,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: palette.accent,
+                                            ),
+                                          )
+                                        : Icon(
+                                            Icons.menu_book_rounded,
+                                            color: palette.accent,
+                                          ),
+                                    label: Text(
+                                      'Словарь',
+                                      style: TextStyle(
+                                        color: _isLookupLoading
+                                            ? palette.mutedText
+                                            : palette.text,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
@@ -1065,6 +1225,7 @@ class _ReaderScreenState extends State<ReaderScreen>
       final start = annotation.startOffset.clamp(0, content.length);
       final end = annotation.endOffset.clamp(0, content.length);
       if (end <= start || start < cursor) continue;
+      final annotationColor = _annotationColor(annotation.color);
 
       if (start > cursor) {
         spans.add(
@@ -1076,9 +1237,9 @@ class _ReaderScreenState extends State<ReaderScreen>
           text: content.substring(start, end),
           style: baseStyle.copyWith(
             color: palette.text,
-            backgroundColor: palette.highlight,
+            backgroundColor: annotationColor.withValues(alpha: 0.38),
             decoration: TextDecoration.underline,
-            decorationColor: palette.accent.withValues(alpha: 0.65),
+            decorationColor: annotationColor.withValues(alpha: 0.85),
             decorationThickness: 1.2,
           ),
         ),
@@ -1099,6 +1260,7 @@ class _ReaderScreenState extends State<ReaderScreen>
     required VoidCallback onDelete,
   }) {
     final palette = context.palette;
+    final annotationColor = _annotationColor(annotation.color);
     return Material(
       color: palette.elevated.withValues(alpha: palette.isDark ? 0.55 : 0.90),
       borderRadius: BorderRadius.circular(16),
@@ -1118,13 +1280,13 @@ class _ReaderScreenState extends State<ReaderScreen>
                       vertical: 5,
                     ),
                     decoration: BoxDecoration(
-                      color: palette.accent.withValues(alpha: 0.12),
+                      color: annotationColor.withValues(alpha: 0.14),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
                       'Глава ${annotation.chapterOrder}',
                       style: TextStyle(
-                        color: palette.accent,
+                        color: annotationColor,
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
                       ),
@@ -1314,6 +1476,339 @@ class _ReaderScreenState extends State<ReaderScreen>
               fontWeight: FontWeight.bold,
             ),
           ),
+      ],
+    );
+  }
+}
+
+class _LookupSheet extends StatefulWidget {
+  final LookupResult result;
+  final String selectedText;
+  final Future<void> Function() onSave;
+
+  const _LookupSheet({
+    required this.result,
+    required this.selectedText,
+    required this.onSave,
+  });
+
+  @override
+  State<_LookupSheet> createState() => _LookupSheetState();
+}
+
+class _LookupSheetState extends State<_LookupSheet> {
+  bool _isSaving = false;
+
+  Future<void> _save() async {
+    if (_isSaving) return;
+    setState(() => _isSaving = true);
+    try {
+      await widget.onSave();
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final result = widget.result;
+    final translation = result.translation?.text.trim();
+    final hasTranslation = translation != null && translation.isNotEmpty;
+    final maxHeight = MediaQuery.of(context).size.height * 0.82;
+
+    return Container(
+      constraints: BoxConstraints(maxHeight: maxHeight),
+      padding: const EdgeInsets.fromLTRB(22, 16, 22, 22),
+      decoration: BoxDecoration(
+        color: palette.elevated,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border.all(color: palette.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: palette.isDark ? 0.36 : 0.14),
+            blurRadius: 24,
+            offset: const Offset(0, -10),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 42,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: palette.border,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFD166).withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.menu_book_rounded,
+                    color: Color(0xFFFFD166),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Словарь',
+                        style: TextStyle(
+                          color: palette.text,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '${result.detectedLanguage.toUpperCase()} → ${result.targetLanguage.toUpperCase()}',
+                        style: TextStyle(
+                          color: palette.mutedText,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _LookupSection(
+                      title: 'Выделено',
+                      child: Text(
+                        widget.selectedText,
+                        style: TextStyle(
+                          color: palette.text,
+                          height: 1.45,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _LookupSection(
+                      title: 'Определения',
+                      child: result.definitions.isEmpty
+                          ? Text(
+                              'Для фраз показывается только перевод. Для слова определение может отсутствовать в источнике.',
+                              style: TextStyle(
+                                color: palette.mutedText,
+                                height: 1.35,
+                              ),
+                            )
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                for (final definition in result.definitions)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 10),
+                                    child: _DefinitionView(
+                                      definition: definition,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                    ),
+                    const SizedBox(height: 12),
+                    _LookupSection(
+                      title: 'Перевод',
+                      child: hasTranslation
+                          ? Text(
+                              translation,
+                              style: TextStyle(
+                                color: palette.text,
+                                height: 1.45,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            )
+                          : Text(
+                              'Перевод сейчас недоступен.',
+                              style: TextStyle(color: palette.mutedText),
+                            ),
+                    ),
+                    if (result.errors.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      _LookupSection(
+                        title: 'Статус',
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            for (final error in result.errors)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 6),
+                                child: Text(
+                                  error,
+                                  style: TextStyle(
+                                    color: palette.warning,
+                                    height: 1.3,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: TextButton(
+                    onPressed: _isSaving
+                        ? null
+                        : () => Navigator.of(context).pop(),
+                    child: Text(
+                      'Закрыть',
+                      style: TextStyle(color: palette.mutedText),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _isSaving ? null : _save,
+                    icon: _isSaving
+                        ? SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: palette.onAccent,
+                            ),
+                          )
+                        : const Icon(Icons.bookmark_add_rounded),
+                    label: const Text('Сохранить'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFFD166),
+                      foregroundColor: const Color(0xFF1B1B1B),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LookupSection extends StatelessWidget {
+  final String title;
+  final Widget child;
+
+  const _LookupSection({required this.title, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: palette.surface.withValues(alpha: palette.isDark ? 0.42 : 0.72),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: palette.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              color: palette.accent,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class _DefinitionView extends StatelessWidget {
+  final LookupDefinition definition;
+
+  const _DefinitionView({required this.definition});
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final partOfSpeech = definition.partOfSpeech.trim();
+    final example = definition.example.trim();
+    final source = definition.source.trim();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (partOfSpeech.isNotEmpty)
+          Text(
+            partOfSpeech,
+            style: TextStyle(
+              color: palette.mutedText,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        Text(
+          definition.definition,
+          style: TextStyle(color: palette.text, height: 1.42),
+        ),
+        if (example.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            example,
+            style: TextStyle(
+              color: palette.mutedText,
+              height: 1.35,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
+        if (source.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            source,
+            style: TextStyle(
+              color: palette.mutedText.withValues(alpha: 0.72),
+              fontSize: 11,
+            ),
+          ),
+        ],
       ],
     );
   }

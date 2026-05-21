@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:ebookreader/services/book_service.dart';
 import 'package:ebookreader/services/bookmark_service.dart';
+import 'package:ebookreader/services/recommendation_service.dart';
 import 'package:ebookreader/services/user_service.dart';
 import 'package:ebookreader/screens/reader/reader_screen.dart';
 import 'package:ebookreader/screens/audio/audio_player_screen.dart';
@@ -32,6 +33,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
   final BookService _bookService = BookService();
   final BookmarkService _bookmarkService = BookmarkService();
   final UserService _userService = UserService();
+  final RecommendationService _recommendationService = RecommendationService();
 
   Map<String, dynamic>? _book;
   List<dynamic> _chapters = [];
@@ -40,7 +42,9 @@ class _BookDetailScreenState extends State<BookDetailScreen>
   bool _audioSubscriptionActive = false;
   bool _isSubscriptionSaving = false;
   bool _isRatingSaving = false;
+  bool _isSimilarLoading = false;
   int _userRating = 0;
+  List<dynamic> _similarBooks = [];
   int _currentChapter = 1;
   double _segmentProgress = 0.0;
   int _audioPositionMs = 0;
@@ -93,6 +97,9 @@ class _BookDetailScreenState extends State<BookDetailScreen>
         _userRating = _asRating(progress['rating']);
         _isLoading = false;
       });
+      if (_userRating >= 4) {
+        _loadSimilarBooks();
+      }
       _animController.forward();
     } catch (e) {
       setState(() => _isLoading = false);
@@ -209,6 +216,11 @@ class _BookDetailScreenState extends State<BookDetailScreen>
         _userRating = savedRating;
         _isRatingSaving = false;
       });
+      if (savedRating >= 4) {
+        _loadSimilarBooks();
+      } else {
+        setState(() => _similarBooks = []);
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -229,6 +241,26 @@ class _BookDetailScreenState extends State<BookDetailScreen>
           backgroundColor: context.palette.danger,
         ),
       );
+    }
+  }
+
+  Future<void> _loadSimilarBooks() async {
+    if (_isSimilarLoading) return;
+    setState(() => _isSimilarLoading = true);
+    try {
+      final similar = await _recommendationService.getSimilarBooks(
+        widget.token,
+        widget.bookId,
+        limit: 4,
+      );
+      if (!mounted) return;
+      setState(() {
+        _similarBooks = similar;
+        _isSimilarLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isSimilarLoading = false);
     }
   }
 
@@ -655,6 +687,10 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                       ),
                       const SizedBox(height: 14),
                       _buildUserRatingPanel(),
+                      if (_userRating >= 4) ...[
+                        const SizedBox(height: 14),
+                        _buildMoreLikeThisSection(),
+                      ],
                     ],
                   ),
                 ),
@@ -1007,16 +1043,149 @@ class _BookDetailScreenState extends State<BookDetailScreen>
     return int.tryParse(raw.toString()) ?? 0;
   }
 
+  Widget _buildMoreLikeThisSection() {
+    final palette = context.palette;
+    if (_isSimilarLoading && _similarBooks.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: _softPanelDecoration(),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: palette.accent,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text('Подбираем похожие книги', style: TextStyle(color: palette.text)),
+          ],
+        ),
+      );
+    }
+    if (_similarBooks.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: _softPanelDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.auto_awesome_rounded, color: palette.accent, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Похожие книги',
+                style: TextStyle(
+                  color: palette.text,
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 178,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: _similarBooks.length,
+              separatorBuilder: (context, index) => const SizedBox(width: 12),
+              itemBuilder: (context, index) {
+                final item = Map<String, dynamic>.from(_similarBooks[index] as Map);
+                final book = Map<String, dynamic>.from(item['book'] as Map);
+                return _buildSimilarCard(book, item);
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSimilarCard(Map<String, dynamic> book, Map<String, dynamic> item) {
+    final palette = context.palette;
+    final id = _asInt(book['id']);
+    final cover = book['coverUrl']?.toString() ?? '';
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => BookDetailScreen(token: widget.token, bookId: id),
+        ),
+      ),
+      child: SizedBox(
+        width: 112,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: cover.isEmpty
+                  ? Container(
+                      width: 112,
+                      height: 112,
+                      color: palette.surface,
+                      child: Icon(Icons.menu_book_rounded, color: palette.mutedText),
+                    )
+                  : Image.network(
+                      ApiConstants.getCoverUrl(cover),
+                      width: 112,
+                      height: 112,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        width: 112,
+                        height: 112,
+                        color: palette.surface,
+                        child: Icon(Icons.menu_book_rounded, color: palette.mutedText),
+                      ),
+                    ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              book['title']?.toString() ?? 'Без названия',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: palette.text,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              item['reason']?.toString() ?? 'AI match',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: palette.accent, fontSize: 11),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  BoxDecoration _softPanelDecoration() {
+    final palette = context.palette;
+    return BoxDecoration(
+      color: palette.elevated.withValues(alpha: palette.isDark ? 0.62 : 0.88),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: palette.border, width: 1.3),
+    );
+  }
+
   Widget _buildUserRatingPanel() {
     final palette = context.palette;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: palette.elevated.withValues(alpha: palette.isDark ? 0.62 : 0.88),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: palette.border, width: 1.3),
-      ),
+      decoration: _softPanelDecoration(),
       child: Row(
         children: [
           Container(

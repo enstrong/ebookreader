@@ -316,6 +316,44 @@ class UserService {
     }
   }
 
+  /// Возвращает историю оценённых книг пользователя.
+  ///
+  /// Отправляет GET-запрос на `/user/books/ratings`.
+  Future<List<dynamic>> getRatedBooks(String token) async {
+    try {
+      print('=== GET RATED BOOKS REQUEST ===');
+      print('URL: $baseUrl/user/books/ratings');
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/user/books/ratings'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      print('Status code: ${response.statusCode}');
+      print('Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        if (response.body.isEmpty || response.body == '[]') {
+          return [];
+        }
+        final data = json.decode(response.body);
+        return data is List ? data : [];
+      } else if (response.statusCode == 401) {
+        throw Exception('Сессия истекла. Войдите заново');
+      } else if (response.statusCode == 404) {
+        return [];
+      } else {
+        throw Exception('Ошибка загрузки оценок: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error in getRatedBooks: $e');
+      rethrow;
+    }
+  }
+
   /// Сохраняет прогресс чтения пользователя для указанной книги.
   ///
   /// Отправляет PUT-запрос на `/user/books/{bookId}/progress` с номером главы.

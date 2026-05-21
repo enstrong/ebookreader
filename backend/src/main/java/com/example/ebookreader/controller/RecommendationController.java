@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -50,7 +51,10 @@ public class RecommendationController {
                 user.get(),
                 clampLimit(limit)
         );
-        return ResponseEntity.ok(Map.of("recommendations", recommendations));
+        return ResponseEntity.ok(Map.of(
+                "recommendations", recommendations,
+                "sourceCount", recommendationService.positiveSourceCount(user.get())
+        ));
     }
 
     @GetMapping("/books/{bookId}/similar")
@@ -61,6 +65,30 @@ public class RecommendationController {
         return ResponseEntity.ok(Map.of("similar", similar));
     }
 
+    @PostMapping("/preview")
+    public ResponseEntity<?> previewRecommendations(
+            @RequestBody Map<String, Object> request,
+            @RequestParam(defaultValue = "50") int limit) {
+        Object rawInteractions = request.get("interactions");
+        if (!(rawInteractions instanceof List<?> rawList)) {
+            return ResponseEntity.badRequest().body(Map.of("message", "interactions is required"));
+        }
+
+        List<Map<String, Object>> interactions = rawList.stream()
+                .filter(Map.class::isInstance)
+                .map(Map.class::cast)
+                .map(row -> (Map<String, Object>) row)
+                .toList();
+        List<Map<String, Object>> recommendations = recommendationService.previewRecommendations(
+                interactions,
+                clampLimit(limit)
+        );
+        return ResponseEntity.ok(Map.of(
+                "recommendations", recommendations,
+                "sourceCount", interactions.size()
+        ));
+    }
+
     @PostMapping("/refresh")
     public ResponseEntity<?> refresh() {
         recommendationService.reload();
@@ -68,8 +96,12 @@ public class RecommendationController {
     }
 
     private Optional<User> getUserFromToken(String token) {
-        String username = jwtUtil.extractUsername(token.replace("Bearer ", ""));
-        return userRepository.findByNickname(username);
+        try {
+            String username = jwtUtil.extractUsername(token.replace("Bearer ", ""));
+            return userRepository.findByNickname(username);
+        } catch (Exception ex) {
+            return Optional.empty();
+        }
     }
 
     private int clampLimit(int limit) {

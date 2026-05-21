@@ -1,0 +1,10 @@
+.git
+.dart_tool
+.venv
+build
+postgres_data
+data
+outputs
+backend/target
+ios/Pods
+macos/Pods

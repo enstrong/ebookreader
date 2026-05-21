@@ -59,6 +59,9 @@ public class UserBook {
     private Integer rating;
 
     @Column
+    private LocalDateTime ratedAt;
+
+    @Column
     private LocalDateTime startedAt;
 
     @Column
@@ -178,6 +181,14 @@ public class UserBook {
 
     public void setRating(Integer rating) {
         this.rating = rating;
+    }
+
+    public LocalDateTime getRatedAt() {
+        return ratedAt;
+    }
+
+    public void setRatedAt(LocalDateTime ratedAt) {
+        this.ratedAt = ratedAt;
     }
 
     public LocalDateTime getStartedAt() {

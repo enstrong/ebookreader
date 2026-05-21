@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:ebookreader/screens/home/home_screen.dart';
 import 'package:ebookreader/screens/profile/profile_screen.dart';
+import 'package:ebookreader/screens/recommendations/for_you_screen.dart';
 import 'package:ebookreader/services/storage_service.dart';
 import 'package:ebookreader/theme/app_theme.dart';
 
 /// Корневой экран для обычного пользователя.
 ///
 /// Реализует нижнюю навигационную панель с тремя вкладками:
-/// каталог, библиотека доступных книг и профиль пользователя.
+/// рекомендации, библиотека доступных книг и профиль пользователя.
 class UserHome extends StatefulWidget {
   final String token;
   const UserHome({super.key, required this.token});
@@ -17,7 +18,7 @@ class UserHome extends StatefulWidget {
 }
 
 class _UserHomeState extends State<UserHome> {
-  int _selectedIndex = 1;
+  int _selectedIndex = 0;
   final StorageService _storage = StorageService();
   String? _currentToken;
 
@@ -41,12 +42,7 @@ class _UserHomeState extends State<UserHome> {
     final palette = context.palette;
     final token = _currentToken ?? widget.token;
     final screens = [
-      HomeScreen(
-        key: const PageStorageKey('catalog-home'),
-        token: token,
-        title: 'Каталог',
-        subtitle: 'Goodreads и рекомендации',
-      ),
+      ForYouScreen(key: const PageStorageKey('for-you-home'), token: token),
       HomeScreen(
         key: const PageStorageKey('reading-library-home'),
         token: token,
@@ -124,7 +120,7 @@ class _UserHomeState extends State<UserHome> {
                         ],
                       )
                     : null,
-                child: const Icon(Icons.library_books_outlined, size: 26),
+                child: const Icon(Icons.auto_awesome_outlined, size: 26),
               ),
               activeIcon: Container(
                 padding: const EdgeInsets.all(8),
@@ -144,9 +140,9 @@ class _UserHomeState extends State<UserHome> {
                     ),
                   ],
                 ),
-                child: const Icon(Icons.library_books, size: 26),
+                child: const Icon(Icons.auto_awesome, size: 26),
               ),
-              label: 'Каталог',
+              label: 'Для вас',
             ),
             BottomNavigationBarItem(
               icon: Container(

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:ebookreader/services/auth_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:ebookreader/screens/user/user_home.dart';
+import 'package:ebookreader/screens/recommendations/recommendation_onboarding_screen.dart';
 import 'package:ebookreader/theme/app_theme.dart';
 
 /// Экран регистрации нового пользователя.
@@ -80,7 +80,12 @@ class _RegisterScreenState extends State<RegisterScreen>
       if (!mounted) return;
 
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => UserHome(token: token)),
+        MaterialPageRoute(
+          builder: (_) => RecommendationOnboardingScreen(
+            token: token,
+            finishToHome: true,
+          ),
+        ),
         (route) => false,
       );
     } catch (e) {
