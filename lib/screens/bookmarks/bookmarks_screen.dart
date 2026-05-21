@@ -141,6 +141,7 @@ class _BookmarksScreenState extends State<BookmarksScreen>
             initialSegmentOrder: chapter,
             initialSegmentProgress: progress,
             initialAudioPositionMs: audioPositionMs,
+            initialLastMode: lastMode,
           ),
         ),
       ).then((_) => _loadBookmarks());

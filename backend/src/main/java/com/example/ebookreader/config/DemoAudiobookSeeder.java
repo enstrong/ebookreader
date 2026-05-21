@@ -27,7 +27,7 @@ import com.example.ebookreader.repository.ChapterRepository;
 
 @Component
 public class DemoAudiobookSeeder implements CommandLineRunner {
-    private static final String GOODREADS_ID = "269322";
+    public static final String GOODREADS_ID = "269322";
     private static final String AUDIO_PATH = "assets/audio/demo/the_raven_librivox.mp3";
     private static final String SOURCE_HREF = "https://www.gutenberg.org/ebooks/1065";
 
@@ -100,6 +100,23 @@ public class DemoAudiobookSeeder implements CommandLineRunner {
             book.setAvailability(BookAvailability.AUDIO);
         }
         bookRepository.save(book);
+    }
+
+    @Transactional
+    public Optional<Book> getDemoBook() {
+        seed();
+        return findRavenBook();
+    }
+
+    @Transactional
+    public boolean isDemoBook(Long bookId) {
+        if (bookId == null) {
+            return false;
+        }
+        return bookRepository.findById(bookId)
+                .map(Book::getGoodreadsId)
+                .map(GOODREADS_ID::equals)
+                .orElse(false);
     }
 
     private Optional<Book> findRavenBook() {

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:ebookreader/services/book_service.dart';
 import 'package:ebookreader/services/bookmark_service.dart';
+import 'package:ebookreader/screens/audio/audio_player_screen.dart';
 import 'package:ebookreader/screens/book/book_detail_screen.dart';
 import 'package:ebookreader/screens/reader/reader_screen.dart';
 import 'package:ebookreader/constants/api_constants.dart';
@@ -47,6 +48,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   List<dynamic> _books = [];
   List<dynamic> _filteredBooks = [];
+  Map<String, dynamic>? _demoAudiobook;
   Set<String> _availableGenres = {};
   Set<String> _availableLanguages = {};
   Set<String> _selectedGenres = {};
@@ -127,6 +129,12 @@ class _HomeScreenState extends State<HomeScreen>
       if (widget.libraryOnly) {
         final books = await _bookService.getLibraryBooks(widget.token);
         cleanBooks.addAll(books.cast<dynamic>());
+        try {
+          _demoAudiobook = await _bookService.getDemoAudiobook(widget.token);
+        } catch (e) {
+          debugPrint('Ошибка загрузки демо-аудиокниги: $e');
+          _demoAudiobook = null;
+        }
         totalItems = cleanBooks.length;
       } else {
         final page = await _bookService.getBooksPage(
@@ -238,6 +246,13 @@ class _HomeScreenState extends State<HomeScreen>
     return int.tryParse(value?.toString() ?? '') ?? 0;
   }
 
+  double _asProgress(dynamic value) {
+    if (value is num) return value.toDouble().clamp(0.0, 1.0).toDouble();
+    return (double.tryParse(value?.toString() ?? '') ?? 0.0)
+        .clamp(0.0, 1.0)
+        .toDouble();
+  }
+
   String _languageCode(String label) {
     switch (label.trim().toLowerCase()) {
       case 'english':
@@ -330,6 +345,31 @@ class _HomeScreenState extends State<HomeScreen>
         ),
       ),
     );
+  }
+
+  Future<void> _openDemoAudio(Map<String, dynamic> book) async {
+    final bookId = _asInt(book['id']);
+    if (bookId <= 0) return;
+    final progress = await _bookmarkService.getProgress(widget.token, bookId);
+    if (!mounted) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AudioPlayerScreen(
+          token: widget.token,
+          bookId: bookId,
+          title: book['title']?.toString() ?? 'The Raven',
+          author: authorLabel(book['author']),
+          initialSegmentOrder: _asInt(
+            progress['segmentOrder'] ?? progress['currentChapter'] ?? 1,
+          ).clamp(1, 999999).toInt(),
+          initialSegmentProgress: _asProgress(progress['segmentProgress']),
+          initialAudioPositionMs: _asInt(progress['audioPositionMs']),
+          initialLastMode: (progress['lastMode'] ?? 'TEXT').toString(),
+        ),
+      ),
+    ).then((_) => _loadBooks(reset: true));
   }
 
   @override
@@ -459,6 +499,8 @@ class _HomeScreenState extends State<HomeScreen>
                           strokeWidth: 2.5,
                         ),
                       )
+                    : widget.libraryOnly
+                    ? _buildLibraryBody()
                     : _filteredBooks.isEmpty
                     ? _buildEmptyState()
                     : _buildBooksGrid(),
@@ -837,6 +879,109 @@ class _HomeScreenState extends State<HomeScreen>
                 ? 'Начните читать книгу, и она появится здесь'
                 : 'Попробуйте поискать по другому названию или автору',
             style: TextStyle(fontSize: 14, color: palette.mutedText),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLibraryBody() {
+    return Column(
+      children: [
+        if (_demoAudiobook != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: _buildDemoAudiobookFeature(_demoAudiobook!),
+          ),
+        Expanded(
+          child: _filteredBooks.isEmpty
+              ? _buildEmptyState()
+              : _buildBooksGrid(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDemoAudiobookFeature(Map<String, dynamic> book) {
+    final palette = context.palette;
+    final coverUrl = (book['coverUrl'] ?? '').toString();
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: palette.elevated.withValues(alpha: palette.isDark ? 0.75 : 0.92),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: palette.border),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 58,
+            height: 82,
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              color: palette.surface,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: palette.border),
+            ),
+            child: coverUrl.isEmpty
+                ? Icon(Icons.graphic_eq_rounded, color: palette.accent)
+                : Image.network(
+                    ApiConstants.getCoverUrl(coverUrl),
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) =>
+                        Icon(Icons.graphic_eq_rounded, color: palette.accent),
+                  ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Демо-аудиокнига',
+                  style: TextStyle(
+                    color: palette.accent,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  book['title']?.toString() ?? 'The Raven',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: palette.text,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Text(
+                  '${authorLabel(book['author'])} · текст + аудио',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: palette.mutedText, fontSize: 12),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    FilledButton.icon(
+                      onPressed: () => _openDemoAudio(book),
+                      icon: const Icon(Icons.headphones_rounded, size: 18),
+                      label: const Text('Слушать'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () => _openBookPrimaryAction(book),
+                      icon: const Icon(Icons.menu_book_rounded, size: 18),
+                      label: const Text('Читать'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ],
       ),

@@ -144,6 +144,31 @@ class BookService {
     }
   }
 
+  Future<Map<String, dynamic>> getDemoAudiobook(String token) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/books/demo-audiobook'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return Map<String, dynamic>.from(json.decode(response.body) as Map);
+      }
+      if (response.statusCode == 401) {
+        throw Exception('Сессия истекла. Войдите заново');
+      }
+      throw Exception(
+        'Ошибка загрузки демо-аудиокниги: ${response.statusCode}',
+      );
+    } catch (e) {
+      print('Error in getDemoAudiobook: $e');
+      rethrow;
+    }
+  }
+
   /// Возвращает список всех книг для панели администратора.
   ///
   /// Отправляет GET-запрос на `/admin/books`. Требует прав администратора.

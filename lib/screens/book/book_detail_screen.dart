@@ -48,6 +48,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
   int _currentChapter = 1;
   double _segmentProgress = 0.0;
   int _audioPositionMs = 0;
+  String _lastProgressMode = 'TEXT';
   late AnimationController _animController;
   late Animation<double> _fadeAnimation;
 
@@ -87,12 +88,12 @@ class _BookDetailScreenState extends State<BookDetailScreen>
       setState(() {
         _book = book;
         _chapters = chapters;
-        _audioSubscriptionActive =
-            profile['audioSubscriptionActive'] == true;
+        _audioSubscriptionActive = profile['audioSubscriptionActive'] == true;
         _currentChapter =
             progress['segmentOrder'] ?? progress['currentChapter'] ?? 1;
         _segmentProgress = _asDouble(progress['segmentProgress']);
         _audioPositionMs = _asInt(progress['audioPositionMs']);
+        _lastProgressMode = (progress['lastMode'] ?? 'TEXT').toString();
         _isBookmarked = progress['isBookmarked'] ?? false;
         _userRating = _asRating(progress['rating']);
         _isLoading = false;
@@ -265,7 +266,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
   }
 
   Future<void> _openAudioPlayer() async {
-    if (!_audioSubscriptionActive) {
+    if (!_isDemoAudiobook && !_audioSubscriptionActive) {
       final activated = await _showAudioPaywall();
       if (!activated || !mounted) return;
     }
@@ -281,6 +282,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
           initialSegmentOrder: _currentChapter,
           initialSegmentProgress: _segmentProgress,
           initialAudioPositionMs: _audioPositionMs,
+          initialLastMode: _lastProgressMode,
         ),
       ),
     ).then((_) => _loadBookDetails());
@@ -336,8 +338,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
       );
       if (!mounted) return false;
       setState(() {
-        _audioSubscriptionActive =
-            response['audioSubscriptionActive'] == true;
+        _audioSubscriptionActive = response['audioSubscriptionActive'] == true;
         _isSubscriptionSaving = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
@@ -369,6 +370,9 @@ class _BookDetailScreenState extends State<BookDetailScreen>
     final availability = (_book?['availability'] ?? 'METADATA_ONLY').toString();
     return availability == 'AUDIO' || availability == 'SYNCED';
   }
+
+  bool get _isDemoAudiobook =>
+      (_book?['goodreadsId'] ?? '').toString() == '269322';
 
   String _availabilityLabel() {
     final availability = (_book?['availability'] ?? 'METADATA_ONLY').toString();
@@ -644,10 +648,11 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                           const SizedBox(width: 12),
                           Expanded(
                             child: _buildActionButton(
-                              icon: _audioSubscriptionActive
+                              icon: _audioSubscriptionActive || _isDemoAudiobook
                                   ? Icons.headphones_rounded
                                   : Icons.lock_rounded,
-                              label: _audioSubscriptionActive
+                              label:
+                                  _audioSubscriptionActive || _isDemoAudiobook
                                   ? 'Слушать'
                                   : 'Premium',
                               enabled: _hasAudio,
@@ -1061,7 +1066,10 @@ class _BookDetailScreenState extends State<BookDetailScreen>
               ),
             ),
             const SizedBox(width: 12),
-            Text('Подбираем похожие книги', style: TextStyle(color: palette.text)),
+            Text(
+              'Подбираем похожие книги',
+              style: TextStyle(color: palette.text),
+            ),
           ],
         ),
       );
@@ -1097,7 +1105,9 @@ class _BookDetailScreenState extends State<BookDetailScreen>
               itemCount: _similarBooks.length,
               separatorBuilder: (context, index) => const SizedBox(width: 12),
               itemBuilder: (context, index) {
-                final item = Map<String, dynamic>.from(_similarBooks[index] as Map);
+                final item = Map<String, dynamic>.from(
+                  _similarBooks[index] as Map,
+                );
                 final book = Map<String, dynamic>.from(item['book'] as Map);
                 return _buildSimilarCard(book, item);
               },
@@ -1108,7 +1118,10 @@ class _BookDetailScreenState extends State<BookDetailScreen>
     );
   }
 
-  Widget _buildSimilarCard(Map<String, dynamic> book, Map<String, dynamic> item) {
+  Widget _buildSimilarCard(
+    Map<String, dynamic> book,
+    Map<String, dynamic> item,
+  ) {
     final palette = context.palette;
     final id = _asInt(book['id']);
     final cover = book['coverUrl']?.toString() ?? '';
@@ -1132,7 +1145,10 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                       width: 112,
                       height: 112,
                       color: palette.surface,
-                      child: Icon(Icons.menu_book_rounded, color: palette.mutedText),
+                      child: Icon(
+                        Icons.menu_book_rounded,
+                        color: palette.mutedText,
+                      ),
                     )
                   : Image.network(
                       ApiConstants.getCoverUrl(cover),
@@ -1143,7 +1159,10 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                         width: 112,
                         height: 112,
                         color: palette.surface,
-                        child: Icon(Icons.menu_book_rounded, color: palette.mutedText),
+                        child: Icon(
+                          Icons.menu_book_rounded,
+                          color: palette.mutedText,
+                        ),
                       ),
                     ),
             ),

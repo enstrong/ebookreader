@@ -3,10 +3,30 @@ import 'dart:async';
 import 'package:audio_session/audio_session.dart';
 import 'package:ebookreader/constants/api_constants.dart';
 import 'package:ebookreader/models/audio_track.dart';
+import 'package:ebookreader/screens/reader/reader_screen.dart';
 import 'package:ebookreader/services/book_service.dart';
 import 'package:ebookreader/services/bookmark_service.dart';
+import 'package:ebookreader/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
+
+Duration? audioResumeTarget({
+  required int trackDurationMs,
+  required double initialSegmentProgress,
+  required int initialAudioPositionMs,
+  required String initialLastMode,
+}) {
+  if (initialLastMode.toUpperCase() == 'AUDIO' && initialAudioPositionMs > 0) {
+    return Duration(milliseconds: initialAudioPositionMs);
+  }
+  if (trackDurationMs <= 0) {
+    return null;
+  }
+  return Duration(
+    milliseconds: (trackDurationMs * initialSegmentProgress.clamp(0.0, 1.0))
+        .round(),
+  );
+}
 
 class AudioPlayerScreen extends StatefulWidget {
   final String token;
@@ -16,6 +36,7 @@ class AudioPlayerScreen extends StatefulWidget {
   final int initialSegmentOrder;
   final double initialSegmentProgress;
   final int initialAudioPositionMs;
+  final String initialLastMode;
 
   const AudioPlayerScreen({
     super.key,
@@ -26,16 +47,18 @@ class AudioPlayerScreen extends StatefulWidget {
     this.initialSegmentOrder = 1,
     this.initialSegmentProgress = 0.0,
     this.initialAudioPositionMs = 0,
+    this.initialLastMode = 'TEXT',
   });
 
   @override
   State<AudioPlayerScreen> createState() => _AudioPlayerScreenState();
 }
 
-class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
+class _AudioPlayerScreenState extends State<AudioPlayerScreen>
+    with WidgetsBindingObserver {
   final BookService _bookService = BookService();
   final BookmarkService _bookmarkService = BookmarkService();
-  final AudioPlayer _player = AudioPlayer();
+  final AudioPlayer _player = AudioPlayer(useProxyForRequestHeaders: false);
 
   List<AudioTrack> _tracks = [];
   int _trackIndex = 0;
@@ -44,23 +67,38 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
   Duration _lastSavedPosition = Duration.zero;
   StreamSubscription<Duration>? _positionSubscription;
   StreamSubscription<PlayerState>? _playerStateSubscription;
+  bool _wasPlaying = false;
+  double _playbackSpeed = 1.0;
 
   AudioTrack? get _currentTrack =>
-      _tracks.isEmpty || _trackIndex >= _tracks.length ? null : _tracks[_trackIndex];
+      _tracks.isEmpty || _trackIndex >= _tracks.length
+      ? null
+      : _tracks[_trackIndex];
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadAudioBook();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _saveProgress();
     _positionSubscription?.cancel();
     _playerStateSubscription?.cancel();
     _player.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.detached) {
+      _saveProgress();
+    }
   }
 
   Future<void> _loadAudioBook() async {
@@ -73,7 +111,10 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
       final session = await AudioSession.instance;
       await session.configure(AudioSessionConfiguration.speech());
 
-      final tracks = await _bookService.getAudioTracks(widget.token, widget.bookId);
+      final tracks = await _bookService.getAudioTracks(
+        widget.token,
+        widget.bookId,
+      );
       if (tracks.isEmpty) {
         setState(() {
           _tracks = [];
@@ -92,6 +133,10 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
       await _loadCurrentTrack(restorePosition: true);
       _positionSubscription = _player.positionStream.listen(_onPositionChanged);
       _playerStateSubscription = _player.playerStateStream.listen((state) {
+        if (_wasPlaying && !state.playing) {
+          _saveProgress();
+        }
+        _wasPlaying = state.playing;
         if (state.processingState == ProcessingState.completed) {
           _playNextTrack();
         }
@@ -121,22 +166,16 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
     );
 
     if (restorePosition) {
-      final explicitPosition = widget.initialAudioPositionMs > 0
-          ? Duration(milliseconds: widget.initialAudioPositionMs)
-          : null;
-      final percentPosition = track.durationMs > 0
-          ? Duration(
-              milliseconds:
-                  (track.durationMs * widget.initialSegmentProgress.clamp(0.0, 1.0).toDouble()).round(),
-            )
-          : null;
-      final seekTarget = explicitPosition ?? percentPosition;
+      final seekTarget = audioResumeTarget(
+        trackDurationMs: track.durationMs,
+        initialSegmentProgress: widget.initialSegmentProgress,
+        initialAudioPositionMs: widget.initialAudioPositionMs,
+        initialLastMode: widget.initialLastMode,
+      );
       if (seekTarget != null && seekTarget > Duration.zero) {
         await _player.seek(seekTarget);
       }
     }
-
-    await _saveProgress();
   }
 
   Future<void> _playNextTrack() async {
@@ -157,6 +196,45 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
     await _loadCurrentTrack();
   }
 
+  Future<void> _seekRelative(Duration delta) async {
+    final duration = _player.duration;
+    final nextPosition = _player.position + delta;
+    final bounded = duration == null
+        ? (nextPosition < Duration.zero ? Duration.zero : nextPosition)
+        : Duration(
+            milliseconds: nextPosition.inMilliseconds
+                .clamp(0, duration.inMilliseconds)
+                .toInt(),
+          );
+    await _player.seek(bounded);
+    await _saveProgress();
+  }
+
+  Future<void> _setPlaybackSpeed(double speed) async {
+    await _player.setSpeed(speed);
+    if (mounted) {
+      setState(() => _playbackSpeed = speed);
+    }
+  }
+
+  Future<void> _continueReading() async {
+    final track = _currentTrack;
+    if (track == null) return;
+    await _saveProgress();
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ReaderScreen(
+          token: widget.token,
+          bookId: widget.bookId,
+          chapterOrder: track.segmentOrder,
+          initialSegmentProgress: _segmentProgressFor(track, _player.position),
+        ),
+      ),
+    );
+  }
+
   void _onPositionChanged(Duration position) {
     if ((position - _lastSavedPosition).abs() < const Duration(seconds: 5)) {
       return;
@@ -169,10 +247,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
     final track = _currentTrack;
     if (track == null) return;
     final position = _player.position;
-    final progress = segmentProgress ??
-        (track.durationMs > 0
-            ? (position.inMilliseconds / track.durationMs).clamp(0.0, 1.0).toDouble()
-            : 0.0);
+    final progress = segmentProgress ?? _segmentProgressFor(track, position);
 
     try {
       await _bookmarkService.updateProgress(
@@ -188,39 +263,44 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
     }
   }
 
+  double _segmentProgressFor(AudioTrack track, Duration position) {
+    return track.durationMs > 0
+        ? (position.inMilliseconds / track.durationMs)
+              .clamp(0.0, 1.0)
+              .toDouble()
+        : 0.0;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E27),
+      backgroundColor: palette.background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1A1F3A),
+        backgroundColor: palette.surface,
         elevation: 0,
-        title: const Text('Аудиокнига', style: TextStyle(color: Colors.white)),
+        title: Text('Аудиокнига', style: TextStyle(color: palette.text)),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
+          icon: Icon(Icons.arrow_back, color: palette.text),
+          onPressed: () async {
+            await _saveProgress();
+            if (context.mounted) Navigator.pop(context);
+          },
         ),
       ),
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF0A0E27), Color(0xFF1A1F3A)],
-          ),
-        ),
+        decoration: BoxDecoration(gradient: palette.verticalGradient),
         child: _isLoading
-            ? const Center(
-                child: CircularProgressIndicator(color: Color(0xFF14FFEC)),
-              )
+            ? Center(child: CircularProgressIndicator(color: palette.accent))
             : _error != null
-                ? _buildMessage(_error!)
-                : _buildPlayer(),
+            ? _buildMessage(_error!)
+            : _buildPlayer(),
       ),
     );
   }
 
   Widget _buildMessage(String message) {
+    final palette = context.palette;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -228,7 +308,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
           message,
           textAlign: TextAlign.center,
           style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.75),
+            color: palette.text.withValues(alpha: 0.75),
             fontSize: 16,
             height: 1.5,
           ),
@@ -239,6 +319,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
 
   Widget _buildPlayer() {
     final track = _currentTrack!;
+    final palette = context.palette;
 
     return SafeArea(
       child: Padding(
@@ -248,21 +329,24 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
           children: [
             const Spacer(),
             Container(
-              padding: const EdgeInsets.all(28),
+              width: 156,
+              height: 156,
+              alignment: Alignment.center,
               decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF14FFEC), Color(0xFF0D7377)],
-                ),
+                borderRadius: BorderRadius.circular(8),
+                gradient: palette.accentGradient,
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF14FFEC).withValues(alpha: 0.25),
-                    blurRadius: 40,
-                    spreadRadius: 6,
+                    color: palette.accent.withValues(alpha: 0.20),
+                    blurRadius: 28,
                   ),
                 ],
               ),
-              child: const Icon(Icons.headphones_rounded, size: 92, color: Colors.white),
+              child: Icon(
+                Icons.headphones_rounded,
+                size: 80,
+                color: palette.onAccent,
+              ),
             ),
             const SizedBox(height: 32),
             Text(
@@ -271,10 +355,9 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                color: Colors.white,
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
-              ),
+              ).copyWith(color: palette.text),
             ),
             const SizedBox(height: 8),
             Text(
@@ -282,7 +365,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
               textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: Colors.white.withValues(alpha: 0.55), fontSize: 15),
+              style: TextStyle(color: palette.mutedText, fontSize: 15),
             ),
             const SizedBox(height: 28),
             Text(
@@ -290,19 +373,27 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
               textAlign: TextAlign.center,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 17),
+              style: TextStyle(
+                color: palette.text.withValues(alpha: 0.85),
+                fontSize: 17,
+              ),
             ),
             const SizedBox(height: 20),
             StreamBuilder<Duration>(
               stream: _player.positionStream,
               builder: (context, snapshot) {
                 final position = snapshot.data ?? Duration.zero;
-                final duration = _player.duration ??
-                    (track.durationMs > 0 ? Duration(milliseconds: track.durationMs) : Duration.zero);
+                final duration =
+                    _player.duration ??
+                    (track.durationMs > 0
+                        ? Duration(milliseconds: track.durationMs)
+                        : Duration.zero);
                 final max = duration.inMilliseconds <= 0
                     ? 1.0
                     : duration.inMilliseconds.toDouble();
-                final value = position.inMilliseconds.clamp(0, max.toInt()).toDouble();
+                final value = position.inMilliseconds
+                    .clamp(0, max.toInt())
+                    .toDouble();
 
                 return Column(
                   children: [
@@ -310,17 +401,21 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
                       value: value,
                       min: 0,
                       max: max,
-                      activeColor: const Color(0xFF14FFEC),
-                      inactiveColor: Colors.white.withValues(alpha: 0.12),
+                      activeColor: palette.accent,
+                      inactiveColor: palette.border,
                       onChanged: (nextValue) {
                         _player.seek(Duration(milliseconds: nextValue.round()));
                       },
+                      onChangeEnd: (_) => _saveProgress(),
                     ),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(_formatDuration(position), style: _timeStyle()),
-                        Text(_formatDuration(duration), style: _timeStyle()),
+                        Text(
+                          '-${_formatDuration(_remainingDuration(duration, position))}',
+                          style: _timeStyle(),
+                        ),
                       ],
                     ),
                   ],
@@ -334,11 +429,18 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
                 IconButton(
                   onPressed: _trackIndex > 0 ? _playPreviousTrack : null,
                   icon: const Icon(Icons.skip_previous_rounded),
-                  color: Colors.white,
-                  disabledColor: Colors.white.withValues(alpha: 0.25),
+                  color: palette.text,
+                  disabledColor: palette.mutedText.withValues(alpha: 0.35),
                   iconSize: 42,
                 ),
-                const SizedBox(width: 18),
+                IconButton(
+                  tooltip: 'Назад на 15 секунд',
+                  onPressed: () => _seekRelative(const Duration(seconds: -15)),
+                  icon: const Icon(Icons.replay_10_rounded),
+                  color: palette.text,
+                  iconSize: 34,
+                ),
+                const SizedBox(width: 10),
                 StreamBuilder<PlayerState>(
                   stream: _player.playerStateStream,
                   builder: (context, snapshot) {
@@ -346,36 +448,84 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
                     return Container(
                       width: 72,
                       height: 72,
-                      decoration: const BoxDecoration(
+                      decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        gradient: LinearGradient(
-                          colors: [Color(0xFF14FFEC), Color(0xFF0D7377)],
-                        ),
+                        gradient: palette.accentGradient,
                       ),
                       child: IconButton(
-                        onPressed: () => playing ? _player.pause() : _player.play(),
-                        icon: Icon(playing ? Icons.pause_rounded : Icons.play_arrow_rounded),
-                        color: Colors.white,
+                        onPressed: () async {
+                          if (playing) {
+                            await _player.pause();
+                            await _saveProgress();
+                          } else {
+                            await _player.play();
+                          }
+                        },
+                        icon: Icon(
+                          playing
+                              ? Icons.pause_rounded
+                              : Icons.play_arrow_rounded,
+                        ),
+                        color: palette.onAccent,
                         iconSize: 44,
                       ),
                     );
                   },
                 ),
-                const SizedBox(width: 18),
+                const SizedBox(width: 10),
                 IconButton(
-                  onPressed: _trackIndex < _tracks.length - 1 ? _playNextTrack : null,
+                  tooltip: 'Вперёд на 15 секунд',
+                  onPressed: () => _seekRelative(const Duration(seconds: 15)),
+                  icon: const Icon(Icons.forward_10_rounded),
+                  color: palette.text,
+                  iconSize: 34,
+                ),
+                IconButton(
+                  onPressed: _trackIndex < _tracks.length - 1
+                      ? _playNextTrack
+                      : null,
                   icon: const Icon(Icons.skip_next_rounded),
-                  color: Colors.white,
-                  disabledColor: Colors.white.withValues(alpha: 0.25),
+                  color: palette.text,
+                  disabledColor: palette.mutedText.withValues(alpha: 0.35),
                   iconSize: 42,
                 ),
               ],
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
+            Wrap(
+              alignment: WrapAlignment.center,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 10,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: _continueReading,
+                  icon: const Icon(Icons.menu_book_rounded),
+                  label: const Text('Продолжить читать'),
+                ),
+                PopupMenuButton<double>(
+                  tooltip: 'Скорость',
+                  initialValue: _playbackSpeed,
+                  onSelected: _setPlaybackSpeed,
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 0.75, child: Text('0.75x')),
+                    PopupMenuItem(value: 1.0, child: Text('1x')),
+                    PopupMenuItem(value: 1.25, child: Text('1.25x')),
+                    PopupMenuItem(value: 1.5, child: Text('1.5x')),
+                    PopupMenuItem(value: 2.0, child: Text('2x')),
+                  ],
+                  child: Chip(
+                    avatar: const Icon(Icons.speed_rounded, size: 18),
+                    label: Text('${_playbackSpeed}x'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
             Text(
-              '${_trackIndex + 1}/${_tracks.length}',
+              'Сегмент ${_trackIndex + 1}/${_tracks.length}',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 13),
+              style: TextStyle(color: palette.mutedText, fontSize: 13),
             ),
             const Spacer(),
           ],
@@ -385,7 +535,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
   }
 
   TextStyle _timeStyle() {
-    return TextStyle(color: Colors.white.withValues(alpha: 0.55), fontSize: 12);
+    return TextStyle(color: context.palette.mutedText, fontSize: 12);
   }
 
   String _formatDuration(Duration duration) {
@@ -396,5 +546,10 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
       return '$hours:$minutes:$seconds';
     }
     return '$minutes:$seconds';
+  }
+
+  Duration _remainingDuration(Duration duration, Duration position) {
+    final remaining = duration - position;
+    return remaining.isNegative ? Duration.zero : remaining;
   }
 }

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:ebookreader/models/book_annotation.dart';
 import 'package:ebookreader/models/lookup_result.dart';
+import 'package:ebookreader/screens/audio/audio_player_screen.dart';
 import 'package:ebookreader/services/annotation_service.dart';
 import 'package:ebookreader/services/book_service.dart';
 import 'package:ebookreader/services/bookmark_service.dart';
@@ -45,6 +46,8 @@ class _ReaderScreenState extends State<ReaderScreen>
 
   Map<String, dynamic>? _chapter;
   String _bookTitle = '';
+  String _bookAuthor = '';
+  String _bookAvailability = 'TEXT';
   List<BookAnnotation> _annotations = [];
   int _currentChapter = 1;
   int _totalChapters = 0;
@@ -115,6 +118,8 @@ class _ReaderScreenState extends State<ReaderScreen>
       setState(() {
         _chapter = chapter;
         _bookTitle = book['title']?.toString() ?? '';
+        _bookAuthor = book['author']?.toString() ?? '';
+        _bookAvailability = book['availability']?.toString() ?? 'METADATA_ONLY';
         _annotations = annotations;
         _userRating = _asRating(progress['rating']);
         _selection = null;
@@ -620,6 +625,28 @@ class _ReaderScreenState extends State<ReaderScreen>
     }
   }
 
+  bool get _bookHasAudio =>
+      _bookAvailability == 'AUDIO' || _bookAvailability == 'SYNCED';
+
+  Future<void> _openAudioFromReader() async {
+    await _saveTextProgress();
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AudioPlayerScreen(
+          token: widget.token,
+          bookId: widget.bookId,
+          title: _bookTitle.isEmpty ? 'Книга #${widget.bookId}' : _bookTitle,
+          author: _bookAuthor,
+          initialSegmentOrder: _currentChapter,
+          initialSegmentProgress: _segmentProgress,
+          initialLastMode: 'TEXT',
+        ),
+      ),
+    );
+  }
+
   int _asRating(dynamic value) {
     if (value == null) return 0;
     if (value is int) return value.clamp(0, 5);
@@ -794,6 +821,12 @@ class _ReaderScreenState extends State<ReaderScreen>
                 onPressed: () => Navigator.pop(context),
               ),
               actions: [
+                if (_bookHasAudio)
+                  IconButton(
+                    icon: Icon(Icons.headphones_rounded, color: palette.accent),
+                    tooltip: 'Слушать',
+                    onPressed: _openAudioFromReader,
+                  ),
                 IconButton(
                   icon: Icon(
                     _userRating > 0
@@ -1517,6 +1550,11 @@ class _LookupSheetState extends State<_LookupSheet> {
     final result = widget.result;
     final translation = result.translation?.text.trim();
     final hasTranslation = translation != null && translation.isNotEmpty;
+    final translationAlternatives =
+        result.translation?.alternatives
+            .where((item) => item.trim().isNotEmpty)
+            .toList() ??
+        const [];
     final maxHeight = MediaQuery.of(context).size.height * 0.82;
 
     return Container(
@@ -1637,13 +1675,57 @@ class _LookupSheetState extends State<_LookupSheet> {
                     _LookupSection(
                       title: 'Перевод',
                       child: hasTranslation
-                          ? Text(
-                              translation,
-                              style: TextStyle(
-                                color: palette.text,
-                                height: 1.45,
-                                fontWeight: FontWeight.w600,
-                              ),
+                          ? Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  translation,
+                                  style: TextStyle(
+                                    color: palette.text,
+                                    height: 1.45,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                if (translationAlternatives.isNotEmpty) ...[
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    'Варианты',
+                                    style: TextStyle(
+                                      color: palette.mutedText,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  for (final alternative
+                                      in translationAlternatives)
+                                    Padding(
+                                      padding: const EdgeInsets.only(bottom: 5),
+                                      child: Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            '- ',
+                                            style: TextStyle(
+                                              color: palette.mutedText,
+                                              height: 1.35,
+                                            ),
+                                          ),
+                                          Expanded(
+                                            child: Text(
+                                              alternative,
+                                              style: TextStyle(
+                                                color: palette.text,
+                                                height: 1.35,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                ],
+                              ],
                             )
                           : Text(
                               'Перевод сейчас недоступен.',

@@ -28,6 +28,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public class LookupService {
 
     private static final int MAX_DEFINITIONS = 4;
+    private static final int TRANSLATION_ALTERNATIVES = 3;
 
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
@@ -37,7 +38,7 @@ public class LookupService {
 
     public LookupService(
             ObjectMapper objectMapper,
-            @Value("${lookup.translate-base-url:https://libretranslate.com}") String translateBaseUrl,
+            @Value("${lookup.translate-base-url:http://localhost:5000}") String translateBaseUrl,
             @Value("${lookup.translate-api-key:}") String translateApiKey,
             @Value("${lookup.provider-timeout-ms:5000}") int providerTimeoutMs) {
         this.objectMapper = objectMapper;
@@ -191,6 +192,7 @@ public class LookupService {
         payload.put("source", source);
         payload.put("target", target);
         payload.put("format", "text");
+        payload.put("alternatives", TRANSLATION_ALTERNATIVES);
         if (!translateApiKey.isBlank()) {
             payload.put("api_key", translateApiKey);
         }
@@ -216,7 +218,24 @@ public class LookupService {
             Object fallback = map.get("translatedText");
             translatedText = fallback == null ? "" : fallback.toString();
         }
-        return translatedText.isBlank() ? null : new LookupTranslationDTO("libretranslate", translatedText);
+        List<String> alternatives = translationAlternatives(root.path("alternatives"), translatedText);
+        return translatedText.isBlank()
+                ? null
+                : new LookupTranslationDTO("libretranslate", translatedText, alternatives);
+    }
+
+    private List<String> translationAlternatives(JsonNode alternativesNode, String translatedText) {
+        if (!alternativesNode.isArray()) {
+            return List.of();
+        }
+        List<String> alternatives = new ArrayList<>();
+        for (JsonNode alternative : alternativesNode) {
+            String text = alternative.asText("").trim();
+            if (!text.isBlank() && !text.equalsIgnoreCase(translatedText) && !alternatives.contains(text)) {
+                alternatives.add(text);
+            }
+        }
+        return alternatives;
     }
 
     private HttpResponse<String> send(HttpRequest request) throws IOException, InterruptedException {
@@ -336,7 +355,7 @@ public class LookupService {
 
     private String trimTrailingSlash(String value) {
         if (value == null || value.isBlank()) {
-            return "https://libretranslate.com";
+            return "http://localhost:5000";
         }
         return value.endsWith("/") ? value.substring(0, value.length() - 1) : value;
     }

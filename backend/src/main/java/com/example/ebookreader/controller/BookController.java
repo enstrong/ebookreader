@@ -1,11 +1,11 @@
 package com.example.ebookreader.controller;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
-import org.springframework.core.io.support.ResourceRegion;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpRange;
 import org.springframework.http.HttpStatus;
@@ -97,6 +97,15 @@ public class BookController {
         }
     }
 
+    @GetMapping("/demo-audiobook")
+    public ResponseEntity<Book> getDemoAudiobook(
+            @RequestHeader(value = "Authorization", required = false) String token) {
+        assertAuthenticated(token);
+        return demoAudiobookSeeder.getDemoBook()
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
     @GetMapping("/search")
     public ResponseEntity<List<Book>> searchBooks(
             @RequestParam(required = false, defaultValue = "") String query) {
@@ -180,7 +189,7 @@ public class BookController {
             @PathVariable Long bookId,
             @RequestHeader(value = "Authorization", required = false) String token) {
         ensureDemoAudiobookSeeded();
-        assertAudioAccess(token);
+        assertAudioAccess(token, bookId);
         return ResponseEntity.ok(bookService.getAudioTracks(bookId));
     }
 
@@ -189,7 +198,8 @@ public class BookController {
             @PathVariable Long bookId,
             @PathVariable Long trackId,
             @RequestHeader HttpHeaders headers) throws IOException {
-        assertAudioAccess(headers.getFirst(HttpHeaders.AUTHORIZATION));
+        ensureDemoAudiobookSeeded();
+        assertAudioAccess(headers.getFirst(HttpHeaders.AUTHORIZATION), bookId);
         Resource resource = adminService.getAudioTrackResource(bookId, trackId);
         MediaType contentType = MediaType.APPLICATION_OCTET_STREAM;
         if (resource.getFilename() != null) {
@@ -207,9 +217,16 @@ public class BookController {
 
         List<HttpRange> ranges = headers.getRange();
         if (!ranges.isEmpty()) {
-            ResourceRegion region = resourceRegion(resource, ranges.get(0));
+            long contentLength = resource.contentLength();
+            long start = ranges.get(0).getRangeStart(contentLength);
+            long end = ranges.get(0).getRangeEnd(contentLength);
+            long rangeLength = end - start + 1;
+            byte[] region = readResourceRange(resource, start, rangeLength);
             return ResponseEntity.status(HttpStatus.PARTIAL_CONTENT)
                     .contentType(contentType)
+                    .header(HttpHeaders.ACCEPT_RANGES, "bytes")
+                    .header(HttpHeaders.CONTENT_RANGE, "bytes " + start + "-" + end + "/" + contentLength)
+                    .contentLength(rangeLength)
                     .body(region);
         }
 
@@ -219,31 +236,43 @@ public class BookController {
                 .body(resource);
     }
 
-    private ResourceRegion resourceRegion(Resource resource, HttpRange range) throws IOException {
-        long contentLength = resource.contentLength();
-        long start = range.getRangeStart(contentLength);
-        long end = range.getRangeEnd(contentLength);
-        long rangeLength = Math.min(1024 * 1024, end - start + 1);
-        return new ResourceRegion(resource, start, rangeLength);
+    private byte[] readResourceRange(Resource resource, long start, long rangeLength) throws IOException {
+        try (InputStream inputStream = resource.getInputStream()) {
+            inputStream.skipNBytes(start);
+            return inputStream.readNBytes(Math.toIntExact(rangeLength));
+        }
     }
 
     private void ensureDemoAudiobookSeeded() {
         demoAudiobookSeeder.seed();
     }
 
-    private void assertAudioAccess(String token) {
-        if (token == null || !token.startsWith("Bearer ")) {
+    private void assertAudioAccess(String token, Long bookId) {
+        if (demoAudiobookSeeder.isDemoBook(bookId)) {
+            assertAuthenticated(token);
+            return;
+        }
+
+        var user = authenticatedUser(token);
+        boolean hasAccess = "ADMIN".equalsIgnoreCase(user.getRole()) || user.isAudioSubscriptionActive();
+        if (!hasAccess) {
             throw new ResponseStatusException(HttpStatus.PAYMENT_REQUIRED, "Для прослушивания нужна аудиоподписка");
+        }
+    }
+
+    private void assertAuthenticated(String token) {
+        authenticatedUser(token);
+    }
+
+    private com.example.ebookreader.model.User authenticatedUser(String token) {
+        if (token == null || !token.startsWith("Bearer ")) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Нужна авторизация");
         }
 
         try {
             String username = jwtUtil.extractUsername(token.replace("Bearer ", ""));
-            boolean hasAccess = userRepository.findByNickname(username)
-                    .map(user -> "ADMIN".equalsIgnoreCase(user.getRole()) || user.isAudioSubscriptionActive())
-                    .orElse(false);
-            if (!hasAccess) {
-                throw new ResponseStatusException(HttpStatus.PAYMENT_REQUIRED, "Для прослушивания нужна аудиоподписка");
-            }
+            return userRepository.findByNickname(username)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Неверный токен"));
         } catch (ResponseStatusException ex) {
             throw ex;
         } catch (Exception ex) {

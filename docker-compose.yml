@@ -2,6 +2,7 @@ services:
   db:
     image: postgres:13-alpine
     container_name: ebookreader_db
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ebookreader
       POSTGRES_USER: postgres
@@ -21,26 +22,39 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: ebookreader_backend
+    restart: unless-stopped
     ports:
       - "8080:8080"
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/ebookreader
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: 12345
+      LOOKUP_TRANSLATE_BASE_URL: http://libretranslate:5000
       RECOMMENDATIONS_HYBRID_SERVICE_URL: http://recommender:8001
     volumes:
       - ./backend/assets:/app/assets
     depends_on:
       db:
         condition: service_healthy
+      libretranslate:
+        condition: service_started
       recommender:
         condition: service_healthy
+
+  libretranslate:
+    image: libretranslate/libretranslate:latest
+    container_name: ebookreader_libretranslate
+    restart: unless-stopped
+    environment:
+      LT_LOAD_ONLY: en,ru
+      LT_DISABLE_WEB_UI: "true"
 
   recommender:
     build:
       context: .
       dockerfile: scripts/recommendations/Dockerfile.hybrid
     container_name: ebookreader_recommender
+    restart: unless-stopped
     ports:
       - "8001:8001"
     volumes:

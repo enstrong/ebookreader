@@ -27,13 +27,25 @@ class LookupDefinition {
 class LookupTranslation {
   final String source;
   final String text;
+  final List<String> alternatives;
 
-  const LookupTranslation({required this.source, required this.text});
+  const LookupTranslation({
+    required this.source,
+    required this.text,
+    required this.alternatives,
+  });
 
   factory LookupTranslation.fromJson(Map<String, dynamic> json) {
+    final rawAlternatives = json['alternatives'];
     return LookupTranslation(
       source: json['source']?.toString() ?? '',
       text: json['text']?.toString() ?? '',
+      alternatives: rawAlternatives is List
+          ? rawAlternatives
+                .map((item) => item.toString().trim())
+                .where((item) => item.isNotEmpty)
+                .toList()
+          : const [],
     );
   }
 }

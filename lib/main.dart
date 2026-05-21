@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:ebookreader/screens/admin/admin_main_screen.dart';
 import 'package:ebookreader/theme/app_theme.dart';
 import 'package:flutter/material.dart';
@@ -43,8 +45,18 @@ class _MyAppState extends State<MyApp> {
 
   Future<void> _loadUserSession() async {
     final prefs = await SharedPreferences.getInstance();
-    final savedToken = prefs.getString('token');
-    final savedRole = prefs.getString('role');
+    var savedToken = prefs.getString('token');
+    var savedRole = prefs.getString('role');
+
+    if (savedToken != null && _isExpiredJwt(savedToken)) {
+      await prefs.remove('token');
+      await prefs.remove('role');
+      await prefs.remove('username');
+      await prefs.remove('email');
+      savedToken = null;
+      savedRole = null;
+    }
+
     await _themeController.load();
 
     setState(() {
@@ -52,6 +64,26 @@ class _MyAppState extends State<MyApp> {
       role = savedRole;
       isLoading = false;
     });
+  }
+
+  bool _isExpiredJwt(String token) {
+    final parts = token.split('.');
+    if (parts.length != 3) return true;
+
+    try {
+      final payload = utf8.decode(
+        base64Url.decode(base64Url.normalize(parts[1])),
+      );
+      final jsonPayload = json.decode(payload);
+      if (jsonPayload is! Map) return true;
+
+      final expiration = jsonPayload['exp'];
+      if (expiration is! num) return true;
+
+      return DateTime.now().millisecondsSinceEpoch >= expiration * 1000;
+    } catch (_) {
+      return true;
+    }
   }
 
   @override
