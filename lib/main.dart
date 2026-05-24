@@ -4,6 +4,7 @@ import 'package:ebookreader/screens/admin/admin_main_screen.dart';
 import 'package:ebookreader/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:just_audio_background/just_audio_background.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'screens/auth/login_screen.dart';
@@ -15,6 +16,11 @@ import 'screens/user/user_home.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: ".env");
+  await JustAudioBackground.init(
+    androidNotificationChannelId: 'com.example.ebookreader.audio',
+    androidNotificationChannelName: 'Audiobook playback',
+    androidNotificationOngoing: true,
+  );
   runApp(const MyApp());
 }
 

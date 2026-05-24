@@ -15,6 +15,12 @@ public interface UserRepository extends JpaRepository<User, Long> {
     
     // Поиск по email
     Optional<User> findByEmail(String email);
+
+    // Поиск по email без учета регистра для OAuth-привязки
+    Optional<User> findByEmailIgnoreCase(String email);
+
+    // Поиск по Google subject (`sub`) для федеративной аутентификации
+    Optional<User> findByGoogleSubject(String googleSubject);
     
     // Поиск по ID (наследуется от JpaRepository, но можно указать явно)
     Optional<User> findById(Long id);

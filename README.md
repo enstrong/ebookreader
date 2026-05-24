@@ -10,6 +10,11 @@ This diploma project is a joint app created with my partner over several months;
 - Read books on mobile and desktop with a polished Flutter interface.
 - Manage books, login/auth, and basic library organization.
 - Keep local state and user preferences with `shared_preferences`.
+- Get personalized book recommendations from a hybrid recommendation system.
+- Rate books and inspect the user's rating history.
+- Highlight text, save notes, look up dictionary definitions, and translate selected passages inside the reader.
+- Listen to the public-domain demo audiobook and move between text and audio with saved progress.
+- Switch between multiple visual themes.
 
 ## Core features
 
@@ -24,11 +29,36 @@ This diploma project is a joint app created with my partner over several months;
 - Browse and search your books.
 - View book details, cover art, and metadata.
 - Use the app as a personal reading manager.
+- See a visible demo audiobook entry point even when the library is empty.
+- Check rated books, star values, and rating dates from the user page.
+
+### Reading experience
+
+- Read imported books inside the app.
+- Highlight words or passages and attach notes.
+- Look up English and Russian dictionary definitions from selected text.
+- Translate selected English words or passages into Russian through LibreTranslate.
+- Save looked-up words as vocabulary-style annotations.
+- Switch the reader between different app themes.
+
+### Audiobooks and sync
+
+- Open the seeded public-domain demo audiobook, The Raven.
+- Use a focused audio player with play/pause, seek, segment navigation, and speed control.
+- Save audiobook progress and resume later.
+- Continue from reading to listening, or from listening back to the matching text segment.
+
+### Recommendations and ratings
+
+- Generate personalized recommendations from reading and rating signals.
+- Use a Python recommendation service for hybrid model logic.
+- Store and display rated books so recommendation behavior can be inspected per user.
 
 ### Authentication
 
 - Login and user management are handled by the backend service.
 - Secure sessions and profile-based library support.
+- Google OAuth supports login and registration.
 
 ### Backend / infrastructure
 
@@ -41,27 +71,27 @@ This diploma project is a joint app created with my partner over several months;
 - Work began as a team project and continued across a few months.
 - I’m not in a rush to add everything immediately. Today is **April 15th**, and the diploma defense is scheduled for **June 22nd-28th.**
 
-## Future direction
+## Future direction (as of April 15th)
 
 This project is headed toward becoming a true book superapp.
 The priorities are:
 
-1. **AI Recommendation Engine**
+1. **AI Recommendation Engine** -- done by May 16th
    - Add an AI recommendation engine that suggests books based on reading history
    - If a user has no history yet, ask them about books they love or let AI ask a few warm-up questions
    - Add an AI button on the main page to recommend titles dynamically
 
-2. **Reading experience**
+2. **Reading experience** -- done by May 21st
    - Bookmarks inside books
    - Notes/highlights
    - Highlight words and get definitions
    - Translate words or passages from open-source dictionaries
 
-3. **Audiobooks and sync**
+3. **Audiobooks and sync** -- done by May 21st
    - Support audiobooks and ebook playback together
    - Sync audio position with text so users can listen while walking and continue reading at home
 
-4. **Reviews, ratings, and quotes last**
+4. **Reviews, ratings, and quotes last** -- in progress
    - Add book reviews and rating pages
    - Add quotes in the far future once core reading and AI functionality are strong
 
@@ -71,13 +101,11 @@ The priorities are:
 - Spring Boot backend
 - PostgreSQL database
 - Docker-compatible backend setup
+- Python recommendation service for model training and serving
+- Recommendation model tooling with `implicit`, `numpy`, `pandas`, and `scipy`
+- LibreTranslate-compatible translation service
 - File upload via Flutter `file_picker`
 - EPUB parsing and book asset handling via Dart packages
-
-## Notes
-
-This is a personal project in active development. I finally bought a  new **MacBook Air M4 with 24GB of RAM** specifically to work on AI features for this app. All this development of the app is all cool and stuff, but I've never actually tried Machine Learning.
-
 
 ## Author
 
@@ -90,7 +118,6 @@ This is a personal project in active development. I finally bought a  new **MacB
 ---
 
 # Updates
-
 ## May 15th, 2026
 
 This was an incredible experience. For the AI recommendation engine, I started small, because I did not want to just run a library and pretend that I understand Machine Learning. The goal was to learn the recommendation problem step by step: first popularity, then similar users/books, and only after that matrix factorization.
@@ -479,6 +506,26 @@ Also, some notes to my future self:
 2. Use the validation split from the start to avoid too optimistic results.
 3. Test lambda on a log scale. Changing it from 0.1 to 0.2 did absolutely nothing, but 0.01, 0.1, 1.0 and 10.0 all had some differences.
 4. Adding more candidates is not automatically better. Ranking quality matters more than candidate pool size.
+
+
+## May 21st, 2026
+The app development continues almost every single day, but I'm gonna group the updates every few days or so:
+
+- Added a fuller reading experience with notes, highlights, and saved vocabulary-style lookup annotations.
+- Added dictionary lookup for selected English and Russian words.
+- Added LibreTranslate-powered translation for selected English words and passages inside the reader.
+- Added multiple app themes and theme switching.
+- Added the public-domain demo audiobook path for `The Raven` by Edgar Allan Poe.
+- Added a cleaner audiobook player with progress save/resume.
+- Added text-to-audio and audio-to-text sync so reading and listening can continue from the same book position.
+- Added a user rating history view for checking rated books, stars, and rating dates.
+
+
+## May 24th, 2026
+- Added Google OAuth login and registration.
+- Fixed the previously known duplicate books bug.
+- Improved the audiobook UI and added background playback so listening can continue even after closing the app.
+- Improved the Admin page UI.
 
 ## References
 

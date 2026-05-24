@@ -28,27 +28,26 @@ import com.example.ebookreader.model.Book;
 import com.example.ebookreader.model.ReadingStatus;
 import com.example.ebookreader.model.User;
 import com.example.ebookreader.model.UserBook;
-import com.example.ebookreader.repository.BookRepository;
 import com.example.ebookreader.repository.UserBookRepository;
 
 @Service
 public class RecommendationService {
 
-    private final BookRepository bookRepository;
     private final UserBookRepository userBookRepository;
+    private final BookCanonicalizationService canonicalizationService;
     private final Path similarityPath;
     private final RestTemplate restTemplate;
     private final String hybridServiceUrl;
     private Map<String, List<ItemNeighbor>> neighborsByGoodreadsId;
 
     public RecommendationService(
-            BookRepository bookRepository,
             UserBookRepository userBookRepository,
+            BookCanonicalizationService canonicalizationService,
             @Value("${recommendations.item-similarity-path:../data/recommendations/item_cf_similar.csv}") String similarityPath,
             @Value("${recommendations.hybrid-service-url:http://127.0.0.1:8001}") String hybridServiceUrl,
             @Value("${recommendations.hybrid-timeout-ms:8000}") int hybridTimeoutMs) {
-        this.bookRepository = bookRepository;
         this.userBookRepository = userBookRepository;
+        this.canonicalizationService = canonicalizationService;
         this.similarityPath = Path.of(similarityPath);
         this.hybridServiceUrl = hybridServiceUrl.replaceAll("/+$", "");
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
@@ -86,7 +85,7 @@ public class RecommendationService {
     }
 
     public List<Map<String, Object>> findSimilarBooks(Long bookId, int limit) {
-        Optional<Book> book = bookRepository.findById(bookId);
+        Optional<Book> book = canonicalizationService.findCanonicalById(bookId);
         if (book.isEmpty() || book.get().getGoodreadsId() == null || book.get().getGoodreadsId().isBlank()) {
             return List.of();
         }
@@ -195,15 +194,13 @@ public class RecommendationService {
         }
 
         List<String> goodreadsIds = ranked.stream().map(HybridCandidate::goodreadsId).toList();
-        Map<String, Book> booksByGoodreadsId = new HashMap<>();
-        for (Book book : bookRepository.findByGoodreadsIdIn(goodreadsIds)) {
-            booksByGoodreadsId.put(book.getGoodreadsId(), book);
-        }
+        Map<String, Book> booksByGoodreadsId = canonicalizationService.canonicalBooksByGoodreadsId(goodreadsIds);
 
         List<Map<String, Object>> results = new ArrayList<>();
+        Set<Long> seenBookIds = new HashSet<>();
         for (HybridCandidate candidate : ranked) {
             Book book = booksByGoodreadsId.get(candidate.goodreadsId());
-            if (book == null) {
+            if (book == null || !seenBookIds.add(book.getId())) {
                 continue;
             }
             Map<String, Object> row = new LinkedHashMap<>();
@@ -272,7 +269,7 @@ public class RecommendationService {
             double weight = 0.0;
             Integer rating = userBook.getRating();
             if (rating != null) {
-                weight = rating - averageRating;
+                weight = explicitRatingWeight(rating, averageRating);
             } else if (userBook.getStatus() == ReadingStatus.FINISHED) {
                 weight = 1.0;
             } else if (userBook.getStatus() == ReadingStatus.READING) {
@@ -286,6 +283,14 @@ public class RecommendationService {
             }
         }
         return weights;
+    }
+
+    private double explicitRatingWeight(int rating, double averageRating) {
+        double centered = averageRating > 0 ? rating - averageRating : rating;
+        if (rating >= 4) {
+            return Math.max(centered, 1.0 + (rating - 3.0));
+        }
+        return Math.max(centered, 0.0);
     }
 
     private double userAverageRating(List<UserBook> history) {
@@ -334,15 +339,13 @@ public class RecommendationService {
         List<String> goodreadsIds = ranked.stream()
                 .map(CandidateScore::goodreadsId)
                 .toList();
-        Map<String, Book> booksByGoodreadsId = new HashMap<>();
-        for (Book book : bookRepository.findByGoodreadsIdIn(goodreadsIds)) {
-            booksByGoodreadsId.put(book.getGoodreadsId(), book);
-        }
+        Map<String, Book> booksByGoodreadsId = canonicalizationService.canonicalBooksByGoodreadsId(goodreadsIds);
 
         List<Map<String, Object>> results = new ArrayList<>();
+        Set<Long> seenBookIds = new HashSet<>();
         for (CandidateScore candidate : ranked) {
             Book book = booksByGoodreadsId.get(candidate.goodreadsId());
-            if (book == null) {
+            if (book == null || !seenBookIds.add(book.getId())) {
                 continue;
             }
             Map<String, Object> row = new LinkedHashMap<>();

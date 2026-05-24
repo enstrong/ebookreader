@@ -24,6 +24,7 @@ import com.example.ebookreader.model.Genre;
 import com.example.ebookreader.repository.AudioTrackRepository;
 import com.example.ebookreader.repository.BookRepository;
 import com.example.ebookreader.repository.ChapterRepository;
+import com.example.ebookreader.service.BookCanonicalizationService;
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
@@ -35,18 +36,24 @@ public class BookServiceImpl implements BookService {
     private final BookRepository bookRepository;
     private final ChapterRepository chapterRepository;
     private final AudioTrackRepository audioTrackRepository;
+    private final BookCanonicalizationService canonicalizationService;
 
     @Autowired
-    public BookServiceImpl(BookRepository bookRepository, ChapterRepository chapterRepository, AudioTrackRepository audioTrackRepository) {
+    public BookServiceImpl(
+            BookRepository bookRepository,
+            ChapterRepository chapterRepository,
+            AudioTrackRepository audioTrackRepository,
+            BookCanonicalizationService canonicalizationService) {
         this.bookRepository = bookRepository;
         this.chapterRepository = chapterRepository;
         this.audioTrackRepository = audioTrackRepository;
+        this.canonicalizationService = canonicalizationService;
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<Book> getAllBooks() {
-        return bookRepository.findAll();
+        return canonicalizationService.canonicalizeBooks(bookRepository.findAll());
     }
 
     @Override
@@ -69,7 +76,7 @@ public class BookServiceImpl implements BookService {
                 pageable
         );
         return new BookPageResponse(
-                result.getContent(),
+                canonicalizationService.canonicalizeBooks(result.getContent()),
                 result.getNumber(),
                 result.getSize(),
                 result.getTotalElements(),
@@ -81,27 +88,27 @@ public class BookServiceImpl implements BookService {
     @Override
     @Transactional(readOnly = true)
     public List<Book> getLibraryBooks() {
-        return bookRepository.findByAvailabilityIn(
-                List.of(BookAvailability.TEXT, BookAvailability.AUDIO, BookAvailability.SYNCED));
+        return canonicalizationService.canonicalizeBooks(bookRepository.findByAvailabilityIn(
+                List.of(BookAvailability.TEXT, BookAvailability.AUDIO, BookAvailability.SYNCED)));
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<Book> searchBooks(String query) {
         if (query == null || query.trim().isEmpty()) {
-            return bookRepository.findAll();
+            return canonicalizationService.canonicalizeBooks(bookRepository.findAll());
         }
-        return bookRepository.findAll().stream()
+        return canonicalizationService.canonicalizeBooks(bookRepository.findAll().stream()
                 .filter(book -> 
                     safeLower(book.getTitle()).contains(query.toLowerCase()) ||
                     safeLower(book.getAuthor()).contains(query.toLowerCase()))
-                .collect(Collectors.toList());
+                .collect(Collectors.toList()));
     }
 
     @Override
     @Transactional(readOnly = true)
     public Optional<Book> getBookById(Long id) {
-        return bookRepository.findById(id);
+        return canonicalizationService.findCanonicalById(id);
     }
 
     @Override

@@ -361,6 +361,7 @@ class _HomeScreenState extends State<HomeScreen>
           bookId: bookId,
           title: book['title']?.toString() ?? 'The Raven',
           author: authorLabel(book['author']),
+          coverUrl: book['coverUrl']?.toString() ?? '',
           initialSegmentOrder: _asInt(
             progress['segmentOrder'] ?? progress['currentChapter'] ?? 1,
           ).clamp(1, 999999).toInt(),
@@ -929,7 +930,7 @@ class _HomeScreenState extends State<HomeScreen>
                 : Image.network(
                     ApiConstants.getCoverUrl(coverUrl),
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) =>
+                    errorBuilder: (context, error, stackTrace) =>
                         Icon(Icons.graphic_eq_rounded, color: palette.accent),
                   ),
           ),

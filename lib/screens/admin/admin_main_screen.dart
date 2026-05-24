@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'admin_books_screen.dart';
+import 'manage_books_screen.dart';
 import 'admin_users_screen.dart';
 import 'admin_profile_screen.dart';
 import 'package:ebookreader/theme/app_theme.dart';
@@ -7,7 +7,7 @@ import 'package:ebookreader/theme/app_theme.dart';
 /// Главный экран панели администратора.
 ///
 /// Реализует нижнюю навигационную панель с тремя разделами:
-/// управление книгами ([AdminBooksScreen]),
+/// управление книгами ([ManageBooksScreen]),
 /// управление пользователями ([AdminUsersScreen])
 /// и профиль администратора ([AdminProfileScreen]).
 class AdminMainScreen extends StatefulWidget {
@@ -33,7 +33,7 @@ class _AdminMainScreenState extends State<AdminMainScreen>
       vsync: this,
     );
     _screens = [
-      AdminBooksScreen(token: widget.token),
+      ManageBooksScreen(token: widget.token),
       AdminUsersScreen(token: widget.token),
       AdminProfileScreen(token: widget.token),
     ];

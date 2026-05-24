@@ -174,12 +174,53 @@ class BookService {
   /// Отправляет GET-запрос на `/admin/books`. Требует прав администратора.
   /// Выбрасывает [Exception] при отсутствии прав или ошибке сервера.
   Future<List<dynamic>> getAdminBooks(String token) async {
+    final page = await getAdminBooksPage(token, size: 100);
+    return page['items'] as List<dynamic>;
+  }
+
+  Future<Map<String, dynamic>> getAdminBooksPage(
+    String token, {
+    int page = 0,
+    int size = 50,
+    String query = '',
+    List<String> languages = const [],
+    List<String> genres = const [],
+    double? minRating,
+    Set<String> contentFeatures = const {},
+    String sort = 'popular',
+  }) async {
     try {
       print('=== GET ADMIN BOOKS REQUEST ===');
-      print('URL: $baseUrl/admin/books');
+      final queryParts = <String>[];
+      void addParam(String name, String value) {
+        queryParts.add(Uri(queryParameters: {name: value}).query);
+      }
+
+      addParam('page', page.toString());
+      addParam('size', size.toString());
+      addParam('sort', sort);
+      if (query.trim().isNotEmpty) addParam('query', query.trim());
+      for (final language in languages) {
+        final cleanLanguage = language.trim();
+        if (cleanLanguage.isNotEmpty) addParam('languages', cleanLanguage);
+      }
+      for (final genre in genres) {
+        final cleanGenre = genre.trim();
+        if (cleanGenre.isNotEmpty) addParam('genres', cleanGenre);
+      }
+      if (minRating != null) addParam('minRating', minRating.toString());
+      for (final feature in contentFeatures) {
+        final cleanFeature = feature.trim();
+        if (cleanFeature.isNotEmpty) addParam('features', cleanFeature);
+      }
+
+      final uri = Uri.parse(
+        '$baseUrl/admin/books',
+      ).replace(query: queryParts.join('&'));
+      print('URL: $uri');
 
       final response = await http.get(
-        Uri.parse('$baseUrl/admin/books'),
+        uri,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -190,16 +231,21 @@ class BookService {
       print('Response body: ${response.body}');
 
       if (response.statusCode == 200) {
-        if (response.body.isEmpty || response.body == '[]') {
-          return [];
-        }
+        if (response.body.isEmpty) return _emptyPage(page, size);
         final data = json.decode(response.body);
-        if (data is List) {
+        if (data is Map<String, dynamic>) {
           return data;
-        } else if (data is Map && data.containsKey('books')) {
-          return data['books'];
+        } else if (data is Map) {
+          return Map<String, dynamic>.from(data);
+        } else if (data is List) {
+          return {
+            ..._emptyPage(page, size),
+            'items': data,
+            'totalItems': data.length,
+            'totalPages': 1,
+          };
         }
-        return [];
+        return _emptyPage(page, size);
       } else if (response.statusCode == 401) {
         throw Exception('Сессия истекла. Войдите заново');
       } else if (response.statusCode == 403) {

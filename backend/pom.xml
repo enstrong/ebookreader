@@ -66,6 +66,13 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- Google ID token verification for federated authentication -->
+        <dependency>
+            <groupId>com.google.api-client</groupId>
+            <artifactId>google-api-client</artifactId>
+            <version>2.8.1</version>
+        </dependency>
+
         <!-- SpringDoc OpenAPI UI (для Swagger UI) -->
         <dependency>
             <groupId>org.springdoc</groupId>

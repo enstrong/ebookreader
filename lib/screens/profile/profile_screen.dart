@@ -429,6 +429,8 @@ class _ProfileScreenState extends State<ProfileScreen>
     final nickname = _profile?['nickname'] ?? '';
     final username = _profile?['username'] ?? 'User';
     final email = _profile?['email'] ?? '';
+    final authProvider = _profile?['authProvider']?.toString().toUpperCase();
+    final canChangePassword = authProvider != 'GOOGLE';
     final palette = context.palette;
 
     return Scaffold(
@@ -623,14 +625,15 @@ class _ProfileScreenState extends State<ProfileScreen>
                           onTap: _showNicknameDialog,
                         ),
 
-                        const SizedBox(height: 16),
-
-                        _buildMenuItem(
-                          icon: Icons.lock_outline,
-                          title: 'Сменить пароль',
-                          description: 'Обновить пароль',
-                          onTap: _showPasswordDialog,
-                        ),
+                        if (canChangePassword) ...[
+                          const SizedBox(height: 16),
+                          _buildMenuItem(
+                            icon: Icons.lock_outline,
+                            title: 'Сменить пароль',
+                            description: 'Обновить пароль',
+                            onTap: _showPasswordDialog,
+                          ),
+                        ],
 
                         const SizedBox(height: 48),
 

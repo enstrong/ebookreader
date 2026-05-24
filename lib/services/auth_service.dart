@@ -6,7 +6,10 @@ class AuthService {
   final String baseUrl = ApiConstants.baseUrl;
 
   Future<Map<String, dynamic>> register(
-      String username, String email, String password) async {
+    String username,
+    String email,
+    String password,
+  ) async {
     try {
       print('=== REGISTRATION REQUEST ===');
       print('URL: $baseUrl/auth/register');
@@ -49,10 +52,7 @@ class AuthService {
       final response = await http.post(
         Uri.parse('$baseUrl/auth/login'),
         headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'username': username,
-          'password': password,
-        }),
+        body: json.encode({'username': username, 'password': password}),
       );
 
       print('Status code: ${response.statusCode}');
@@ -66,7 +66,9 @@ class AuthService {
         return data;
       } else if (response.statusCode == 401) {
         final error = json.decode(response.body);
-        throw Exception(error['message'] ?? 'Неверное имя пользователя или пароль');
+        throw Exception(
+          error['message'] ?? 'Неверное имя пользователя или пароль',
+        );
       } else if (response.statusCode == 400) {
         final error = json.decode(response.body);
         throw Exception(error['message'] ?? 'Неверный запрос');
@@ -80,14 +82,37 @@ class AuthService {
       rethrow;
     }
   }
-  
+
+  Future<Map<String, dynamic>> loginWithGoogle(String idToken) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/auth/google'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'idToken': idToken}),
+      );
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      } else if (response.statusCode == 400 || response.statusCode == 401) {
+        final error = json.decode(response.body);
+        throw Exception(error['message'] ?? 'Не удалось войти через Google');
+      } else if (response.statusCode == 403) {
+        throw Exception('Доступ запрещен');
+      } else {
+        throw Exception('Ошибка сервера: ${response.statusCode}');
+      }
+    } catch (e) {
+      rethrow;
+    }
+  }
+
   Future<bool> testConnection() async {
     try {
       print('Testing connection to: $baseUrl/auth/test');
-      final response = await http.get(
-        Uri.parse('$baseUrl/auth/test'),
-      ).timeout(const Duration(seconds: 5));
-      
+      final response = await http
+          .get(Uri.parse('$baseUrl/auth/test'))
+          .timeout(const Duration(seconds: 5));
+
       print('Test connection status: ${response.statusCode}');
       return response.statusCode == 200;
     } catch (e) {

@@ -22,9 +22,7 @@ class AdminService {
   AdminService(this.token);
 
   /// Заголовки авторизации для всех запросов.
-  Map<String, String> get headers => {
-        'Authorization': 'Bearer $token',
-      };
+  Map<String, String> get headers => {'Authorization': 'Bearer $token'};
 
   /// Возвращает список всех книг из административного каталога.
   ///
@@ -40,7 +38,10 @@ class AdminService {
 
     if (res.statusCode == 200) {
       if (res.body.isEmpty) return [];
-      return jsonDecode(res.body);
+      final data = jsonDecode(res.body);
+      if (data is List) return data;
+      if (data is Map && data['items'] is List) return data['items'];
+      return [];
     } else if (res.statusCode == 403) {
       throw Exception('Нет прав доступа (403 Forbidden)');
     } else {
@@ -83,11 +84,11 @@ class AdminService {
     if (coverFile != null) {
       final length = await coverFile.length();
       final stream = http.ByteStream(coverFile.openRead());
-      
+
       // Определяем MIME-тип по расширению файла
       String ext = p.extension(coverFile.path).toLowerCase();
       MediaType contentType = MediaType('image', 'jpeg'); // по умолчанию
-      
+
       if (ext == '.png') {
         contentType = MediaType('image', 'png');
       } else if (ext == '.jpg' || ext == '.jpeg') {
@@ -95,7 +96,7 @@ class AdminService {
       } else if (ext == '.webp') {
         contentType = MediaType('image', 'webp');
       }
-      
+
       final multipartFile = http.MultipartFile(
         'cover',
         stream,
@@ -117,7 +118,9 @@ class AdminService {
       if (response.statusCode == 403) {
         throw Exception('Доступ запрещён (403 Forbidden)');
       }
-      throw Exception('Ошибка добавления книги: ${response.statusCode} — ${response.body}');
+      throw Exception(
+        'Ошибка добавления книги: ${response.statusCode} — ${response.body}',
+      );
     }
     if (response.body.isEmpty) {
       return {};
@@ -178,7 +181,9 @@ class AdminService {
     print('📦 [addAudioTrackMultipart] BODY: ${response.body}');
 
     if (response.statusCode != 200 && response.statusCode != 201) {
-      throw Exception('Ошибка загрузки аудио: ${response.statusCode} — ${response.body}');
+      throw Exception(
+        'Ошибка загрузки аудио: ${response.statusCode} — ${response.body}',
+      );
     }
   }
 

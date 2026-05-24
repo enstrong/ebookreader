@@ -51,6 +51,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen>
     } catch (e) {
       setState(() => loading = false);
       if (mounted) {
+        final palette = context.palette;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
@@ -60,7 +61,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen>
                 Expanded(child: Text('Ошибка: $e')),
               ],
             ),
-            backgroundColor: Colors.red.shade600,
+            backgroundColor: palette.danger,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
@@ -72,47 +73,38 @@ class _AdminUsersScreenState extends State<AdminUsersScreen>
   }
 
   Future<void> _deleteUser(int userId, String email) async {
+    final palette = context.palette;
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1F3A),
+        backgroundColor: palette.elevated,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
-          side: BorderSide(
-            color: Colors.white.withValues(alpha: 0.1),
-            width: 1.5,
-          ),
+          side: BorderSide(color: palette.border, width: 1.5),
         ),
-        title: const Text(
+        title: Text(
           'Удалить пользователя?',
-          style: TextStyle(color: Colors.white),
+          style: TextStyle(color: palette.text),
         ),
         content: Text(
           'Вы уверены, что хотите удалить пользователя "$email"?\nЭто действие нельзя отменить.',
-          style: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
+          style: TextStyle(color: palette.mutedText),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text(
-              'Отмена',
-              style: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
-            ),
+            child: Text('Отмена', style: TextStyle(color: palette.mutedText)),
           ),
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.red.shade400, Colors.red.shade600],
+          ElevatedButton.icon(
+            onPressed: () => Navigator.pop(context, true),
+            icon: const Icon(Icons.delete_outline),
+            label: const Text('Удалить'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: palette.danger,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
               ),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: ElevatedButton(
-              onPressed: () => Navigator.pop(context, true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.transparent,
-                shadowColor: Colors.transparent,
-              ),
-              child: const Text('Удалить'),
             ),
           ),
         ],
@@ -125,6 +117,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen>
       await adminService.deleteUser(userId);
       _loadUsers();
       if (mounted) {
+        final palette = context.palette;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Row(
@@ -134,7 +127,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen>
                 Text('Пользователь удалён'),
               ],
             ),
-            backgroundColor: Colors.green.shade600,
+            backgroundColor: palette.success,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
@@ -144,10 +137,11 @@ class _AdminUsersScreenState extends State<AdminUsersScreen>
       }
     } catch (e) {
       if (mounted) {
+        final palette = context.palette;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Ошибка: $e'),
-            backgroundColor: Colors.red.shade600,
+            backgroundColor: palette.danger,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
@@ -167,7 +161,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen>
     if (role == 'ADMIN') {
       return const Color(0xFFFFB74D); // Orange
     }
-    return const Color(0xFF14FFEC); // Cyan
+    return context.palette.accent;
   }
 
   @override
@@ -277,6 +271,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen>
   }
 
   Widget _buildEmptyState() {
+    final palette = context.palette;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -287,15 +282,15 @@ class _AdminUsersScreenState extends State<AdminUsersScreen>
               shape: BoxShape.circle,
               gradient: LinearGradient(
                 colors: [
-                  Colors.white.withValues(alpha: 0.05),
-                  Colors.white.withValues(alpha: 0.02),
+                  palette.text.withValues(alpha: palette.isDark ? 0.05 : 0.10),
+                  palette.text.withValues(alpha: palette.isDark ? 0.02 : 0.05),
                 ],
               ),
             ),
             child: Icon(
               Icons.people_outline,
               size: 100,
-              color: Colors.white.withValues(alpha: 0.3),
+              color: palette.mutedText.withValues(alpha: 0.55),
             ),
           ),
           const SizedBox(height: 24),
@@ -304,7 +299,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen>
             style: TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.bold,
-              color: Colors.white.withValues(alpha: 0.8),
+              color: palette.text,
             ),
           ),
         ],
@@ -313,6 +308,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen>
   }
 
   Widget _buildUserCard(dynamic user) {
+    final palette = context.palette;
     final email = user['email'] ?? '';
     final role = user['role'] ?? 'USER';
     final isAdmin = role == 'ADMIN';
@@ -322,18 +318,15 @@ class _AdminUsersScreenState extends State<AdminUsersScreen>
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            Colors.white.withValues(alpha: 0.05),
-            Colors.white.withValues(alpha: 0.02),
+            palette.elevated.withValues(alpha: palette.isDark ? 0.30 : 0.95),
+            palette.surface.withValues(alpha: palette.isDark ? 0.16 : 0.72),
           ],
         ),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.08),
-          width: 1.5,
-        ),
+        border: Border.all(color: palette.border, width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2),
+            color: Colors.black.withValues(alpha: palette.isDark ? 0.2 : 0.06),
             blurRadius: 15,
             offset: const Offset(0, 8),
           ),
@@ -386,10 +379,10 @@ class _AdminUsersScreenState extends State<AdminUsersScreen>
                   children: [
                     Text(
                       email,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
-                        color: Colors.white,
+                        color: palette.text,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -408,6 +401,9 @@ class _AdminUsersScreenState extends State<AdminUsersScreen>
                           ],
                         ),
                         borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: _getRoleColor(role).withValues(alpha: 0.22),
+                        ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -442,15 +438,15 @@ class _AdminUsersScreenState extends State<AdminUsersScreen>
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [
-                        Colors.red.withValues(alpha: 0.2),
-                        Colors.red.withValues(alpha: 0.1),
+                        palette.danger.withValues(alpha: 0.18),
+                        palette.danger.withValues(alpha: 0.08),
                       ],
                     ),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.delete_rounded,
-                    color: Colors.redAccent,
+                    color: palette.danger,
                     size: 20,
                   ),
                 ),

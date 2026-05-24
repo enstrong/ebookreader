@@ -83,4 +83,5 @@ const Map<String, String> _knownAuthorIds = {
   '8164': 'Lewis Carroll',
   '4191': 'Emily Bronte',
   '1315': 'Louisa May Alcott',
+  '15872': 'Rick Riordan',
 };

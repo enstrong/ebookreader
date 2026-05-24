@@ -33,6 +33,12 @@ public class User {
     @Column(nullable = false)
     private String role = "USER";
 
+    @Column(name = "google_subject", unique = true)
+    private String googleSubject;
+
+    @Column(name = "auth_provider")
+    private String authProvider = "LOCAL";
+
     @Column
     private Boolean audioSubscriptionActive = false;
 
@@ -90,6 +96,22 @@ public class User {
 
     public void setRole(String role) {
         this.role = role;
+    }
+
+    public String getGoogleSubject() {
+        return googleSubject;
+    }
+
+    public void setGoogleSubject(String googleSubject) {
+        this.googleSubject = googleSubject;
+    }
+
+    public String getAuthProvider() {
+        return authProvider;
+    }
+
+    public void setAuthProvider(String authProvider) {
+        this.authProvider = authProvider;
     }
 
     public boolean isAudioSubscriptionActive() {

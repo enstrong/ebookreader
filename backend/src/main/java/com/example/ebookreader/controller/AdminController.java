@@ -11,6 +11,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,6 +25,7 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.example.ebookreader.dto.BookPageResponse;
 import com.example.ebookreader.dto.ChapterDTO;
 import com.example.ebookreader.model.AudioTrack;
 import com.example.ebookreader.model.Book;
@@ -31,6 +33,7 @@ import com.example.ebookreader.model.BookAvailability;
 import com.example.ebookreader.model.Chapter;
 import com.example.ebookreader.model.User;
 import com.example.ebookreader.service.AdminService;
+import com.example.ebookreader.service.BookService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -45,10 +48,12 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 public class AdminController {
 
     private final AdminService adminService;
+    private final BookService bookService;
 
     @Autowired
-    public AdminController(AdminService adminService) {
+    public AdminController(AdminService adminService, BookService bookService) {
         this.adminService = adminService;
+        this.bookService = bookService;
     }
 
     // === УПРАВЛЕНИЕ КНИГАМИ ===
@@ -56,8 +61,69 @@ public class AdminController {
     @Operation(summary = "Получить список всех книг")
     @ApiResponse(responseCode = "200", description = "Успешный запрос")
     @GetMapping("/books")
-    public ResponseEntity<List<Book>> getAllBooks() {
-        return ResponseEntity.ok(adminService.getAllBooks());
+    public ResponseEntity<BookPageResponse> getAllBooks(
+            @RequestParam(required = false, defaultValue = "0") int page,
+            @RequestParam(required = false, defaultValue = "50") int size,
+            @RequestParam MultiValueMap<String, String> params) {
+        return ResponseEntity.ok(bookService.getBooksPage(
+                page,
+                size,
+                first(params, "query", ""),
+                splitCommaValues(params.get("languages")),
+                rawValues(params.get("genres")),
+                parseDouble(first(params, "minRating", null)),
+                splitCommaValues(params.get("features")),
+                parseAvailability(first(params, "availability", null)),
+                first(params, "sort", "popular")
+        ));
+    }
+
+    private BookAvailability parseAvailability(String rawAvailability) {
+        if (rawAvailability == null || rawAvailability.isBlank()) {
+            return null;
+        }
+        try {
+            return BookAvailability.valueOf(rawAvailability.trim().toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
+    }
+
+    private String first(MultiValueMap<String, String> params, String key, String fallback) {
+        String value = params.getFirst(key);
+        return value == null ? fallback : value;
+    }
+
+    private Double parseDouble(String rawValue) {
+        if (rawValue == null || rawValue.isBlank()) {
+            return null;
+        }
+        try {
+            return Double.parseDouble(rawValue);
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
+    private List<String> splitCommaValues(List<String> values) {
+        if (values == null) {
+            return List.of();
+        }
+        return values.stream()
+                .flatMap(value -> java.util.Arrays.stream(value.split(",")))
+                .map(String::trim)
+                .filter(value -> !value.isEmpty())
+                .toList();
+    }
+
+    private List<String> rawValues(List<String> values) {
+        if (values == null) {
+            return List.of();
+        }
+        return values.stream()
+                .map(String::trim)
+                .filter(value -> !value.isEmpty())
+                .toList();
     }
 
     @Operation(summary = "Получить книгу по ID")

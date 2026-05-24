@@ -2,9 +2,11 @@ package com.example.ebookreader.controller;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,10 +33,10 @@ import com.example.ebookreader.model.ReadingStatus;
 import com.example.ebookreader.model.User;
 import com.example.ebookreader.model.UserBook;
 import com.example.ebookreader.repository.BookAnnotationRepository;
-import com.example.ebookreader.repository.BookRepository;
 import com.example.ebookreader.repository.ChapterRepository;
 import com.example.ebookreader.repository.UserBookRepository;
 import com.example.ebookreader.repository.UserRepository;
+import com.example.ebookreader.service.BookCanonicalizationService;
 import com.example.ebookreader.service.LookupService;
 
 @RestController
@@ -49,9 +51,6 @@ public class UserBookController {
     private UserRepository userRepository;
 
     @Autowired
-    private BookRepository bookRepository;
-
-    @Autowired
     private ChapterRepository chapterRepository;
 
     @Autowired
@@ -62,6 +61,9 @@ public class UserBookController {
 
     @Autowired
     private LookupService lookupService;
+
+    @Autowired
+    private BookCanonicalizationService canonicalizationService;
 
     private Optional<User> getUserFromToken(String token) {
         String username = jwtUtil.extractUsername(token.replace("Bearer ", ""));
@@ -77,6 +79,10 @@ public class UserBookController {
                     ub.setCurrentChapter(1);
                     return ub;
                 });
+    }
+
+    private Optional<Book> findCanonicalBook(Long bookId) {
+        return canonicalizationService.findCanonicalById(bookId);
     }
 
     private void applyStatus(UserBook ub, ReadingStatus status) {
@@ -102,7 +108,7 @@ public class UserBookController {
         String username = jwtUtil.extractUsername(token.replace("Bearer ", ""));
         
         Optional<User> userOpt = userRepository.findByNickname(username);
-        Optional<Book> bookOpt = bookRepository.findById(bookId);
+        Optional<Book> bookOpt = findCanonicalBook(bookId);
 
         if (userOpt.isEmpty() || bookOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
@@ -129,7 +135,8 @@ public class UserBookController {
         String username = jwtUtil.extractUsername(token.replace("Bearer ", ""));
         
         return userRepository.findByNickname(username)
-                .flatMap(user -> userBookRepository.findByUserIdAndBookId(user.getId(), bookId))
+                .flatMap(user -> findCanonicalBook(bookId)
+                        .flatMap(book -> userBookRepository.findByUserIdAndBookId(user.getId(), book.getId())))
                 .map(ub -> {
                     ub.setBookmarked(false);
                     userBookRepository.save(ub);
@@ -147,6 +154,10 @@ public class UserBookController {
                 .map(user -> {
                     List<UserBook> bookmarks = userBookRepository.findByUserIdAndBookmarkedTrue(user.getId());
                     List<Map<String, Object>> result = bookmarks.stream()
+                            .filter(ub -> ub.getBook() != null && canonicalizationService
+                                    .findCanonicalById(ub.getBook().getId())
+                                    .map(book -> book.getId().equals(ub.getBook().getId()))
+                                    .orElse(true))
                             .map(ub -> {
                                 Map<String, Object> item = new HashMap<>();
                                 item.put("id", ub.getBook().getId());
@@ -174,7 +185,12 @@ public class UserBookController {
                     List<UserBook> ratedBooks = userBookRepository
                             .findRatedByUserIdOrderByRatingDateDesc(user.getId());
                     double averageRating = userAverageRating(ratedBooks);
+                    Set<Long> seenCanonicalBookIds = new HashSet<>();
                     List<Map<String, Object>> result = ratedBooks.stream()
+                            .filter(ub -> {
+                                Book book = canonicalizationService.canonicalize(ub.getBook());
+                                return book == null || book.getId() == null || seenCanonicalBookIds.add(book.getId());
+                            })
                             .map(ub -> ratedBookPayload(ub, averageRating))
                             .collect(Collectors.toList());
                     return ResponseEntity.ok(result);
@@ -199,7 +215,7 @@ public class UserBookController {
         }
 
         Optional<User> userOpt = userRepository.findByNickname(username);
-        Optional<Book> bookOpt = bookRepository.findById(bookId);
+        Optional<Book> bookOpt = findCanonicalBook(bookId);
 
         if (userOpt.isEmpty() || bookOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
@@ -249,7 +265,7 @@ public class UserBookController {
         }
 
         Optional<User> userOpt = getUserFromToken(token);
-        Optional<Book> bookOpt = bookRepository.findById(bookId);
+        Optional<Book> bookOpt = findCanonicalBook(bookId);
         if (userOpt.isEmpty() || bookOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
@@ -269,7 +285,7 @@ public class UserBookController {
             @RequestHeader("Authorization") String token,
             @PathVariable Long bookId) {
         Optional<User> userOpt = getUserFromToken(token);
-        Optional<Book> bookOpt = bookRepository.findById(bookId);
+        Optional<Book> bookOpt = findCanonicalBook(bookId);
         if (userOpt.isEmpty() || bookOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
@@ -295,7 +311,7 @@ public class UserBookController {
         }
 
         Optional<User> userOpt = getUserFromToken(token);
-        Optional<Book> bookOpt = bookRepository.findById(bookId);
+        Optional<Book> bookOpt = findCanonicalBook(bookId);
         if (userOpt.isEmpty() || bookOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
@@ -326,7 +342,7 @@ public class UserBookController {
             @RequestHeader("Authorization") String token,
             @PathVariable Long bookId) {
         Optional<User> userOpt = getUserFromToken(token);
-        Optional<Book> bookOpt = bookRepository.findById(bookId);
+        Optional<Book> bookOpt = findCanonicalBook(bookId);
         if (userOpt.isEmpty() || bookOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
@@ -351,7 +367,8 @@ public class UserBookController {
         String username = jwtUtil.extractUsername(token.replace("Bearer ", ""));
         
         return userRepository.findByNickname(username)
-                .flatMap(user -> userBookRepository.findByUserIdAndBookId(user.getId(), bookId))
+                .flatMap(user -> findCanonicalBook(bookId)
+                        .flatMap(book -> userBookRepository.findByUserIdAndBookId(user.getId(), book.getId())))
                 .map(ub -> {
                     Map<String, Object> result = new HashMap<>();
                     result.put("currentChapter", ub.getCurrentChapter());
@@ -385,12 +402,13 @@ public class UserBookController {
             @RequestHeader("Authorization") String token,
             @PathVariable Long bookId) {
         Optional<User> userOpt = getUserFromToken(token);
-        if (userOpt.isEmpty() || !bookRepository.existsById(bookId)) {
+        Optional<Book> bookOpt = findCanonicalBook(bookId);
+        if (userOpt.isEmpty() || bookOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
 
         List<BookAnnotationDTO> annotations = bookAnnotationRepository
-                .findByUserIdAndBookIdOrderByChapterOrderAscStartOffsetAsc(userOpt.get().getId(), bookId)
+                .findByUserIdAndBookIdOrderByChapterOrderAscStartOffsetAsc(userOpt.get().getId(), bookOpt.get().getId())
                 .stream()
                 .map(BookAnnotationDTO::fromEntity)
                 .collect(Collectors.toList());
@@ -417,14 +435,15 @@ public class UserBookController {
             @PathVariable Long bookId,
             @PathVariable Integer chapterOrder) {
         Optional<User> userOpt = getUserFromToken(token);
-        if (userOpt.isEmpty() || !bookRepository.existsById(bookId)) {
+        Optional<Book> bookOpt = findCanonicalBook(bookId);
+        if (userOpt.isEmpty() || bookOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
 
         List<BookAnnotationDTO> annotations = bookAnnotationRepository
                 .findByUserIdAndBookIdAndChapterOrderOrderByStartOffsetAsc(
                         userOpt.get().getId(),
-                        bookId,
+                        bookOpt.get().getId(),
                         chapterOrder)
                 .stream()
                 .map(BookAnnotationDTO::fromEntity)
@@ -438,12 +457,12 @@ public class UserBookController {
             @PathVariable Long bookId,
             @RequestBody BookAnnotationRequest request) {
         Optional<User> userOpt = getUserFromToken(token);
-        Optional<Book> bookOpt = bookRepository.findById(bookId);
+        Optional<Book> bookOpt = findCanonicalBook(bookId);
         if (userOpt.isEmpty() || bookOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
 
-        String validationError = validateAnnotationRequest(bookId, request, true);
+        String validationError = validateAnnotationRequest(bookOpt.get().getId(), request, true);
         if (!validationError.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("message", validationError));
         }
@@ -472,9 +491,13 @@ public class UserBookController {
         if (userOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
+        Optional<Book> bookOpt = findCanonicalBook(bookId);
+        if (bookOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
 
         Optional<BookAnnotation> annotationOpt = bookAnnotationRepository
-                .findByIdAndUserIdAndBookId(annotationId, userOpt.get().getId(), bookId);
+                .findByIdAndUserIdAndBookId(annotationId, userOpt.get().getId(), bookOpt.get().getId());
         if (annotationOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
@@ -500,9 +523,13 @@ public class UserBookController {
         if (userOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
+        Optional<Book> bookOpt = findCanonicalBook(bookId);
+        if (bookOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
 
         Optional<BookAnnotation> annotationOpt = bookAnnotationRepository
-                .findByIdAndUserIdAndBookId(annotationId, userOpt.get().getId(), bookId);
+                .findByIdAndUserIdAndBookId(annotationId, userOpt.get().getId(), bookOpt.get().getId());
         if (annotationOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
@@ -523,7 +550,7 @@ public class UserBookController {
     }
 
     private Map<String, Object> ratedBookPayload(UserBook ub, double userAverageRating) {
-        Book book = ub.getBook();
+        Book book = canonicalizationService.canonicalize(ub.getBook());
         Map<String, Object> item = new HashMap<>();
         LocalDateTime ratingDate = ub.getRatedAt() != null ? ub.getRatedAt() : ub.getLastReadAt();
         double centeredSignal = recommendationSignal(ub, userAverageRating);

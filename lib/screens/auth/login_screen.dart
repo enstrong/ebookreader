@@ -1,6 +1,10 @@
 import 'package:ebookreader/screens/admin/admin_main_screen.dart';
+import 'package:ebookreader/constants/api_constants.dart';
+import 'package:ebookreader/screens/recommendations/recommendation_onboarding_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:ebookreader/services/auth_service.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ebookreader/screens/user/user_home.dart';
 import 'package:ebookreader/screens/auth/register_screen.dart';
@@ -27,9 +31,13 @@ class _LoginScreenState extends State<LoginScreen>
   final _authService = AuthService();
 
   bool _isLoading = false;
+  bool _isGoogleLoading = false;
+  bool _googleSignInInitialized = false;
   bool _obscurePassword = true;
   late AnimationController _animController;
   late Animation<double> _fadeAnimation;
+
+  bool get _isAuthBusy => _isLoading || _isGoogleLoading;
 
   @override
   void initState() {
@@ -91,71 +99,133 @@ class _LoginScreenState extends State<LoginScreen>
       final password = _passwordController.text.trim();
 
       final response = await _authService.login(username, password);
-
-      final token = response['token']?.toString() ?? '';
-      final role = response['role']?.toString() ?? 'USER';
-      final usernameFromServer = response['username']?.toString() ?? '';
-      final email = response['email']?.toString() ?? '';
-
-      if (token.isEmpty) throw Exception('Токен не получен от сервера');
-
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('token', token);
-      await prefs.setString('role', role);
-      await prefs.setString('username', usernameFromServer);
-      await prefs.setString('email', email);
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.check_circle, color: Colors.white),
-              const SizedBox(width: 12),
-              Text('С возвращением, $usernameFromServer!'),
-            ],
-          ),
-          backgroundColor: Colors.green.shade600,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      );
-
-      Widget homeScreen = role == 'ADMIN'
-          ? AdminMainScreen(token: token)
-          : UserHome(token: token);
-
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => homeScreen),
-        (route) => false,
-      );
+      await _completeAuth(response);
     } catch (e) {
-      setState(() => _isLoading = false);
-      if (!mounted) return;
-
-      String errorMessage = e.toString().replaceAll('Exception:', '').trim();
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.error_outline, color: Colors.white),
-              const SizedBox(width: 12),
-              Expanded(child: Text(errorMessage)),
-            ],
-          ),
-          backgroundColor: Colors.red.shade600,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          duration: const Duration(seconds: 4),
-        ),
-      );
+      if (mounted) setState(() => _isLoading = false);
+      _showAuthError(e);
     }
+  }
+
+  Future<void> _loginWithGoogle() async {
+    setState(() => _isGoogleLoading = true);
+
+    try {
+      await _ensureGoogleSignInInitialized();
+
+      if (!GoogleSignIn.instance.supportsAuthenticate()) {
+        throw Exception('Google вход недоступен на этой платформе');
+      }
+
+      final account = await GoogleSignIn.instance.authenticate();
+      final idToken = account.authentication.idToken;
+
+      if (idToken == null || idToken.isEmpty) {
+        throw Exception('Google не вернул ID token');
+      }
+
+      final response = await _authService.loginWithGoogle(idToken);
+      await _completeAuth(response);
+    } on GoogleSignInException catch (e) {
+      if (mounted) setState(() => _isGoogleLoading = false);
+      if (e.code != GoogleSignInExceptionCode.canceled) {
+        _showAuthError(
+          Exception(e.description ?? 'Не удалось войти через Google'),
+        );
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isGoogleLoading = false);
+      _showAuthError(e);
+    }
+  }
+
+  Future<void> _ensureGoogleSignInInitialized() async {
+    if (_googleSignInInitialized) return;
+
+    final webClientId = ApiConstants.googleWebClientId;
+    if (webClientId.isEmpty) {
+      throw Exception('GOOGLE_WEB_CLIENT_ID не задан в .env');
+    }
+
+    String? clientId;
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      final iosClientId = ApiConstants.googleIosClientId;
+      if (iosClientId.isEmpty) {
+        throw Exception('GOOGLE_IOS_CLIENT_ID не задан в .env');
+      }
+      clientId = iosClientId;
+    }
+
+    await GoogleSignIn.instance.initialize(
+      clientId: clientId,
+      serverClientId: webClientId,
+    );
+    _googleSignInInitialized = true;
+  }
+
+  Future<void> _completeAuth(Map<String, dynamic> response) async {
+    final token = response['token']?.toString() ?? '';
+    final role = response['role']?.toString() ?? 'USER';
+    final usernameFromServer = response['username']?.toString() ?? '';
+    final email = response['email']?.toString() ?? '';
+    final isNewUser = response['isNewUser'] == true;
+
+    if (token.isEmpty) throw Exception('Токен не получен от сервера');
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('token', token);
+    await prefs.setString('role', role);
+    await prefs.setString('username', usernameFromServer);
+    await prefs.setString('email', email);
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.white),
+            const SizedBox(width: 12),
+            Text('С возвращением, $usernameFromServer!'),
+          ],
+        ),
+        backgroundColor: Colors.green.shade600,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+
+    final Widget nextScreen = isNewUser
+        ? RecommendationOnboardingScreen(token: token, finishToHome: true)
+        : role == 'ADMIN'
+        ? AdminMainScreen(token: token)
+        : UserHome(token: token);
+
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => nextScreen),
+      (route) => false,
+    );
+  }
+
+  void _showAuthError(Object error) {
+    if (!mounted) return;
+
+    final errorMessage = error.toString().replaceAll('Exception:', '').trim();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.error_outline, color: Colors.white),
+            const SizedBox(width: 12),
+            Expanded(child: Text(errorMessage)),
+          ],
+        ),
+        backgroundColor: Colors.red.shade600,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        duration: const Duration(seconds: 4),
+      ),
+    );
   }
 
   @override
@@ -317,7 +387,7 @@ class _LoginScreenState extends State<LoginScreen>
                               ],
                             ),
                             child: ElevatedButton(
-                              onPressed: _isLoading ? null : _login,
+                              onPressed: _isAuthBusy ? null : _login,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.transparent,
                                 shadowColor: Colors.transparent,
@@ -345,6 +415,10 @@ class _LoginScreenState extends State<LoginScreen>
                                     ),
                             ),
                           ),
+
+                          const SizedBox(height: 24),
+
+                          _buildGoogleButton(),
 
                           const SizedBox(height: 24),
 
@@ -386,6 +460,55 @@ class _LoginScreenState extends State<LoginScreen>
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildGoogleButton() {
+    final palette = context.palette;
+    return SizedBox(
+      width: double.infinity,
+      height: 58,
+      child: OutlinedButton(
+        onPressed: _isAuthBusy ? null : _loginWithGoogle,
+        style: OutlinedButton.styleFrom(
+          backgroundColor: palette.elevated.withValues(
+            alpha: palette.isDark ? 0.92 : 1,
+          ),
+          foregroundColor: palette.text,
+          side: BorderSide(color: palette.border, width: 1.5),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+        child: _isGoogleLoading
+            ? SizedBox(
+                height: 24,
+                width: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  color: palette.accent,
+                ),
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const _GoogleLogo(size: 22),
+                  const SizedBox(width: 12),
+                  Flexible(
+                    child: Text(
+                      'Войти через Google',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: palette.text,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
       ),
     );
   }
@@ -440,4 +563,74 @@ class _LoginScreenState extends State<LoginScreen>
       ),
     );
   }
+}
+
+class _GoogleLogo extends StatelessWidget {
+  const _GoogleLogo({required this.size});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(size: Size.square(size), painter: _GoogleLogoPainter());
+  }
+}
+
+class _GoogleLogoPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final strokeWidth = size.width * 0.16;
+    final rect = Offset.zero & size;
+    final arcRect = rect.deflate(strokeWidth / 2);
+
+    Paint arcPaint(Color color) => Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawArc(
+      arcRect,
+      -0.12,
+      1.38,
+      false,
+      arcPaint(const Color(0xFF4285F4)),
+    );
+    canvas.drawArc(
+      arcRect,
+      1.28,
+      1.18,
+      false,
+      arcPaint(const Color(0xFF34A853)),
+    );
+    canvas.drawArc(
+      arcRect,
+      2.44,
+      1.05,
+      false,
+      arcPaint(const Color(0xFFFBBC05)),
+    );
+    canvas.drawArc(
+      arcRect,
+      3.47,
+      1.48,
+      false,
+      arcPaint(const Color(0xFFEA4335)),
+    );
+
+    final bluePaint = Paint()
+      ..color = const Color(0xFF4285F4)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.square;
+    final centerY = size.height * 0.52;
+    canvas.drawLine(
+      Offset(size.width * 0.52, centerY),
+      Offset(size.width * 0.96, centerY),
+      bluePaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

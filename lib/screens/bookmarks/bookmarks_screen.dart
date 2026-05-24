@@ -138,6 +138,7 @@ class _BookmarksScreenState extends State<BookmarksScreen>
             bookId: bookId,
             title: title,
             author: author,
+            coverUrl: bookmark['coverUrl']?.toString() ?? '',
             initialSegmentOrder: chapter,
             initialSegmentProgress: progress,
             initialAudioPositionMs: audioPositionMs,

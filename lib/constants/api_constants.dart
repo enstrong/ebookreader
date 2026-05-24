@@ -17,6 +17,14 @@ class ApiConstants {
   /// URL для эндпоинтов работы с книгами (`/api/books`).
   static String get booksUrl => '$baseUrl/books';
 
+  /// OAuth client ID used by the backend to verify Google ID tokens.
+  static String get googleWebClientId =>
+      dotenv.env['GOOGLE_WEB_CLIENT_ID']?.trim() ?? '';
+
+  /// iOS OAuth client ID for native Google Sign-In.
+  static String get googleIosClientId =>
+      dotenv.env['GOOGLE_IOS_CLIENT_ID']?.trim() ?? '';
+
   /// Формирует полный URL для обложки книги по относительному пути.
   ///
   /// Если [coverPath] начинается с `/`, URL формируется как `{host}{coverPath}`.

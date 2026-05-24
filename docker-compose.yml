@@ -29,6 +29,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/ebookreader
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: 12345
+      GOOGLE_WEB_CLIENT_ID: ${GOOGLE_WEB_CLIENT_ID}
       LOOKUP_TRANSLATE_BASE_URL: http://libretranslate:5000
       RECOMMENDATIONS_HYBRID_SERVICE_URL: http://recommender:8001
     volumes:

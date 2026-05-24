@@ -279,6 +279,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
           bookId: widget.bookId,
           title: _book?['title'] ?? 'Без названия',
           author: authorLabel(_book?['author']),
+          coverUrl: _book?['coverUrl']?.toString() ?? '',
           initialSegmentOrder: _currentChapter,
           initialSegmentProgress: _segmentProgress,
           initialAudioPositionMs: _audioPositionMs,

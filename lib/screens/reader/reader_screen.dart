@@ -47,6 +47,7 @@ class _ReaderScreenState extends State<ReaderScreen>
   Map<String, dynamic>? _chapter;
   String _bookTitle = '';
   String _bookAuthor = '';
+  String _bookCoverUrl = '';
   String _bookAvailability = 'TEXT';
   List<BookAnnotation> _annotations = [];
   int _currentChapter = 1;
@@ -119,6 +120,7 @@ class _ReaderScreenState extends State<ReaderScreen>
         _chapter = chapter;
         _bookTitle = book['title']?.toString() ?? '';
         _bookAuthor = book['author']?.toString() ?? '';
+        _bookCoverUrl = book['coverUrl']?.toString() ?? '';
         _bookAvailability = book['availability']?.toString() ?? 'METADATA_ONLY';
         _annotations = annotations;
         _userRating = _asRating(progress['rating']);
@@ -639,6 +641,7 @@ class _ReaderScreenState extends State<ReaderScreen>
           bookId: widget.bookId,
           title: _bookTitle.isEmpty ? 'Книга #${widget.bookId}' : _bookTitle,
           author: _bookAuthor,
+          coverUrl: _bookCoverUrl,
           initialSegmentOrder: _currentChapter,
           initialSegmentProgress: _segmentProgress,
           initialLastMode: 'TEXT',

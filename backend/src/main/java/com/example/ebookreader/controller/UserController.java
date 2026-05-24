@@ -53,6 +53,7 @@ public class UserController {
         profile.put("email", user.getEmail());
         profile.put("nickname", user.getNickname());
         profile.put("role", user.getRole());
+        profile.put("authProvider", user.getAuthProvider());
         profile.put("audioSubscriptionActive", user.isAudioSubscriptionActive());
         return ResponseEntity.ok(profile);
     }
@@ -136,6 +137,12 @@ public class UserController {
         
         if (user == null) {
             return ResponseEntity.notFound().build();
+        }
+
+        if ("GOOGLE".equalsIgnoreCase(user.getAuthProvider())) {
+            return ResponseEntity.badRequest().body(
+                Map.of("message", "Пароль нельзя изменить для аккаунта Google")
+            );
         }
         
         if (!passwordEncoder.matches(oldPassword, user.getPassword())) {

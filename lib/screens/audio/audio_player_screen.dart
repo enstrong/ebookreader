@@ -1,11 +1,12 @@
-import 'dart:async';
+import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:audio_session/audio_session.dart';
 import 'package:ebookreader/constants/api_constants.dart';
 import 'package:ebookreader/models/audio_track.dart';
 import 'package:ebookreader/screens/reader/reader_screen.dart';
+import 'package:ebookreader/services/audiobook_playback_service.dart';
 import 'package:ebookreader/services/book_service.dart';
-import 'package:ebookreader/services/bookmark_service.dart';
 import 'package:ebookreader/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
@@ -33,6 +34,7 @@ class AudioPlayerScreen extends StatefulWidget {
   final int bookId;
   final String title;
   final String author;
+  final String coverUrl;
   final int initialSegmentOrder;
   final double initialSegmentProgress;
   final int initialAudioPositionMs;
@@ -44,6 +46,7 @@ class AudioPlayerScreen extends StatefulWidget {
     required this.bookId,
     required this.title,
     required this.author,
+    this.coverUrl = '',
     this.initialSegmentOrder = 1,
     this.initialSegmentProgress = 0.0,
     this.initialAudioPositionMs = 0,
@@ -57,18 +60,15 @@ class AudioPlayerScreen extends StatefulWidget {
 class _AudioPlayerScreenState extends State<AudioPlayerScreen>
     with WidgetsBindingObserver {
   final BookService _bookService = BookService();
-  final BookmarkService _bookmarkService = BookmarkService();
-  final AudioPlayer _player = AudioPlayer(useProxyForRequestHeaders: false);
+  final AudiobookPlaybackService _playback = AudiobookPlaybackService.instance;
 
   List<AudioTrack> _tracks = [];
   int _trackIndex = 0;
   bool _isLoading = true;
   String? _error;
-  Duration _lastSavedPosition = Duration.zero;
-  StreamSubscription<Duration>? _positionSubscription;
-  StreamSubscription<PlayerState>? _playerStateSubscription;
-  bool _wasPlaying = false;
   double _playbackSpeed = 1.0;
+
+  AudioPlayer get _player => _playback.player;
 
   AudioTrack? get _currentTrack =>
       _tracks.isEmpty || _trackIndex >= _tracks.length
@@ -79,16 +79,15 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _playback.trackIndexNotifier.addListener(_syncTrackIndex);
     _loadAudioBook();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _playback.trackIndexNotifier.removeListener(_syncTrackIndex);
     _saveProgress();
-    _positionSubscription?.cancel();
-    _playerStateSubscription?.cancel();
-    _player.dispose();
     super.dispose();
   }
 
@@ -130,17 +129,20 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
       _tracks = tracks;
       _trackIndex = initialIndex >= 0 ? initialIndex : 0;
 
-      await _loadCurrentTrack(restorePosition: true);
-      _positionSubscription = _player.positionStream.listen(_onPositionChanged);
-      _playerStateSubscription = _player.playerStateStream.listen((state) {
-        if (_wasPlaying && !state.playing) {
-          _saveProgress();
-        }
-        _wasPlaying = state.playing;
-        if (state.processingState == ProcessingState.completed) {
-          _playNextTrack();
-        }
-      });
+      await _playback.load(
+        token: widget.token,
+        bookId: widget.bookId,
+        title: widget.title,
+        author: widget.author,
+        coverUrl: widget.coverUrl,
+        tracks: tracks,
+        initialSegmentOrder: widget.initialSegmentOrder,
+        initialSegmentProgress: widget.initialSegmentProgress,
+        initialAudioPositionMs: widget.initialAudioPositionMs,
+        initialLastMode: widget.initialLastMode,
+      );
+      _trackIndex = _playback.trackIndex;
+      _playbackSpeed = _player.speed;
 
       if (mounted) {
         setState(() => _isLoading = false);
@@ -155,59 +157,18 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
     }
   }
 
-  Future<void> _loadCurrentTrack({bool restorePosition = false}) async {
-    final track = _currentTrack;
-    if (track == null) return;
-
-    final url = ApiConstants.getAudioUrl(track.streamUrl);
-    await _player.setUrl(
-      url,
-      headers: {'Authorization': 'Bearer ${widget.token}'},
-    );
-
-    if (restorePosition) {
-      final seekTarget = audioResumeTarget(
-        trackDurationMs: track.durationMs,
-        initialSegmentProgress: widget.initialSegmentProgress,
-        initialAudioPositionMs: widget.initialAudioPositionMs,
-        initialLastMode: widget.initialLastMode,
-      );
-      if (seekTarget != null && seekTarget > Duration.zero) {
-        await _player.seek(seekTarget);
-      }
-    }
-  }
-
   Future<void> _playNextTrack() async {
-    if (_trackIndex >= _tracks.length - 1) {
-      await _saveProgress(segmentProgress: 1.0);
-      return;
-    }
-    await _saveProgress(segmentProgress: 1.0);
-    setState(() => _trackIndex++);
-    await _loadCurrentTrack();
-    await _player.play();
+    await _playback.playNextTrack();
+    if (mounted) setState(() => _trackIndex = _playback.trackIndex);
   }
 
   Future<void> _playPreviousTrack() async {
-    if (_trackIndex <= 0) return;
-    await _saveProgress();
-    setState(() => _trackIndex--);
-    await _loadCurrentTrack();
+    await _playback.playPreviousTrack();
+    if (mounted) setState(() => _trackIndex = _playback.trackIndex);
   }
 
   Future<void> _seekRelative(Duration delta) async {
-    final duration = _player.duration;
-    final nextPosition = _player.position + delta;
-    final bounded = duration == null
-        ? (nextPosition < Duration.zero ? Duration.zero : nextPosition)
-        : Duration(
-            milliseconds: nextPosition.inMilliseconds
-                .clamp(0, duration.inMilliseconds)
-                .toInt(),
-          );
-    await _player.seek(bounded);
-    await _saveProgress();
+    await _playback.seekRelative(delta);
   }
 
   Future<void> _setPlaybackSpeed(double speed) async {
@@ -229,57 +190,49 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
           token: widget.token,
           bookId: widget.bookId,
           chapterOrder: track.segmentOrder,
-          initialSegmentProgress: _segmentProgressFor(track, _player.position),
+          initialSegmentProgress: _playback.segmentProgressForCurrentTrack(),
         ),
       ),
     );
   }
 
-  void _onPositionChanged(Duration position) {
-    if ((position - _lastSavedPosition).abs() < const Duration(seconds: 5)) {
-      return;
+  void _syncTrackIndex() {
+    if (!mounted) return;
+    final nextIndex = _playback.trackIndex;
+    if (nextIndex != _trackIndex) {
+      setState(() => _trackIndex = nextIndex);
     }
-    _lastSavedPosition = position;
-    _saveProgress();
   }
 
   Future<void> _saveProgress({double? segmentProgress}) async {
-    final track = _currentTrack;
-    if (track == null) return;
-    final position = _player.position;
-    final progress = segmentProgress ?? _segmentProgressFor(track, position);
-
-    try {
-      await _bookmarkService.updateProgress(
-        widget.token,
-        widget.bookId,
-        track.segmentOrder,
-        segmentProgress: progress,
-        audioPositionMs: position.inMilliseconds,
-        lastMode: 'AUDIO',
-      );
-    } catch (e) {
-      debugPrint('Ошибка сохранения прогресса аудио: $e');
-    }
+    await _playback.saveProgress(segmentProgress: segmentProgress);
   }
 
-  double _segmentProgressFor(AudioTrack track, Duration position) {
-    return track.durationMs > 0
-        ? (position.inMilliseconds / track.durationMs)
-              .clamp(0.0, 1.0)
-              .toDouble()
-        : 0.0;
+  String get _resolvedCoverUrl {
+    final raw = widget.coverUrl.trim();
+    if (raw.isEmpty) return '';
+    return ApiConstants.getCoverUrl(raw);
   }
 
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
+    final coverUrl = _resolvedCoverUrl;
     return Scaffold(
       backgroundColor: palette.background,
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        backgroundColor: palette.surface,
+        backgroundColor: Colors.transparent,
         elevation: 0,
-        title: Text('Аудиокнига', style: TextStyle(color: palette.text)),
+        title: Text(
+          'Аудиокнига',
+          style: TextStyle(
+            color: palette.text,
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        centerTitle: true,
         leading: IconButton(
           icon: Icon(Icons.arrow_back, color: palette.text),
           onPressed: () async {
@@ -288,13 +241,15 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
           },
         ),
       ),
-      body: Container(
-        decoration: BoxDecoration(gradient: palette.verticalGradient),
-        child: _isLoading
-            ? Center(child: CircularProgressIndicator(color: palette.accent))
-            : _error != null
-            ? _buildMessage(_error!)
-            : _buildPlayer(),
+      body: Stack(
+        children: [
+          _buildBackdrop(palette, coverUrl),
+          _isLoading
+              ? Center(child: CircularProgressIndicator(color: palette.accent))
+              : _error != null
+              ? _buildMessage(_error!)
+              : _buildPlayer(coverUrl),
+        ],
       ),
     );
   }
@@ -317,219 +272,490 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
     );
   }
 
-  Widget _buildPlayer() {
+  Widget _buildBackdrop(AppPalette palette, String coverUrl) {
+    return Positioned.fill(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          DecoratedBox(
+            decoration: BoxDecoration(gradient: palette.pageGradient),
+          ),
+          if (coverUrl.isNotEmpty)
+            Opacity(
+              opacity: palette.isDark ? 0.38 : 0.24,
+              child: Transform.scale(
+                scale: 1.12,
+                child: ImageFiltered(
+                  imageFilter: ui.ImageFilter.blur(sigmaX: 34, sigmaY: 34),
+                  child: Image.network(
+                    coverUrl,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) =>
+                        const SizedBox.shrink(),
+                  ),
+                ),
+              ),
+            ),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  palette.background.withValues(
+                    alpha: palette.isDark ? 0.28 : 0.42,
+                  ),
+                  palette.background.withValues(
+                    alpha: palette.isDark ? 0.78 : 0.84,
+                  ),
+                  palette.surface.withValues(
+                    alpha: palette.isDark ? 0.96 : 0.92,
+                  ),
+                ],
+                stops: const [0, 0.48, 1],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCoverArt(double size, String coverUrl) {
+    final palette = context.palette;
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: palette.isDark ? 0.42 : 0.18),
+            blurRadius: 36,
+            offset: const Offset(0, 22),
+          ),
+          BoxShadow(
+            color: palette.accent.withValues(
+              alpha: palette.isDark ? 0.16 : 0.10,
+            ),
+            blurRadius: 42,
+            offset: const Offset(0, 14),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: coverUrl.isEmpty
+          ? _buildCoverFallback(size)
+          : Image.network(
+              coverUrl,
+              fit: BoxFit.cover,
+              loadingBuilder: (context, child, progress) {
+                if (progress == null) return child;
+                return _buildCoverFallback(size, isLoading: true);
+              },
+              errorBuilder: (context, error, stackTrace) =>
+                  _buildCoverFallback(size),
+            ),
+    );
+  }
+
+  Widget _buildCoverFallback(double size, {bool isLoading = false}) {
+    final palette = context.palette;
+    return DecoratedBox(
+      decoration: BoxDecoration(gradient: palette.accentGradient),
+      child: Center(
+        child: isLoading
+            ? CircularProgressIndicator(
+                color: palette.onAccent,
+                strokeWidth: 2.8,
+              )
+            : Icon(
+                Icons.menu_book_rounded,
+                color: palette.onAccent,
+                size: math.max(52, size * 0.30),
+              ),
+      ),
+    );
+  }
+
+  Widget _buildSegmentInfo(AudioTrack track) {
+    final palette = context.palette;
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            color: palette.elevated.withValues(
+              alpha: palette.isDark ? 0.42 : 0.62,
+            ),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: palette.border),
+          ),
+          child: Text(
+            'Сегмент ${_trackIndex + 1}/${_tracks.length}',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: palette.mutedText,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          '${track.segmentOrder}. ${track.title}',
+          textAlign: TextAlign.center,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: palette.text.withValues(alpha: 0.88),
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            height: 1.25,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildProgress(AudioTrack track) {
+    final palette = context.palette;
+    return StreamBuilder<Duration>(
+      stream: _player.positionStream,
+      builder: (context, snapshot) {
+        final position = snapshot.data ?? Duration.zero;
+        final duration =
+            _player.duration ??
+            (track.durationMs > 0
+                ? Duration(milliseconds: track.durationMs)
+                : Duration.zero);
+        final max = duration.inMilliseconds <= 0
+            ? 1.0
+            : duration.inMilliseconds.toDouble();
+        final value = position.inMilliseconds.clamp(0, max.toInt()).toDouble();
+
+        return Column(
+          children: [
+            SliderTheme(
+              data: SliderTheme.of(context).copyWith(
+                trackHeight: 5,
+                activeTrackColor: palette.text,
+                inactiveTrackColor: palette.text.withValues(alpha: 0.16),
+                thumbColor: palette.text,
+                overlayColor: palette.text.withValues(alpha: 0.10),
+                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+                overlayShape: const RoundSliderOverlayShape(overlayRadius: 18),
+              ),
+              child: Slider(
+                value: value,
+                min: 0,
+                max: max,
+                onChanged: (nextValue) {
+                  _player.seek(Duration(milliseconds: nextValue.round()));
+                },
+                onChangeEnd: (_) => _saveProgress(),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(_formatDuration(position), style: _timeStyle()),
+                  Text(
+                    '-${_formatDuration(_remainingDuration(duration, position))}',
+                    style: _timeStyle(),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildControls() {
+    final palette = context.palette;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _roundControl(
+          icon: Icons.skip_previous_rounded,
+          tooltip: 'Предыдущий сегмент',
+          onPressed: _trackIndex > 0 ? _playPreviousTrack : null,
+          size: 48,
+          iconSize: 32,
+        ),
+        const SizedBox(width: 8),
+        _roundControl(
+          icon: Icons.replay_10_rounded,
+          tooltip: 'Назад на 15 секунд',
+          onPressed: () => _seekRelative(const Duration(seconds: -15)),
+          size: 52,
+          iconSize: 31,
+        ),
+        const SizedBox(width: 14),
+        StreamBuilder<PlayerState>(
+          stream: _player.playerStateStream,
+          builder: (context, snapshot) {
+            final playing = snapshot.data?.playing ?? false;
+            final isBuffering =
+                snapshot.data?.processingState == ProcessingState.buffering ||
+                snapshot.data?.processingState == ProcessingState.loading;
+            return Container(
+              width: 82,
+              height: 82,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: palette.text,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(
+                      alpha: palette.isDark ? 0.32 : 0.14,
+                    ),
+                    blurRadius: 24,
+                    offset: const Offset(0, 12),
+                  ),
+                ],
+              ),
+              child: IconButton(
+                tooltip: playing ? 'Пауза' : 'Слушать',
+                onPressed: isBuffering
+                    ? null
+                    : () async {
+                        if (playing) {
+                          await _player.pause();
+                          await _saveProgress();
+                        } else {
+                          await _player.play();
+                        }
+                      },
+                icon: isBuffering
+                    ? SizedBox(
+                        width: 26,
+                        height: 26,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.8,
+                          color: palette.background,
+                        ),
+                      )
+                    : Icon(
+                        playing
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
+                      ),
+                color: palette.background,
+                iconSize: 50,
+              ),
+            );
+          },
+        ),
+        const SizedBox(width: 14),
+        _roundControl(
+          icon: Icons.forward_10_rounded,
+          tooltip: 'Вперёд на 15 секунд',
+          onPressed: () => _seekRelative(const Duration(seconds: 15)),
+          size: 52,
+          iconSize: 31,
+        ),
+        const SizedBox(width: 8),
+        _roundControl(
+          icon: Icons.skip_next_rounded,
+          tooltip: 'Следующий сегмент',
+          onPressed: _trackIndex < _tracks.length - 1 ? _playNextTrack : null,
+          size: 48,
+          iconSize: 32,
+        ),
+      ],
+    );
+  }
+
+  Widget _roundControl({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback? onPressed,
+    required double size,
+    required double iconSize,
+  }) {
+    final palette = context.palette;
+    final enabled = onPressed != null;
+    return SizedBox(
+      width: size,
+      height: size,
+      child: IconButton(
+        tooltip: tooltip,
+        onPressed: onPressed,
+        style: IconButton.styleFrom(
+          backgroundColor: palette.elevated.withValues(
+            alpha: enabled ? (palette.isDark ? 0.34 : 0.56) : 0.14,
+          ),
+          foregroundColor: palette.text,
+          disabledForegroundColor: palette.mutedText.withValues(alpha: 0.35),
+          shape: const CircleBorder(),
+        ),
+        icon: Icon(icon),
+        iconSize: iconSize,
+      ),
+    );
+  }
+
+  Widget _buildUtilityRow() {
+    final palette = context.palette;
+    return Wrap(
+      alignment: WrapAlignment.center,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 12,
+      runSpacing: 10,
+      children: [
+        FilledButton.icon(
+          onPressed: _continueReading,
+          style: FilledButton.styleFrom(
+            backgroundColor: palette.text,
+            foregroundColor: palette.background,
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(999),
+            ),
+          ),
+          icon: const Icon(Icons.menu_book_rounded, size: 19),
+          label: const Text('Продолжить читать'),
+        ),
+        PopupMenuButton<double>(
+          tooltip: 'Скорость',
+          initialValue: _playbackSpeed,
+          onSelected: _setPlaybackSpeed,
+          itemBuilder: (_) => const [
+            PopupMenuItem(value: 0.75, child: Text('0.75x')),
+            PopupMenuItem(value: 1.0, child: Text('1x')),
+            PopupMenuItem(value: 1.25, child: Text('1.25x')),
+            PopupMenuItem(value: 1.5, child: Text('1.5x')),
+            PopupMenuItem(value: 2.0, child: Text('2x')),
+          ],
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: palette.elevated.withValues(
+                alpha: palette.isDark ? 0.34 : 0.58,
+              ),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: palette.border),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.speed_rounded, size: 18, color: palette.text),
+                const SizedBox(width: 7),
+                Text(
+                  '${_playbackSpeed}x',
+                  style: TextStyle(
+                    color: palette.text,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPlayer(String coverUrl) {
     final track = _currentTrack!;
     final palette = context.palette;
 
     return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Spacer(),
-            Container(
-              width: 156,
-              height: 156,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
-                gradient: palette.accentGradient,
-                boxShadow: [
-                  BoxShadow(
-                    color: palette.accent.withValues(alpha: 0.20),
-                    blurRadius: 28,
-                  ),
-                ],
-              ),
-              child: Icon(
-                Icons.headphones_rounded,
-                size: 80,
-                color: palette.onAccent,
-              ),
-            ),
-            const SizedBox(height: 32),
-            Text(
-              widget.title,
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ).copyWith(color: palette.text),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              widget.author.isEmpty ? 'Неизвестный автор' : widget.author,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: palette.mutedText, fontSize: 15),
-            ),
-            const SizedBox(height: 28),
-            Text(
-              '${track.segmentOrder}. ${track.title}',
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: palette.text.withValues(alpha: 0.85),
-                fontSize: 17,
-              ),
-            ),
-            const SizedBox(height: 20),
-            StreamBuilder<Duration>(
-              stream: _player.positionStream,
-              builder: (context, snapshot) {
-                final position = snapshot.data ?? Duration.zero;
-                final duration =
-                    _player.duration ??
-                    (track.durationMs > 0
-                        ? Duration(milliseconds: track.durationMs)
-                        : Duration.zero);
-                final max = duration.inMilliseconds <= 0
-                    ? 1.0
-                    : duration.inMilliseconds.toDouble();
-                final value = position.inMilliseconds
-                    .clamp(0, max.toInt())
-                    .toDouble();
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxHeight < 720;
+          final horizontalPadding = constraints.maxWidth < 380 ? 20.0 : 28.0;
+          final coverSize = math.min(
+            constraints.maxWidth - horizontalPadding * 2,
+            compact
+                ? constraints.maxHeight * 0.32
+                : constraints.maxHeight * 0.40,
+          );
 
-                return Column(
+          return SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  horizontalPadding,
+                  compact ? 18 : 28,
+                  horizontalPadding,
+                  24,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Slider(
-                      value: value,
-                      min: 0,
-                      max: max,
-                      activeColor: palette.accent,
-                      inactiveColor: palette.border,
-                      onChanged: (nextValue) {
-                        _player.seek(Duration(milliseconds: nextValue.round()));
-                      },
-                      onChangeEnd: (_) => _saveProgress(),
-                    ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Text(_formatDuration(position), style: _timeStyle()),
                         Text(
-                          '-${_formatDuration(_remainingDuration(duration, position))}',
-                          style: _timeStyle(),
+                          'Сейчас играет',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: palette.mutedText,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0,
+                          ),
                         ),
+                        SizedBox(height: compact ? 16 : 24),
+                        Center(child: _buildCoverArt(coverSize, coverUrl)),
+                        SizedBox(height: compact ? 22 : 30),
+                        Text(
+                          widget.title,
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: palette.text,
+                            fontSize: compact ? 24 : 28,
+                            fontWeight: FontWeight.w800,
+                            height: 1.08,
+                            letterSpacing: 0,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          widget.author.isEmpty
+                              ? 'Неизвестный автор'
+                              : widget.author,
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: palette.mutedText,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        SizedBox(height: compact ? 18 : 24),
+                        _buildSegmentInfo(track),
+                      ],
+                    ),
+                    SizedBox(height: compact ? 18 : 26),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildProgress(track),
+                        SizedBox(height: compact ? 18 : 26),
+                        _buildControls(),
+                        SizedBox(height: compact ? 18 : 22),
+                        _buildUtilityRow(),
                       ],
                     ),
                   ],
-                );
-              },
+                ),
+              ),
             ),
-            const SizedBox(height: 26),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                IconButton(
-                  onPressed: _trackIndex > 0 ? _playPreviousTrack : null,
-                  icon: const Icon(Icons.skip_previous_rounded),
-                  color: palette.text,
-                  disabledColor: palette.mutedText.withValues(alpha: 0.35),
-                  iconSize: 42,
-                ),
-                IconButton(
-                  tooltip: 'Назад на 15 секунд',
-                  onPressed: () => _seekRelative(const Duration(seconds: -15)),
-                  icon: const Icon(Icons.replay_10_rounded),
-                  color: palette.text,
-                  iconSize: 34,
-                ),
-                const SizedBox(width: 10),
-                StreamBuilder<PlayerState>(
-                  stream: _player.playerStateStream,
-                  builder: (context, snapshot) {
-                    final playing = snapshot.data?.playing ?? false;
-                    return Container(
-                      width: 72,
-                      height: 72,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: palette.accentGradient,
-                      ),
-                      child: IconButton(
-                        onPressed: () async {
-                          if (playing) {
-                            await _player.pause();
-                            await _saveProgress();
-                          } else {
-                            await _player.play();
-                          }
-                        },
-                        icon: Icon(
-                          playing
-                              ? Icons.pause_rounded
-                              : Icons.play_arrow_rounded,
-                        ),
-                        color: palette.onAccent,
-                        iconSize: 44,
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(width: 10),
-                IconButton(
-                  tooltip: 'Вперёд на 15 секунд',
-                  onPressed: () => _seekRelative(const Duration(seconds: 15)),
-                  icon: const Icon(Icons.forward_10_rounded),
-                  color: palette.text,
-                  iconSize: 34,
-                ),
-                IconButton(
-                  onPressed: _trackIndex < _tracks.length - 1
-                      ? _playNextTrack
-                      : null,
-                  icon: const Icon(Icons.skip_next_rounded),
-                  color: palette.text,
-                  disabledColor: palette.mutedText.withValues(alpha: 0.35),
-                  iconSize: 42,
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Wrap(
-              alignment: WrapAlignment.center,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 10,
-              runSpacing: 8,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: _continueReading,
-                  icon: const Icon(Icons.menu_book_rounded),
-                  label: const Text('Продолжить читать'),
-                ),
-                PopupMenuButton<double>(
-                  tooltip: 'Скорость',
-                  initialValue: _playbackSpeed,
-                  onSelected: _setPlaybackSpeed,
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(value: 0.75, child: Text('0.75x')),
-                    PopupMenuItem(value: 1.0, child: Text('1x')),
-                    PopupMenuItem(value: 1.25, child: Text('1.25x')),
-                    PopupMenuItem(value: 1.5, child: Text('1.5x')),
-                    PopupMenuItem(value: 2.0, child: Text('2x')),
-                  ],
-                  child: Chip(
-                    avatar: const Icon(Icons.speed_rounded, size: 18),
-                    label: Text('${_playbackSpeed}x'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Сегмент ${_trackIndex + 1}/${_tracks.length}',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: palette.mutedText, fontSize: 13),
-            ),
-            const Spacer(),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
