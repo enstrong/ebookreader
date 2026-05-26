@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:ebookreader/services/user_service.dart';
 import 'package:ebookreader/services/storage_service.dart';
-import 'package:ebookreader/screens/bookmarks/bookmarks_screen.dart';
+import 'package:ebookreader/screens/profile/favorite_quotes_screen.dart';
 import 'package:ebookreader/screens/profile/rated_books_screen.dart';
 import 'package:ebookreader/screens/auth/login_screen.dart';
 import 'package:ebookreader/theme/app_theme.dart';
@@ -583,23 +583,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                         const SizedBox(height: 16),
 
                         _buildMenuItem(
-                          icon: Icons.library_books_rounded,
-                          title: 'Сохранённые книги',
-                          description: 'Сохранённые книги',
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    BookmarksScreen(token: widget.token),
-                              ),
-                            );
-                          },
-                        ),
-
-                        const SizedBox(height: 16),
-
-                        _buildMenuItem(
                           icon: Icons.star_rate_rounded,
                           title: 'Оценённые книги',
                           description: 'История оценок и сигналов рекомендаций',
@@ -609,6 +592,23 @@ class _ProfileScreenState extends State<ProfileScreen>
                               MaterialPageRoute(
                                 builder: (_) =>
                                     RatedBooksScreen(token: _currentToken),
+                              ),
+                            );
+                          },
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        _buildMenuItem(
+                          icon: Icons.format_quote_rounded,
+                          title: 'Любимые цитаты',
+                          description: 'Цитаты, опубликованные из книг',
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    FavoriteQuotesScreen(token: _currentToken),
                               ),
                             );
                           },

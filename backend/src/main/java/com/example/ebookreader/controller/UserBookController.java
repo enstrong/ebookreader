@@ -1,6 +1,7 @@
 package com.example.ebookreader.controller;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -25,15 +26,23 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.ebookreader.config.JwtUtil;
 import com.example.ebookreader.dto.BookAnnotationDTO;
 import com.example.ebookreader.dto.BookAnnotationRequest;
+import com.example.ebookreader.dto.BookReviewDTO;
+import com.example.ebookreader.dto.BookReviewRequest;
+import com.example.ebookreader.dto.FavoriteQuoteDTO;
 import com.example.ebookreader.dto.LookupRequest;
+import com.example.ebookreader.dto.ReviewReplyDTO;
 import com.example.ebookreader.model.Book;
 import com.example.ebookreader.model.BookAnnotation;
+import com.example.ebookreader.model.BookReviewReply;
+import com.example.ebookreader.model.CommunityReaction;
 import com.example.ebookreader.model.ProgressMode;
 import com.example.ebookreader.model.ReadingStatus;
 import com.example.ebookreader.model.User;
 import com.example.ebookreader.model.UserBook;
 import com.example.ebookreader.repository.BookAnnotationRepository;
+import com.example.ebookreader.repository.BookReviewReplyRepository;
 import com.example.ebookreader.repository.ChapterRepository;
+import com.example.ebookreader.repository.CommunityReactionRepository;
 import com.example.ebookreader.repository.UserBookRepository;
 import com.example.ebookreader.repository.UserRepository;
 import com.example.ebookreader.service.BookCanonicalizationService;
@@ -57,6 +66,12 @@ public class UserBookController {
     private BookAnnotationRepository bookAnnotationRepository;
 
     @Autowired
+    private BookReviewReplyRepository bookReviewReplyRepository;
+
+    @Autowired
+    private CommunityReactionRepository communityReactionRepository;
+
+    @Autowired
     private JwtUtil jwtUtil;
 
     @Autowired
@@ -65,20 +80,121 @@ public class UserBookController {
     @Autowired
     private BookCanonicalizationService canonicalizationService;
 
+    private static final int MAX_REVIEW_CHARS = 6000;
+    private static final int MAX_QUOTE_WORDS = 120;
+    private static final String TARGET_REVIEW = "BOOK_REVIEW";
+    private static final String TARGET_REPLY = "REVIEW_REPLY";
+    private static final String TARGET_QUOTE = "QUOTE";
+
     private Optional<User> getUserFromToken(String token) {
         String username = jwtUtil.extractUsername(token.replace("Bearer ", ""));
         return userRepository.findByNickname(username);
     }
 
     private UserBook getOrCreateUserBook(User user, Book book) {
-        return userBookRepository.findByUserIdAndBookId(user.getId(), book.getId())
-                .orElseGet(() -> {
-                    UserBook ub = new UserBook();
-                    ub.setUser(user);
-                    ub.setBook(book);
-                    ub.setCurrentChapter(1);
-                    return ub;
-                });
+        List<UserBook> existing = userBookRepository.findAllByUserIdAndBookIdOrderByIdAsc(user.getId(), book.getId());
+        if (existing.isEmpty()) {
+            UserBook ub = new UserBook();
+            ub.setUser(user);
+            ub.setBook(book);
+            ub.setCurrentChapter(1);
+            return ub;
+        }
+        UserBook primary = existing.get(0);
+        if (existing.size() > 1) {
+            for (int index = 1; index < existing.size(); index++) {
+                mergeUserBook(primary, existing.get(index));
+            }
+            userBookRepository.deleteAll(existing.subList(1, existing.size()));
+            userBookRepository.save(primary);
+        }
+        return primary;
+    }
+
+    private Optional<UserBook> findUserBook(User user, Book book) {
+        List<UserBook> existing = userBookRepository.findAllByUserIdAndBookIdOrderByIdAsc(user.getId(), book.getId());
+        if (existing.isEmpty()) {
+            return Optional.empty();
+        }
+        UserBook primary = existing.get(0);
+        if (existing.size() > 1) {
+            for (int index = 1; index < existing.size(); index++) {
+                mergeUserBook(primary, existing.get(index));
+            }
+            userBookRepository.deleteAll(existing.subList(1, existing.size()));
+            userBookRepository.save(primary);
+        }
+        return Optional.of(primary);
+    }
+
+    private void mergeUserBook(UserBook primary, UserBook duplicate) {
+        if (duplicate.isBookmarked()) {
+            primary.setBookmarked(true);
+        }
+        if (duplicate.getRating() != null) {
+            primary.setRating(duplicate.getRating());
+            primary.setRatedAt(latest(primary.getRatedAt(), duplicate.getRatedAt()));
+        }
+        if (duplicate.getReviewText() != null && !duplicate.getReviewText().isBlank()
+                && (primary.getReviewText() == null || primary.getReviewText().isBlank()
+                || latest(primary.getReviewUpdatedAt(), duplicate.getReviewUpdatedAt()) == duplicate.getReviewUpdatedAt())) {
+            primary.setReviewText(duplicate.getReviewText());
+            primary.setReviewCreatedAt(latest(primary.getReviewCreatedAt(), duplicate.getReviewCreatedAt()));
+            primary.setReviewUpdatedAt(latest(primary.getReviewUpdatedAt(), duplicate.getReviewUpdatedAt()));
+        }
+        primary.setStartedAt(earliestNonNull(primary.getStartedAt(), duplicate.getStartedAt()));
+        primary.setFinishedAt(latest(primary.getFinishedAt(), duplicate.getFinishedAt()));
+        primary.setLastReadAt(latest(primary.getLastReadAt(), duplicate.getLastReadAt()));
+
+        if (readingStatusRank(duplicate.getStatus()) > readingStatusRank(primary.getStatus())) {
+            primary.setStatus(duplicate.getStatus());
+        }
+        if (isProgressNewer(duplicate, primary)) {
+            primary.setCurrentChapter(duplicate.getCurrentChapter());
+            primary.setSegmentOrder(duplicate.getSegmentOrder());
+            primary.setSegmentProgress(duplicate.getSegmentProgress());
+            primary.setAudioPositionMs(duplicate.getAudioPositionMs());
+            primary.setLastMode(duplicate.getLastMode());
+        }
+    }
+
+    private boolean isProgressNewer(UserBook candidate, UserBook current) {
+        LocalDateTime candidateReadAt = candidate.getLastReadAt();
+        LocalDateTime currentReadAt = current.getLastReadAt();
+        if (candidateReadAt == null) {
+            return false;
+        }
+        return currentReadAt == null || candidateReadAt.isAfter(currentReadAt);
+    }
+
+    private int readingStatusRank(ReadingStatus status) {
+        if (status == ReadingStatus.READING) {
+            return 2;
+        }
+        if (status == ReadingStatus.FINISHED) {
+            return 3;
+        }
+        return 1;
+    }
+
+    private LocalDateTime latest(LocalDateTime first, LocalDateTime second) {
+        if (first == null) {
+            return second;
+        }
+        if (second == null) {
+            return first;
+        }
+        return first.isAfter(second) ? first : second;
+    }
+
+    private LocalDateTime earliestNonNull(LocalDateTime first, LocalDateTime second) {
+        if (first == null) {
+            return second;
+        }
+        if (second == null) {
+            return first;
+        }
+        return first.isBefore(second) ? first : second;
     }
 
     private Optional<Book> findCanonicalBook(Long bookId) {
@@ -97,6 +213,15 @@ public class UserBookController {
                 ub.setStartedAt(now);
             }
             ub.setFinishedAt(now);
+        }
+    }
+
+    private void clearPhantomReadingStatus(UserBook ub) {
+        if (ub.getStatus() == ReadingStatus.READING
+                && ub.getStartedAt() == null
+                && ub.getFinishedAt() == null) {
+            ub.setStatus(ReadingStatus.WANT_TO_READ);
+            ub.setLastReadAt(null);
         }
     }
 
@@ -119,8 +244,12 @@ public class UserBookController {
 
         UserBook ub = getOrCreateUserBook(user, book);
         ub.setBookmarked(true);
+        ub.setHiddenFromLibrary(false);
         if (ub.getStatus() == ReadingStatus.WANT_TO_READ) {
             ub.setLastReadAt(LocalDateTime.now());
+        }
+        if (ub.getStartedAt() == null && ub.getFinishedAt() == null) {
+            ub.setStatus(ReadingStatus.WANT_TO_READ);
         }
         userBookRepository.save(ub);
 
@@ -136,11 +265,35 @@ public class UserBookController {
         
         return userRepository.findByNickname(username)
                 .flatMap(user -> findCanonicalBook(bookId)
-                        .flatMap(book -> userBookRepository.findByUserIdAndBookId(user.getId(), book.getId())))
+                        .flatMap(book -> findUserBook(user, book)))
                 .map(ub -> {
                     ub.setBookmarked(false);
                     userBookRepository.save(ub);
                     return ResponseEntity.ok(Map.of("message", "Удалено из закладок"));
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @DeleteMapping("/{bookId}/library")
+    public ResponseEntity<?> removeFromLibrary(
+            @RequestHeader("Authorization") String token,
+            @PathVariable Long bookId) {
+        Optional<User> userOpt = getUserFromToken(token);
+        Optional<Book> bookOpt = findCanonicalBook(bookId);
+        if (userOpt.isEmpty() || bookOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        return findUserBook(userOpt.get(), bookOpt.get())
+                .map(ub -> {
+                    ub.setBookmarked(false);
+                    ub.setHiddenFromLibrary(true);
+                    ub.setStatus(ReadingStatus.WANT_TO_READ);
+                    ub.setStartedAt(null);
+                    ub.setFinishedAt(null);
+                    ub.setLastReadAt(null);
+                    userBookRepository.save(ub);
+                    return ResponseEntity.ok(Map.of("message", "Удалено из библиотеки"));
                 })
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -152,27 +305,57 @@ public class UserBookController {
         
         return userRepository.findByNickname(username)
                 .map(user -> {
-                    List<UserBook> bookmarks = userBookRepository.findByUserIdAndBookmarkedTrue(user.getId());
-                    List<Map<String, Object>> result = bookmarks.stream()
-                            .filter(ub -> ub.getBook() != null && canonicalizationService
-                                    .findCanonicalById(ub.getBook().getId())
-                                    .map(book -> book.getId().equals(ub.getBook().getId()))
-                                    .orElse(true))
-                            .map(ub -> {
-                                Map<String, Object> item = new HashMap<>();
-                                item.put("id", ub.getBook().getId());
-                                item.put("title", ub.getBook().getTitle());
-                                item.put("author", ub.getBook().getAuthor());
-                                item.put("coverUrl", ub.getBook().getCoverUrl());
-                                item.put("currentChapter", ub.getCurrentChapter());
-                                item.put("segmentOrder", ub.getSegmentOrder());
-                                item.put("segmentProgress", ub.getSegmentProgress());
-                                item.put("audioPositionMs", ub.getAudioPositionMs());
-                                item.put("lastMode", ub.getLastMode().name());
-                                item.put("availability", ub.getBook().getAvailability().name());
-                                return item;
-                            })
-                            .collect(Collectors.toList());
+                    List<UserBook> bookmarks = userBookRepository.findLibraryByUserId(user.getId());
+                    Set<Long> seenBookIds = new HashSet<>();
+                    List<Map<String, Object>> result = new ArrayList<>();
+                    for (UserBook ub : bookmarks) {
+                        if (ub.getBook() == null || !seenBookIds.add(ub.getBook().getId())) {
+                            continue;
+                        }
+                        if (canonicalizationService.findCanonicalById(ub.getBook().getId())
+                                .map(book -> !book.getId().equals(ub.getBook().getId()))
+                                .orElse(false)) {
+                            continue;
+                        }
+                        result.add(libraryBookPayload(ub));
+                    }
+
+                    for (BookAnnotation annotation : bookAnnotationRepository.findByUserIdOrderByUpdatedAtDesc(user.getId())) {
+                        Book book = annotation.getBook();
+                        if (book == null || !seenBookIds.add(book.getId())) {
+                            continue;
+                        }
+                        Optional<UserBook> existingUserBook = userBookRepository.findByUserIdAndBookId(user.getId(), book.getId());
+                        if (existingUserBook.map(UserBook::isHiddenFromLibrary).orElse(false)) {
+                            continue;
+                        }
+                        if (canonicalizationService.findCanonicalById(book.getId())
+                                .map(canonical -> !canonical.getId().equals(book.getId()))
+                                .orElse(false)) {
+                            continue;
+                        }
+                        Map<String, Object> item = new HashMap<>();
+                        item.put("id", book.getId());
+                        item.put("title", book.getTitle());
+                        item.put("author", book.getAuthor());
+                        item.put("coverUrl", book.getCoverUrl());
+                        item.put("genres", book.getGenres().stream()
+                                .map(genre -> genre.getName())
+                                .collect(Collectors.toList()));
+                        item.put("averageRating", book.getAverageRating());
+                        item.put("ratingsCount", book.getRatingsCount());
+                        item.put("language", book.getLanguageCode());
+                        item.put("currentChapter", annotation.getChapterOrder());
+                        item.put("segmentOrder", annotation.getChapterOrder());
+                        item.put("segmentProgress", 0.0);
+                        item.put("audioPositionMs", 0);
+                        item.put("lastMode", ProgressMode.TEXT.name());
+                        item.put("availability", book.getAvailability().name());
+                        item.put("isBookmarked", false);
+                        item.put("status", ReadingStatus.READING.name());
+                        item.put("lastReadAt", annotation.getUpdatedAt());
+                        result.add(item);
+                    }
                     return ResponseEntity.ok(result);
                 })
                 .orElse(ResponseEntity.notFound().build());
@@ -226,6 +409,7 @@ public class UserBookController {
 
         UserBook ub = getOrCreateUserBook(user, book);
         ub.setSegmentOrder(segmentOrder);
+        ub.setHiddenFromLibrary(false);
         Double segmentProgress = readDouble(request, "segmentProgress");
         if (segmentProgress != null) {
             ub.setSegmentProgress(segmentProgress);
@@ -271,6 +455,7 @@ public class UserBookController {
         }
 
         UserBook ub = getOrCreateUserBook(userOpt.get(), bookOpt.get());
+        ub.setHiddenFromLibrary(false);
         applyStatus(ub, status);
         userBookRepository.save(ub);
 
@@ -291,12 +476,14 @@ public class UserBookController {
         }
 
         UserBook ub = getOrCreateUserBook(userOpt.get(), bookOpt.get());
+        ub.setHiddenFromLibrary(false);
         applyStatus(ub, ReadingStatus.FINISHED);
         userBookRepository.save(ub);
 
         return ResponseEntity.ok(Map.of(
                 "message", "Книга отмечена как прочитанная",
-                "status", ub.getStatus().name()
+                "status", ub.getStatus().name(),
+                "rating", ub.getRating() == null ? 0 : ub.getRating()
         ));
     }
 
@@ -326,9 +513,7 @@ public class UserBookController {
             ub.setRatedAt(now);
         }
         ub.setLastReadAt(now);
-        if (ub.getStatus() == ReadingStatus.WANT_TO_READ) {
-            applyStatus(ub, ReadingStatus.FINISHED);
-        }
+        clearPhantomReadingStatus(ub);
         userBookRepository.save(ub);
 
         return ResponseEntity.ok(Map.of(
@@ -351,12 +536,226 @@ public class UserBookController {
         ub.setRating(null);
         ub.setRatedAt(null);
         ub.setLastReadAt(LocalDateTime.now());
+        clearPhantomReadingStatus(ub);
         userBookRepository.save(ub);
 
         return ResponseEntity.ok(Map.of(
                 "message", "Оценка удалена",
                 "rating", 0
         ));
+    }
+
+    @GetMapping("/{bookId}/reviews")
+    public ResponseEntity<?> getBookReviews(
+            @RequestHeader("Authorization") String token,
+            @PathVariable Long bookId) {
+        Optional<User> userOpt = getUserFromToken(token);
+        Optional<Book> bookOpt = findCanonicalBook(bookId);
+        if (userOpt.isEmpty() || bookOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        List<UserBook> reviews = userBookRepository.findReviewsByBookId(bookOpt.get().getId());
+        List<Long> reviewIds = reviews.stream().map(UserBook::getId).collect(Collectors.toList());
+        List<BookReviewReply> replies = reviewIds.isEmpty()
+                ? List.of()
+                : bookReviewReplyRepository.findByReviewIdInOrderByCreatedAtAsc(reviewIds);
+
+        Map<Long, List<BookReviewReply>> repliesByReview = replies.stream()
+                .collect(Collectors.groupingBy(reply -> reply.getReview().getId()));
+        Map<Long, List<BookReviewReply>> repliesByParent = replies.stream()
+                .filter(reply -> reply.getParentReply() != null)
+                .collect(Collectors.groupingBy(reply -> reply.getParentReply().getId()));
+
+        List<BookReviewDTO> result = reviews.stream()
+                .map(review -> reviewPayload(review, repliesByReview.getOrDefault(review.getId(), List.of()),
+                        repliesByParent, userOpt.get()))
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(result);
+    }
+
+    @PutMapping("/{bookId}/reviews")
+    public ResponseEntity<?> saveBookReview(
+            @RequestHeader("Authorization") String token,
+            @PathVariable Long bookId,
+            @RequestBody BookReviewRequest request) {
+        Optional<User> userOpt = getUserFromToken(token);
+        Optional<Book> bookOpt = findCanonicalBook(bookId);
+        if (userOpt.isEmpty() || bookOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        String text = normalizeReviewText(request.getText());
+        if (text.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Текст отзыва обязателен"));
+        }
+        if (text.length() > MAX_REVIEW_CHARS) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Отзыв слишком длинный"));
+        }
+        Integer rating = request.getRating();
+        if (rating == null || rating < 1 || rating > 5) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Оценка должна быть от 1 до 5"));
+        }
+
+        UserBook ub = getOrCreateUserBook(userOpt.get(), bookOpt.get());
+        LocalDateTime now = LocalDateTime.now();
+        if (ub.getReviewCreatedAt() == null) {
+            ub.setReviewCreatedAt(now);
+        }
+        ub.setReviewUpdatedAt(now);
+        ub.setReviewText(text);
+        ub.setRating(rating);
+        ub.setRatedAt(now);
+        ub.setLastReadAt(now);
+        clearPhantomReadingStatus(ub);
+        UserBook saved = userBookRepository.save(ub);
+        return ResponseEntity.ok(reviewPayload(saved, List.of(), Map.of(), userOpt.get()));
+    }
+
+    @PutMapping("/{bookId}/reviews/{reviewId}/vote")
+    public ResponseEntity<?> voteReview(
+            @RequestHeader("Authorization") String token,
+            @PathVariable Long bookId,
+            @PathVariable Long reviewId,
+            @RequestBody BookReviewRequest request) {
+        Optional<User> userOpt = getUserFromToken(token);
+        Optional<Book> bookOpt = findCanonicalBook(bookId);
+        Optional<UserBook> reviewOpt = userBookRepository.findById(reviewId);
+        if (userOpt.isEmpty() || bookOpt.isEmpty() || reviewOpt.isEmpty()
+                || !bookOpt.get().getId().equals(reviewOpt.get().getBook().getId())) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(votePayload(applyVote(userOpt.get(), TARGET_REVIEW, reviewId, request.getVote()),
+                TARGET_REVIEW, reviewId));
+    }
+
+    @PostMapping("/{bookId}/reviews/{reviewId}/replies")
+    public ResponseEntity<?> createReviewReply(
+            @RequestHeader("Authorization") String token,
+            @PathVariable Long bookId,
+            @PathVariable Long reviewId,
+            @RequestBody BookReviewRequest request) {
+        Optional<User> userOpt = getUserFromToken(token);
+        Optional<Book> bookOpt = findCanonicalBook(bookId);
+        Optional<UserBook> reviewOpt = userBookRepository.findById(reviewId);
+        if (userOpt.isEmpty() || bookOpt.isEmpty() || reviewOpt.isEmpty()
+                || !bookOpt.get().getId().equals(reviewOpt.get().getBook().getId())) {
+            return ResponseEntity.notFound().build();
+        }
+        String text = normalizeReviewText(request.getText());
+        if (text.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Текст ответа обязателен"));
+        }
+        if (text.length() > MAX_REVIEW_CHARS) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Ответ слишком длинный"));
+        }
+
+        BookReviewReply reply = new BookReviewReply();
+        reply.setReview(reviewOpt.get());
+        reply.setUser(userOpt.get());
+        reply.setText(text);
+        if (request.getParentReplyId() != null) {
+            Optional<BookReviewReply> parent = bookReviewReplyRepository
+                    .findByIdAndReviewId(request.getParentReplyId(), reviewId);
+            if (parent.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("message", "Родительский ответ не найден"));
+            }
+            reply.setParentReply(parent.get());
+        }
+        BookReviewReply saved = bookReviewReplyRepository.save(reply);
+        return ResponseEntity.ok(replyPayload(saved, Map.of(), userOpt.get()));
+    }
+
+    @PutMapping("/{bookId}/reviews/replies/{replyId}/vote")
+    public ResponseEntity<?> voteReply(
+            @RequestHeader("Authorization") String token,
+            @PathVariable Long bookId,
+            @PathVariable Long replyId,
+            @RequestBody BookReviewRequest request) {
+        Optional<User> userOpt = getUserFromToken(token);
+        Optional<BookReviewReply> replyOpt = bookReviewReplyRepository.findById(replyId);
+        if (userOpt.isEmpty() || replyOpt.isEmpty()
+                || !replyOpt.get().getReview().getBook().getId().equals(findCanonicalBook(bookId).map(Book::getId).orElse(null))) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(votePayload(applyVote(userOpt.get(), TARGET_REPLY, replyId, request.getVote()),
+                TARGET_REPLY, replyId));
+    }
+
+    @GetMapping("/{bookId}/quotes")
+    public ResponseEntity<?> getBookQuotes(
+            @RequestHeader("Authorization") String token,
+            @PathVariable Long bookId) {
+        Optional<User> userOpt = getUserFromToken(token);
+        Optional<Book> bookOpt = findCanonicalBook(bookId);
+        if (userOpt.isEmpty() || bookOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        List<FavoriteQuoteDTO> quotes = bookAnnotationRepository
+                .findByBookIdAndPublishedQuoteTrueOrderByPublishedQuoteAtDescCreatedAtDesc(bookOpt.get().getId())
+                .stream()
+                .map(annotation -> quotePayload(annotation, userOpt.get()))
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(quotes);
+    }
+
+    @GetMapping("/quotes/favorites")
+    public ResponseEntity<?> getMyFavoriteQuotes(@RequestHeader("Authorization") String token) {
+        Optional<User> userOpt = getUserFromToken(token);
+        if (userOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        List<FavoriteQuoteDTO> quotes = bookAnnotationRepository
+                .findByUserIdAndPublishedQuoteTrueOrderByPublishedQuoteAtDescCreatedAtDesc(userOpt.get().getId())
+                .stream()
+                .map(annotation -> quotePayload(annotation, userOpt.get()))
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(quotes);
+    }
+
+    @PostMapping("/{bookId}/annotations/{annotationId}/quote")
+    public ResponseEntity<?> publishQuote(
+            @RequestHeader("Authorization") String token,
+            @PathVariable Long bookId,
+            @PathVariable Long annotationId) {
+        Optional<User> userOpt = getUserFromToken(token);
+        Optional<Book> bookOpt = findCanonicalBook(bookId);
+        if (userOpt.isEmpty() || bookOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        Optional<BookAnnotation> annotationOpt = bookAnnotationRepository
+                .findByIdAndUserIdAndBookId(annotationId, userOpt.get().getId(), bookOpt.get().getId());
+        if (annotationOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        BookAnnotation annotation = annotationOpt.get();
+        if (wordCount(annotation.getHighlightedText()) > MAX_QUOTE_WORDS) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Цитата не может быть длиннее 120 слов"));
+        }
+        annotation.setPublishedQuote(true);
+        if (annotation.getPublishedQuoteAt() == null) {
+            annotation.setPublishedQuoteAt(LocalDateTime.now());
+        }
+        BookAnnotation saved = bookAnnotationRepository.save(annotation);
+        return ResponseEntity.ok(quotePayload(saved, userOpt.get()));
+    }
+
+    @PutMapping("/{bookId}/quotes/{quoteId}/vote")
+    public ResponseEntity<?> voteQuote(
+            @RequestHeader("Authorization") String token,
+            @PathVariable Long bookId,
+            @PathVariable Long quoteId,
+            @RequestBody BookReviewRequest request) {
+        Optional<User> userOpt = getUserFromToken(token);
+        Optional<Book> bookOpt = findCanonicalBook(bookId);
+        Optional<BookAnnotation> quoteOpt = bookAnnotationRepository.findById(quoteId);
+        if (userOpt.isEmpty() || bookOpt.isEmpty() || quoteOpt.isEmpty()
+                || !quoteOpt.get().isPublishedQuote()
+                || !bookOpt.get().getId().equals(quoteOpt.get().getBook().getId())) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(votePayload(applyVote(userOpt.get(), TARGET_QUOTE, quoteId, request.getVote()),
+                TARGET_QUOTE, quoteId));
     }
 
     // Получить прогресс чтения книги
@@ -368,7 +767,7 @@ public class UserBookController {
         
         return userRepository.findByNickname(username)
                 .flatMap(user -> findCanonicalBook(bookId)
-                        .flatMap(book -> userBookRepository.findByUserIdAndBookId(user.getId(), book.getId())))
+                        .flatMap(book -> findUserBook(user, book)))
                 .map(ub -> {
                     Map<String, Object> result = new HashMap<>();
                     result.put("currentChapter", ub.getCurrentChapter());
@@ -477,6 +876,15 @@ public class UserBookController {
         annotation.setNote(normalizeNote(request.getNote()));
         annotation.setColor(request.getColor());
 
+        UserBook ub = getOrCreateUserBook(userOpt.get(), bookOpt.get());
+        ub.setSegmentOrder(request.getChapterOrder());
+        ub.setHiddenFromLibrary(false);
+        ub.setLastReadAt(LocalDateTime.now());
+        if (ub.getStatus() == ReadingStatus.WANT_TO_READ) {
+            applyStatus(ub, ReadingStatus.READING);
+        }
+        userBookRepository.save(ub);
+
         BookAnnotation saved = bookAnnotationRepository.save(annotation);
         return ResponseEntity.ok(BookAnnotationDTO.fromEntity(saved));
     }
@@ -549,6 +957,147 @@ public class UserBookController {
         return result;
     }
 
+    private Map<String, Object> libraryBookPayload(UserBook ub) {
+        Map<String, Object> item = new HashMap<>();
+        item.put("id", ub.getBook().getId());
+        item.put("title", ub.getBook().getTitle());
+        item.put("author", ub.getBook().getAuthor());
+        item.put("coverUrl", ub.getBook().getCoverUrl());
+        item.put("genres", ub.getBook().getGenres().stream()
+                .map(genre -> genre.getName())
+                .collect(Collectors.toList()));
+        item.put("averageRating", ub.getBook().getAverageRating());
+        item.put("ratingsCount", ub.getBook().getRatingsCount());
+        item.put("language", ub.getBook().getLanguageCode());
+        item.put("currentChapter", ub.getCurrentChapter());
+        item.put("segmentOrder", ub.getSegmentOrder());
+        item.put("segmentProgress", ub.getSegmentProgress());
+        item.put("audioPositionMs", ub.getAudioPositionMs());
+        item.put("lastMode", ub.getLastMode().name());
+        item.put("availability", ub.getBook().getAvailability().name());
+        item.put("isBookmarked", ub.isBookmarked());
+        item.put("status", ub.getStatus().name());
+        item.put("lastReadAt", ub.getLastReadAt());
+        return item;
+    }
+
+    private BookReviewDTO reviewPayload(
+            UserBook review,
+            List<BookReviewReply> flatReplies,
+            Map<Long, List<BookReviewReply>> repliesByParent,
+            User currentUser) {
+        BookReviewDTO dto = new BookReviewDTO();
+        dto.setId(review.getId());
+        dto.setBookId(review.getBook().getId());
+        dto.setRating(review.getRating());
+        dto.setText(review.getReviewText());
+        dto.setNickname(displayName(review.getUser()));
+        dto.setAvatarInitial(avatarInitial(review.getUser()));
+        dto.setLikes((int) communityReactionRepository.countByTargetTypeAndTargetIdAndValue(TARGET_REVIEW, review.getId(), 1));
+        dto.setDislikes((int) communityReactionRepository.countByTargetTypeAndTargetIdAndValue(TARGET_REVIEW, review.getId(), -1));
+        dto.setCurrentUserVote(currentUserVote(currentUser, TARGET_REVIEW, review.getId()));
+        dto.setCurrentUserReview(review.getUser().getId().equals(currentUser.getId()));
+        dto.setCreatedAt(review.getReviewCreatedAt());
+        dto.setUpdatedAt(review.getReviewUpdatedAt());
+        dto.setReplies(flatReplies.stream()
+                .filter(reply -> reply.getParentReply() == null)
+                .map(reply -> replyPayload(reply, repliesByParent, currentUser))
+                .collect(Collectors.toList()));
+        return dto;
+    }
+
+    private ReviewReplyDTO replyPayload(
+            BookReviewReply reply,
+            Map<Long, List<BookReviewReply>> repliesByParent,
+            User currentUser) {
+        ReviewReplyDTO dto = new ReviewReplyDTO();
+        dto.setId(reply.getId());
+        dto.setText(reply.getText());
+        dto.setNickname(displayName(reply.getUser()));
+        dto.setAvatarInitial(avatarInitial(reply.getUser()));
+        dto.setLikes((int) communityReactionRepository.countByTargetTypeAndTargetIdAndValue(TARGET_REPLY, reply.getId(), 1));
+        dto.setDislikes((int) communityReactionRepository.countByTargetTypeAndTargetIdAndValue(TARGET_REPLY, reply.getId(), -1));
+        dto.setCurrentUserVote(currentUserVote(currentUser, TARGET_REPLY, reply.getId()));
+        dto.setCreatedAt(reply.getCreatedAt());
+        dto.setReplies(repliesByParent.getOrDefault(reply.getId(), List.of()).stream()
+                .map(child -> replyPayload(child, repliesByParent, currentUser))
+                .collect(Collectors.toList()));
+        return dto;
+    }
+
+    private FavoriteQuoteDTO quotePayload(BookAnnotation annotation, User currentUser) {
+        FavoriteQuoteDTO dto = new FavoriteQuoteDTO();
+        dto.setId(annotation.getId());
+        dto.setBookId(annotation.getBook().getId());
+        dto.setBookTitle(annotation.getBook().getTitle());
+        dto.setBookAuthor(annotation.getBook().getAuthor());
+        dto.setText(annotation.getHighlightedText());
+        dto.setChapterOrder(annotation.getChapterOrder());
+        dto.setNickname(displayName(annotation.getUser()));
+        dto.setAvatarInitial(avatarInitial(annotation.getUser()));
+        dto.setLikes((int) communityReactionRepository.countByTargetTypeAndTargetIdAndValue(TARGET_QUOTE, annotation.getId(), 1));
+        dto.setDislikes((int) communityReactionRepository.countByTargetTypeAndTargetIdAndValue(TARGET_QUOTE, annotation.getId(), -1));
+        dto.setCurrentUserVote(currentUserVote(currentUser, TARGET_QUOTE, annotation.getId()));
+        dto.setCurrentUserQuote(annotation.getUser().getId().equals(currentUser.getId()));
+        dto.setPublishedAt(annotation.getPublishedQuoteAt());
+        return dto;
+    }
+
+    private int applyVote(User user, String targetType, Long targetId, Integer requestedVote) {
+        int vote = requestedVote == null ? 0 : Math.max(-1, Math.min(1, requestedVote));
+        Optional<CommunityReaction> existing = communityReactionRepository
+                .findByUserIdAndTargetTypeAndTargetId(user.getId(), targetType, targetId);
+        if (vote == 0) {
+            existing.ifPresent(communityReactionRepository::delete);
+            return 0;
+        }
+        CommunityReaction reaction = existing.orElseGet(CommunityReaction::new);
+        reaction.setUser(user);
+        reaction.setTargetType(targetType);
+        reaction.setTargetId(targetId);
+        reaction.setValue(vote);
+        communityReactionRepository.save(reaction);
+        return vote;
+    }
+
+    private Map<String, Object> votePayload(int currentUserVote, String targetType, Long targetId) {
+        return Map.of(
+                "currentUserVote", currentUserVote,
+                "likes", communityReactionRepository.countByTargetTypeAndTargetIdAndValue(targetType, targetId, 1),
+                "dislikes", communityReactionRepository.countByTargetTypeAndTargetIdAndValue(targetType, targetId, -1)
+        );
+    }
+
+    private int currentUserVote(User user, String targetType, Long targetId) {
+        return communityReactionRepository
+                .findByUserIdAndTargetTypeAndTargetId(user.getId(), targetType, targetId)
+                .map(CommunityReaction::getValue)
+                .orElse(0);
+    }
+
+    private String normalizeReviewText(String text) {
+        return text == null ? "" : text.trim();
+    }
+
+    private int wordCount(String text) {
+        if (text == null || text.trim().isEmpty()) {
+            return 0;
+        }
+        return text.trim().split("\\s+").length;
+    }
+
+    private String displayName(User user) {
+        if (user.getNickname() != null && !user.getNickname().isBlank()) {
+            return user.getNickname();
+        }
+        return "User";
+    }
+
+    private String avatarInitial(User user) {
+        String name = displayName(user);
+        return name.isEmpty() ? "U" : name.substring(0, 1).toUpperCase();
+    }
+
     private Map<String, Object> ratedBookPayload(UserBook ub, double userAverageRating) {
         Book book = canonicalizationService.canonicalize(ub.getBook());
         Map<String, Object> item = new HashMap<>();
@@ -568,6 +1117,9 @@ public class UserBookController {
         item.put("rating", ub.getRating());
         item.put("ratedAt", ub.getRatedAt());
         item.put("ratingDate", ratingDate);
+        item.put("reviewText", ub.getReviewText());
+        item.put("reviewCreatedAt", ub.getReviewCreatedAt());
+        item.put("reviewUpdatedAt", ub.getReviewUpdatedAt());
         item.put("lastReadAt", ub.getLastReadAt());
         item.put("status", ub.getStatus().name());
         item.put("userAverageRating", userAverageRating);

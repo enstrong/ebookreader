@@ -14,6 +14,8 @@ enum SortOption { title, rating, popularity, language }
 
 enum SortDirection { ascending, descending }
 
+enum LibraryStatusFilter { reading, wantToRead, finished }
+
 /// Экран каталога или пользовательской библиотеки.
 ///
 /// Отображает полный каталог или только импортированные книги с поддержкой поиска
@@ -42,7 +44,9 @@ class _HomeScreenState extends State<HomeScreen>
   final BookService _bookService = BookService();
   final BookmarkService _bookmarkService = BookmarkService();
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
   final ScrollController _scrollController = ScrollController();
+  final PageController _libraryPageController = PageController();
   Timer? _searchDebounce;
   int _requestSerial = 0;
 
@@ -58,9 +62,13 @@ class _HomeScreenState extends State<HomeScreen>
   SortOption _sortOption = SortOption.popularity;
   SortDirection _sortDirection = SortDirection.descending;
   String _searchQuery = '';
+  LibraryStatusFilter _libraryStatusFilter = LibraryStatusFilter.reading;
+  final Set<int> _selectedLibraryBookIds = {};
   bool _isLoading = true;
   bool _isSearching = false;
+  bool _isSearchExpanded = false;
   bool _isLoadingMore = false;
+  bool _isDeletingLibraryBooks = false;
   bool _hasNextPage = false;
   int _currentPage = 0;
   int _totalItems = 0;
@@ -95,7 +103,9 @@ class _HomeScreenState extends State<HomeScreen>
     _animController.dispose();
     _searchDebounce?.cancel();
     _searchController.dispose();
+    _searchFocusNode.dispose();
     _scrollController.dispose();
+    _libraryPageController.dispose();
     super.dispose();
   }
 
@@ -127,7 +137,7 @@ class _HomeScreenState extends State<HomeScreen>
       var hasNext = false;
 
       if (widget.libraryOnly) {
-        final books = await _bookService.getLibraryBooks(widget.token);
+        final books = await _bookmarkService.getBookmarks(widget.token);
         cleanBooks.addAll(books.cast<dynamic>());
         try {
           _demoAudiobook = await _bookService.getDemoAudiobook(widget.token);
@@ -158,7 +168,9 @@ class _HomeScreenState extends State<HomeScreen>
       }
       setState(() {
         _books = reset ? cleanBooks : [..._books, ...cleanBooks];
-        _filteredBooks = _books;
+        _filteredBooks = widget.libraryOnly
+            ? _filteredLibraryBooks(_books)
+            : _books;
         _availableGenres = widget.libraryOnly
             ? _extractGenres(_books)
             : {..._defaultCatalogGenres, ..._extractGenres(_books)};
@@ -225,9 +237,234 @@ class _HomeScreenState extends State<HomeScreen>
       _searchQuery = query;
       _isSearching = query.isNotEmpty;
     });
+    if (widget.libraryOnly) {
+      setState(() {
+        _filteredBooks = _filteredLibraryBooks(_books);
+        _isSearching = false;
+      });
+      return;
+    }
     _searchDebounce = Timer(const Duration(milliseconds: 300), () {
       _loadBooks(reset: true);
     });
+  }
+
+  void _applyLibraryFilters() {
+    setState(() {
+      _filteredBooks = _filteredLibraryBooks(_books);
+    });
+  }
+
+  List<dynamic> _filteredLibraryBooks(
+    List<dynamic> books, {
+    LibraryStatusFilter? statusOverride,
+  }) {
+    final targetStatus = statusOverride ?? _libraryStatusFilter;
+    final query = _searchQuery.trim().toLowerCase();
+    final result = books.where((raw) {
+      if (raw is! Map<String, dynamic>) return false;
+      if (_libraryStatusOf(raw) != targetStatus) return false;
+      if (!_passesLocalFilters(raw)) return false;
+      if (query.isEmpty) return true;
+      final title = (raw['title'] ?? '').toString().toLowerCase();
+      final author = (raw['author'] ?? '').toString().toLowerCase();
+      return title.contains(query) || author.contains(query);
+    }).toList();
+    result.sort((a, b) => _compareLibraryBooks(a, b));
+    return result;
+  }
+
+  bool _passesLocalFilters(Map<String, dynamic> book) {
+    if (_selectedLanguages.isNotEmpty &&
+        !_selectedLanguages.contains(_bookLanguage(book))) {
+      return false;
+    }
+    if (_selectedGenres.isNotEmpty) {
+      final genres = _bookGenres(book).toSet();
+      if (!_selectedGenres.any(genres.contains)) return false;
+    }
+    if (_selectedContentFeatures.isNotEmpty) {
+      final availability = _bookAvailability(book);
+      if (_selectedContentFeatures.contains('text') &&
+          !_hasTextAvailability(availability)) {
+        return false;
+      }
+      if (_selectedContentFeatures.contains('audio') &&
+          !_hasAudioAvailability(availability)) {
+        return false;
+      }
+    }
+    if (_selectedMinRating != null) {
+      final rating =
+          double.tryParse(
+            (book['average_rating'] ?? book['averageRating'] ?? 0).toString(),
+          ) ??
+          0.0;
+      if (rating < _selectedMinRating!) return false;
+    }
+    return true;
+  }
+
+  int _compareLibraryBooks(dynamic a, dynamic b) {
+    if (a is! Map<String, dynamic> || b is! Map<String, dynamic>) return 0;
+    int result;
+    switch (_sortOption) {
+      case SortOption.title:
+        result = (a['title'] ?? '').toString().toLowerCase().compareTo(
+          (b['title'] ?? '').toString().toLowerCase(),
+        );
+        break;
+      case SortOption.rating:
+        result = _bookAverageRating(a).compareTo(_bookAverageRating(b));
+        break;
+      case SortOption.popularity:
+        result = _bookRatingsCount(a).compareTo(_bookRatingsCount(b));
+        break;
+      case SortOption.language:
+        result = _bookLanguage(a).compareTo(_bookLanguage(b));
+        break;
+    }
+    return _sortDirection == SortDirection.ascending ? result : -result;
+  }
+
+  double _bookAverageRating(Map<String, dynamic> book) {
+    return double.tryParse(
+          (book['average_rating'] ?? book['averageRating'] ?? 0).toString(),
+        ) ??
+        0.0;
+  }
+
+  LibraryStatusFilter _libraryStatusOf(Map<String, dynamic> book) {
+    final status = (book['status'] ?? 'READING').toString().toUpperCase();
+    if (status == 'FINISHED') return LibraryStatusFilter.finished;
+    if (status == 'WANT_TO_READ') return LibraryStatusFilter.wantToRead;
+    return LibraryStatusFilter.reading;
+  }
+
+  int _libraryStatusCount(LibraryStatusFilter status) {
+    return _books.where((raw) {
+      return raw is Map<String, dynamic> && _libraryStatusOf(raw) == status;
+    }).length;
+  }
+
+  int _libraryPageIndex(LibraryStatusFilter status) {
+    switch (status) {
+      case LibraryStatusFilter.reading:
+        return 0;
+      case LibraryStatusFilter.wantToRead:
+        return 1;
+      case LibraryStatusFilter.finished:
+        return 2;
+    }
+  }
+
+  LibraryStatusFilter _libraryStatusForPage(int index) {
+    switch (index) {
+      case 1:
+        return LibraryStatusFilter.wantToRead;
+      case 2:
+        return LibraryStatusFilter.finished;
+      case 0:
+      default:
+        return LibraryStatusFilter.reading;
+    }
+  }
+
+  void _selectLibraryStatus(LibraryStatusFilter status) {
+    if (_libraryStatusFilter == status) return;
+    setState(() {
+      _libraryStatusFilter = status;
+      _filteredBooks = _filteredLibraryBooks(_books);
+    });
+    if (_libraryPageController.hasClients) {
+      _libraryPageController.animateToPage(
+        _libraryPageIndex(status),
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.easeOutCubic,
+      );
+    }
+  }
+
+  void _toggleLibrarySelection(int bookId) {
+    if (!widget.libraryOnly || bookId <= 0) return;
+    setState(() {
+      if (_selectedLibraryBookIds.contains(bookId)) {
+        _selectedLibraryBookIds.remove(bookId);
+      } else {
+        _selectedLibraryBookIds.add(bookId);
+      }
+    });
+  }
+
+  void _clearLibrarySelection() {
+    if (_selectedLibraryBookIds.isEmpty) return;
+    setState(_selectedLibraryBookIds.clear);
+  }
+
+  Future<void> _deleteSelectedLibraryBooks() async {
+    if (_selectedLibraryBookIds.isEmpty || _isDeletingLibraryBooks) return;
+    final ids = _selectedLibraryBookIds.toList(growable: false);
+    setState(() => _isDeletingLibraryBooks = true);
+    try {
+      await Future.wait(
+        ids.map(
+          (bookId) => _bookmarkService.removeFromLibrary(widget.token, bookId),
+        ),
+      );
+      if (!mounted) return;
+      setState(() {
+        _books.removeWhere((raw) {
+          return raw is Map<String, dynamic> && ids.contains(_asInt(raw['id']));
+        });
+        _selectedLibraryBookIds.clear();
+        _filteredBooks = _filteredLibraryBooks(_books);
+        _totalItems = _books.length;
+        _isDeletingLibraryBooks = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            ids.length == 1
+                ? 'Книга удалена из библиотеки'
+                : 'Книги удалены из библиотеки',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isDeletingLibraryBooks = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Ошибка удаления: $e'),
+          backgroundColor: Colors.red.shade600,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  void _expandSearch() {
+    setState(() => _isSearchExpanded = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _searchFocusNode.requestFocus();
+    });
+  }
+
+  void _clearSearch() {
+    _searchController.clear();
+    _searchBooks('');
+    if (widget.libraryOnly) {
+      setState(() => _isSearchExpanded = false);
+    }
+    FocusScope.of(context).unfocus();
+  }
+
+  void _dismissKeyboard() {
+    FocusScope.of(context).unfocus();
+    if (widget.libraryOnly && _searchController.text.isEmpty) {
+      setState(() => _isSearchExpanded = false);
+    }
   }
 
   void _onScroll() {
@@ -303,7 +540,11 @@ class _HomeScreenState extends State<HomeScreen>
       MaterialPageRoute(
         builder: (_) => BookDetailScreen(token: widget.token, bookId: bookId),
       ),
-    );
+    ).then((_) {
+      if (mounted && widget.libraryOnly) {
+        _loadBooks(reset: true);
+      }
+    });
   }
 
   Future<void> _openBookPrimaryAction(Map<String, dynamic> book) async {
@@ -378,137 +619,171 @@ class _HomeScreenState extends State<HomeScreen>
     final palette = context.palette;
     return Scaffold(
       backgroundColor: palette.background,
-      body: Container(
-        decoration: BoxDecoration(gradient: palette.verticalGradient),
-        child: SafeArea(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                palette.accent.withValues(alpha: 0.2),
-                                palette.secondaryAccent.withValues(alpha: 0.1),
-                              ],
-                            ),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Icon(
-                            Icons.auto_stories_rounded,
-                            color: palette.accent,
-                            size: 26,
-                          ),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                widget.title,
-                                style: TextStyle(
-                                  fontSize: 26,
-                                  fontWeight: FontWeight.bold,
-                                  color: palette.text,
-                                  letterSpacing: 0.5,
-                                ),
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: _dismissKeyboard,
+        child: Container(
+          decoration: BoxDecoration(gradient: palette.verticalGradient),
+          child: SafeArea(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  palette.accent.withValues(alpha: 0.2),
+                                  palette.secondaryAccent.withValues(
+                                    alpha: 0.1,
+                                  ),
+                                ],
                               ),
-                              Text(
-                                '${widget.subtitle} • ${_totalItems > 0 ? _totalItems : _books.length} книг',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: palette.mutedText,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(
+                              Icons.auto_stories_rounded,
+                              color: palette.accent,
+                              size: 26,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  widget.title,
+                                  style: TextStyle(
+                                    fontSize: 26,
+                                    fontWeight: FontWeight.bold,
+                                    color: palette.text,
+                                    letterSpacing: 0.5,
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 18),
-                    // Search bar
-                    Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(16),
-                        gradient: LinearGradient(
-                          colors: [
-                            palette.text.withValues(
-                              alpha: palette.isDark ? 0.08 : 0.22,
-                            ),
-                            palette.text.withValues(
-                              alpha: palette.isDark ? 0.04 : 0.10,
-                            ),
-                          ],
-                        ),
-                        border: Border.all(color: palette.border, width: 1.5),
-                      ),
-                      child: TextField(
-                        controller: _searchController,
-                        onChanged: _searchBooks,
-                        style: TextStyle(color: palette.text),
-                        decoration: InputDecoration(
-                          hintText: 'Поиск книг...',
-                          hintStyle: TextStyle(
-                            color: palette.mutedText.withValues(alpha: 0.75),
-                          ),
-                          prefixIcon: Icon(
-                            Icons.search_rounded,
-                            color: palette.accent.withValues(alpha: 0.7),
-                          ),
-                          suffixIcon: _searchController.text.isNotEmpty
-                              ? IconButton(
-                                  icon: Icon(
-                                    Icons.clear_rounded,
+                                Text(
+                                  '${widget.subtitle} • ${_totalItems > 0 ? _totalItems : _books.length} книг',
+                                  style: TextStyle(
+                                    fontSize: 13,
                                     color: palette.mutedText,
                                   ),
-                                  onPressed: () {
-                                    _searchController.clear();
-                                    _searchBooks('');
-                                  },
-                                )
-                              : null,
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 14,
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
+                          if (widget.libraryOnly && !_isSearchExpanded) ...[
+                            const SizedBox(width: 12),
+                            _buildSearchIconButton(),
+                          ],
+                        ],
                       ),
-                    ),
-                    const SizedBox(height: 14),
-                    _buildFilterBar(),
-                  ],
+                      if (!widget.libraryOnly || _isSearchExpanded) ...[
+                        const SizedBox(height: 18),
+                        _buildSearchControl(),
+                        const SizedBox(height: 14),
+                      ] else
+                        const SizedBox(height: 14),
+                      _buildFilterBar(),
+                    ],
+                  ),
                 ),
-              ),
 
-              // Books Grid
-              Expanded(
-                child: _isLoading || _isSearching
-                    ? Center(
-                        child: CircularProgressIndicator(
-                          color: palette.accent,
-                          strokeWidth: 2.5,
-                        ),
-                      )
-                    : widget.libraryOnly
-                    ? _buildLibraryBody()
-                    : _filteredBooks.isEmpty
-                    ? _buildEmptyState()
-                    : _buildBooksGrid(),
-              ),
-            ],
+                // Books Grid
+                Expanded(
+                  child: _isLoading || _isSearching
+                      ? Center(
+                          child: CircularProgressIndicator(
+                            color: palette.accent,
+                            strokeWidth: 2.5,
+                          ),
+                        )
+                      : widget.libraryOnly
+                      ? _buildLibraryBody()
+                      : _filteredBooks.isEmpty
+                      ? _buildEmptyState()
+                      : _buildBooksGrid(),
+                ),
+              ],
+            ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildSearchControl() {
+    final palette = context.palette;
+    if (widget.libraryOnly && !_isSearchExpanded) {
+      return Align(
+        alignment: Alignment.centerRight,
+        child: _buildSearchIconButton(),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        gradient: LinearGradient(
+          colors: [
+            palette.text.withValues(alpha: palette.isDark ? 0.08 : 0.22),
+            palette.text.withValues(alpha: palette.isDark ? 0.04 : 0.10),
+          ],
+        ),
+        border: Border.all(color: palette.border, width: 1.5),
+      ),
+      child: TextField(
+        focusNode: _searchFocusNode,
+        controller: _searchController,
+        onChanged: _searchBooks,
+        onTapOutside: (_) => _dismissKeyboard(),
+        style: TextStyle(color: palette.text),
+        decoration: InputDecoration(
+          hintText: 'Поиск книг...',
+          hintStyle: TextStyle(
+            color: palette.mutedText.withValues(alpha: 0.75),
+          ),
+          prefixIcon: Icon(
+            Icons.search_rounded,
+            color: palette.accent.withValues(alpha: 0.7),
+          ),
+          suffixIcon: _searchController.text.isNotEmpty || widget.libraryOnly
+              ? IconButton(
+                  icon: Icon(Icons.clear_rounded, color: palette.mutedText),
+                  onPressed: _clearSearch,
+                )
+              : null,
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 14,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchIconButton() {
+    final palette = context.palette;
+    return Container(
+      height: 44,
+      width: 44,
+      decoration: BoxDecoration(
+        color: palette.elevated.withValues(alpha: palette.isDark ? 0.5 : 0.9),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: palette.border, width: 1.2),
+      ),
+      child: IconButton(
+        tooltip: 'Поиск',
+        onPressed: _expandSearch,
+        icon: Icon(Icons.search_rounded, color: palette.accent),
       ),
     );
   }
@@ -584,7 +859,11 @@ class _HomeScreenState extends State<HomeScreen>
                       break;
                   }
                 });
-                _loadBooks(reset: true);
+                if (widget.libraryOnly) {
+                  _applyLibraryFilters();
+                } else {
+                  _loadBooks(reset: true);
+                }
               },
               itemBuilder: (context) => [
                 PopupMenuItem(
@@ -684,7 +963,11 @@ class _HomeScreenState extends State<HomeScreen>
         );
         _selectedMinRating = result['selectedMinRating'] as double?;
       });
-      _loadBooks(reset: true);
+      if (widget.libraryOnly) {
+        _applyLibraryFilters();
+      } else {
+        _loadBooks(reset: true);
+      }
     }
   }
 
@@ -889,17 +1172,180 @@ class _HomeScreenState extends State<HomeScreen>
   Widget _buildLibraryBody() {
     return Column(
       children: [
+        if (_selectedLibraryBookIds.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: _buildLibrarySelectionBar(),
+          ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+          child: _buildLibraryStatusTabs(),
+        ),
         if (_demoAudiobook != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: _buildDemoAudiobookFeature(_demoAudiobook!),
           ),
         Expanded(
-          child: _filteredBooks.isEmpty
-              ? _buildEmptyState()
-              : _buildBooksGrid(),
+          child: PageView(
+            controller: _libraryPageController,
+            onPageChanged: (index) {
+              final status = _libraryStatusForPage(index);
+              setState(() {
+                _libraryStatusFilter = status;
+                _filteredBooks = _filteredLibraryBooks(_books);
+              });
+            },
+            children: const [
+              LibraryStatusFilter.reading,
+              LibraryStatusFilter.wantToRead,
+              LibraryStatusFilter.finished,
+            ].map(_buildLibraryPage).toList(),
+          ),
         ),
       ],
+    );
+  }
+
+  Widget _buildLibrarySelectionBar() {
+    final palette = context.palette;
+    final count = _selectedLibraryBookIds.length;
+    return Container(
+      height: 48,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: palette.elevated.withValues(alpha: palette.isDark ? 0.88 : 0.96),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: palette.border),
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            tooltip: 'Снять выделение',
+            onPressed: _isDeletingLibraryBooks ? null : _clearLibrarySelection,
+            icon: const Icon(Icons.close_rounded),
+          ),
+          Expanded(
+            child: Text(
+              '$count выбрано',
+              style: TextStyle(
+                color: palette.text,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          FilledButton.icon(
+            onPressed: _isDeletingLibraryBooks
+                ? null
+                : _deleteSelectedLibraryBooks,
+            icon: _isDeletingLibraryBooks
+                ? SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: palette.onAccent,
+                    ),
+                  )
+                : const Icon(Icons.delete_outline_rounded, size: 18),
+            label: const Text('Удалить'),
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.red.shade600,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLibraryPage(LibraryStatusFilter status) {
+    final books = _filteredLibraryBooks(_books, statusOverride: status);
+    return RefreshIndicator(
+      color: context.palette.accent,
+      onRefresh: () => _loadBooks(reset: true),
+      child: books.isEmpty
+          ? ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: EdgeInsets.zero,
+              children: [
+                SizedBox(
+                  height: MediaQuery.sizeOf(context).height * 0.45,
+                  child: _buildEmptyState(),
+                ),
+              ],
+            )
+          : _buildBooksGrid(books: books),
+    );
+  }
+
+  Widget _buildLibraryStatusTabs() {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildLibraryStatusTab(
+            status: LibraryStatusFilter.reading,
+            icon: Icons.menu_book_rounded,
+            label: 'Читаю',
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _buildLibraryStatusTab(
+            status: LibraryStatusFilter.wantToRead,
+            icon: Icons.bookmark_border_rounded,
+            label: 'Хочу',
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _buildLibraryStatusTab(
+            status: LibraryStatusFilter.finished,
+            icon: Icons.done_all_rounded,
+            label: 'Прочитано',
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLibraryStatusTab({
+    required LibraryStatusFilter status,
+    required IconData icon,
+    required String label,
+  }) {
+    final palette = context.palette;
+    final selected = _libraryStatusFilter == status;
+    final count = _libraryStatusCount(status);
+    return SizedBox(
+      height: 44,
+      child: selected
+          ? FilledButton.icon(
+              onPressed: () {},
+              icon: Icon(icon, size: 17),
+              label: FittedBox(child: Text('$label $count')),
+              style: FilledButton.styleFrom(
+                backgroundColor: palette.accent,
+                foregroundColor: palette.onAccent,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            )
+          : OutlinedButton.icon(
+              onPressed: () => _selectLibraryStatus(status),
+              icon: Icon(icon, size: 17),
+              label: FittedBox(child: Text('$label $count')),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: palette.mutedText,
+                side: BorderSide(color: palette.border),
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
     );
   }
 
@@ -999,11 +1445,17 @@ class _HomeScreenState extends State<HomeScreen>
     _sortDirection = SortDirection.descending;
     _searchQuery = '';
     _isSearching = false;
+    _isSearchExpanded = false;
+    _libraryStatusFilter = LibraryStatusFilter.reading;
+    _selectedLibraryBookIds.clear();
   }
 
-  Widget _buildBooksGrid() {
+  Widget _buildBooksGrid({List<dynamic>? books}) {
+    final visibleBooks = books ?? _filteredBooks;
+    final useCatalogPaging = books == null && !widget.libraryOnly;
     return GridView.builder(
-      controller: _scrollController,
+      controller: useCatalogPaging ? _scrollController : null,
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
@@ -1011,9 +1463,10 @@ class _HomeScreenState extends State<HomeScreen>
         crossAxisSpacing: 14,
         mainAxisSpacing: 18,
       ),
-      itemCount: _filteredBooks.length + (_isLoadingMore ? 2 : 0),
+      itemCount:
+          visibleBooks.length + (useCatalogPaging && _isLoadingMore ? 2 : 0),
       itemBuilder: (context, index) {
-        if (index >= _filteredBooks.length) {
+        if (index >= visibleBooks.length) {
           return Center(
             child: CircularProgressIndicator(
               color: context.palette.accent,
@@ -1029,7 +1482,7 @@ class _HomeScreenState extends State<HomeScreen>
               scale: value,
               child: Opacity(
                 opacity: value,
-                child: _buildBookCard(_filteredBooks[index]),
+                child: _buildBookCard(visibleBooks[index]),
               ),
             );
           },
@@ -1045,9 +1498,19 @@ class _HomeScreenState extends State<HomeScreen>
         .toString();
     final ratingsCount = _bookRatingsCount(book);
     final availability = _bookAvailability(book);
+    final isSelected = _selectedLibraryBookIds.contains(bookId);
 
     return GestureDetector(
-      onTap: () => _openBookDetail(bookId),
+      onLongPress: widget.libraryOnly
+          ? () => _toggleLibrarySelection(bookId)
+          : null,
+      onTap: () {
+        if (widget.libraryOnly && _selectedLibraryBookIds.isNotEmpty) {
+          _toggleLibrarySelection(bookId);
+          return;
+        }
+        _openBookDetail(bookId);
+      },
       child: Hero(
         tag: 'book-$bookId',
         child: Container(
@@ -1064,7 +1527,10 @@ class _HomeScreenState extends State<HomeScreen>
                 palette.surface.withValues(alpha: palette.isDark ? 0.08 : 0.58),
               ],
             ),
-            border: Border.all(color: palette.border, width: 1.5),
+            border: Border.all(
+              color: isSelected ? palette.accent : palette.border,
+              width: isSelected ? 2.4 : 1.5,
+            ),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.3),
@@ -1073,179 +1539,225 @@ class _HomeScreenState extends State<HomeScreen>
               ),
             ],
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Stack(
             children: [
-              // Cover image
-              Flexible(
-                flex: 5,
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(24),
-                    ),
-                    gradient: LinearGradient(
-                      colors: [
-                        palette.text.withValues(
-                          alpha: palette.isDark ? 0.03 : 0.10,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Cover image
+                  Flexible(
+                    flex: 5,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(24),
                         ),
-                        palette.text.withValues(
-                          alpha: palette.isDark ? 0.01 : 0.04,
-                        ),
-                      ],
-                    ),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(24),
-                    ),
-                    child:
-                        book['coverUrl'] != null &&
-                            book['coverUrl'].toString().isNotEmpty
-                        ? Image.network(
-                            ApiConstants.getCoverUrl(book['coverUrl']),
-                            width: double.infinity,
-                            fit: BoxFit.cover,
-                            loadingBuilder: (context, child, loadingProgress) {
-                              if (loadingProgress == null) return child;
-                              return Container(
-                                color: palette.surface.withValues(alpha: 0.28),
-                                child: Center(
-                                  child: CircularProgressIndicator(
-                                    value:
-                                        loadingProgress.expectedTotalBytes !=
-                                            null
-                                        ? loadingProgress
-                                                  .cumulativeBytesLoaded /
-                                              loadingProgress
-                                                  .expectedTotalBytes!
-                                        : null,
-                                    color: palette.accent,
-                                    strokeWidth: 2,
-                                  ),
-                                ),
-                              );
-                            },
-                            errorBuilder: (context, error, stackTrace) {
-                              debugPrint('❌ Ошибка загрузки обложки: $error');
-                              debugPrint(
-                                '📍 URL: ${ApiConstants.getCoverUrl(book['coverUrl'])}',
-                              );
-                              return _buildPlaceholder();
-                            },
-                          )
-                        : _buildPlaceholder(),
-                  ),
-                ),
-              ),
-
-              // Book info
-              Flexible(
-                flex: 5,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Flexible(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              book['title'] ?? 'Без названия',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: palette.text,
-                                letterSpacing: 0.3,
-                                height: 1.15,
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
+                        gradient: LinearGradient(
+                          colors: [
+                            palette.text.withValues(
+                              alpha: palette.isDark ? 0.03 : 0.10,
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              authorLabel(book['author']),
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: palette.mutedText,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 8),
-                            Wrap(
-                              spacing: 6,
-                              runSpacing: 6,
-                              children: [
-                                _buildTag(
-                                  _availabilityLabel(availability),
-                                  color: _availabilityColor(availability),
-                                ),
-                                if (rating != '0')
-                                  _buildTag(
-                                    '${double.tryParse(rating)?.toStringAsFixed(1) ?? rating} ★',
-                                  ),
-                                if (ratingsCount > 0)
-                                  _buildTag(_formatRatingsCount(ratingsCount)),
-                              ],
+                            palette.text.withValues(
+                              alpha: palette.isDark ? 0.01 : 0.04,
                             ),
                           ],
                         ),
                       ),
-                      GestureDetector(
-                        onTap: () => _openBookPrimaryAction(book),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            gradient: _isUsableAvailability(availability)
-                                ? palette.accentGradient
-                                : LinearGradient(
-                                    colors: [
-                                      palette.text.withValues(alpha: 0.08),
-                                      palette.text.withValues(alpha: 0.04),
-                                    ],
-                                  ),
-                            borderRadius: BorderRadius.circular(10),
-                            boxShadow: [
-                              BoxShadow(
-                                color: palette.accent.withValues(alpha: 0.24),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.play_arrow_rounded,
-                                size: 16,
-                                color: palette.onAccent,
-                              ),
-                              const SizedBox(width: 5),
-                              Text(
-                                _isUsableAvailability(availability)
-                                    ? 'Открыть'
-                                    : 'Детали',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: palette.onAccent,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
+                      child: ClipRRect(
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(24),
                         ),
+                        child:
+                            book['coverUrl'] != null &&
+                                book['coverUrl'].toString().isNotEmpty
+                            ? Image.network(
+                                ApiConstants.getCoverUrl(book['coverUrl']),
+                                width: double.infinity,
+                                fit: BoxFit.cover,
+                                loadingBuilder:
+                                    (context, child, loadingProgress) {
+                                      if (loadingProgress == null) return child;
+                                      return Container(
+                                        color: palette.surface.withValues(
+                                          alpha: 0.28,
+                                        ),
+                                        child: Center(
+                                          child: CircularProgressIndicator(
+                                            value:
+                                                loadingProgress
+                                                        .expectedTotalBytes !=
+                                                    null
+                                                ? loadingProgress
+                                                          .cumulativeBytesLoaded /
+                                                      loadingProgress
+                                                          .expectedTotalBytes!
+                                                : null,
+                                            color: palette.accent,
+                                            strokeWidth: 2,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                errorBuilder: (context, error, stackTrace) {
+                                  debugPrint(
+                                    '❌ Ошибка загрузки обложки: $error',
+                                  );
+                                  debugPrint(
+                                    '📍 URL: ${ApiConstants.getCoverUrl(book['coverUrl'])}',
+                                  );
+                                  return _buildPlaceholder();
+                                },
+                              )
+                            : _buildPlaceholder(),
                       ),
-                    ],
+                    ),
+                  ),
+
+                  // Book info
+                  Flexible(
+                    flex: 5,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Flexible(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  book['title'] ?? 'Без названия',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: palette.text,
+                                    letterSpacing: 0.3,
+                                    height: 1.15,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  authorLabel(book['author']),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: palette.mutedText,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 8),
+                                Wrap(
+                                  spacing: 6,
+                                  runSpacing: 6,
+                                  children: [
+                                    _buildTag(
+                                      _availabilityLabel(availability),
+                                      color: _availabilityColor(availability),
+                                    ),
+                                    if (rating != '0')
+                                      _buildTag(
+                                        '${double.tryParse(rating)?.toStringAsFixed(1) ?? rating} ★',
+                                      ),
+                                    if (ratingsCount > 0)
+                                      _buildTag(
+                                        _formatRatingsCount(ratingsCount),
+                                      ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: () {
+                              if (widget.libraryOnly &&
+                                  _selectedLibraryBookIds.isNotEmpty) {
+                                _toggleLibrarySelection(bookId);
+                                return;
+                              }
+                              _openBookPrimaryAction(book);
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                gradient: _isUsableAvailability(availability)
+                                    ? palette.accentGradient
+                                    : LinearGradient(
+                                        colors: [
+                                          palette.text.withValues(alpha: 0.08),
+                                          palette.text.withValues(alpha: 0.04),
+                                        ],
+                                      ),
+                                borderRadius: BorderRadius.circular(10),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: palette.accent.withValues(
+                                      alpha: 0.24,
+                                    ),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.play_arrow_rounded,
+                                    size: 16,
+                                    color: palette.onAccent,
+                                  ),
+                                  const SizedBox(width: 5),
+                                  Text(
+                                    _isUsableAvailability(availability)
+                                        ? 'Открыть'
+                                        : 'Детали',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: palette.onAccent,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              if (isSelected)
+                Positioned(
+                  top: 10,
+                  right: 10,
+                  child: Container(
+                    width: 30,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      color: palette.accent,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.25),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      Icons.check_rounded,
+                      color: palette.onAccent,
+                      size: 20,
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
         ),
@@ -1283,6 +1795,10 @@ class _HomeScreenState extends State<HomeScreen>
 
   bool _hasTextAvailability(String availability) {
     return availability == 'TEXT' || availability == 'SYNCED';
+  }
+
+  bool _hasAudioAvailability(String availability) {
+    return availability == 'AUDIO' || availability == 'SYNCED';
   }
 
   String _availabilityLabel(String availability) {

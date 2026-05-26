@@ -3,11 +3,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:ebookreader/models/book_annotation.dart';
+import 'package:ebookreader/models/community_review.dart';
+import 'package:ebookreader/models/favorite_quote.dart';
 import 'package:ebookreader/models/lookup_result.dart';
 import 'package:ebookreader/screens/audio/audio_player_screen.dart';
 import 'package:ebookreader/services/annotation_service.dart';
 import 'package:ebookreader/services/book_service.dart';
 import 'package:ebookreader/services/bookmark_service.dart';
+import 'package:ebookreader/services/community_service.dart';
 import 'package:ebookreader/services/lookup_service.dart';
 import 'package:ebookreader/theme/app_theme.dart';
 
@@ -41,6 +44,7 @@ class _ReaderScreenState extends State<ReaderScreen>
   final BookService _bookService = BookService();
   final BookmarkService _bookmarkService = BookmarkService();
   final AnnotationService _annotationService = AnnotationService();
+  final CommunityService _communityService = CommunityService();
   final LookupService _lookupService = LookupService();
   final ScrollController _scrollController = ScrollController();
 
@@ -66,6 +70,7 @@ class _ReaderScreenState extends State<ReaderScreen>
   Timer? _progressSaveTimer;
   bool _restoredInitialScroll = false;
   late AnimationController _animController;
+  static const int _maxQuoteWords = 120;
 
   @override
   void initState() {
@@ -257,6 +262,58 @@ class _ReaderScreenState extends State<ReaderScreen>
     } catch (e) {
       _showError('Ошибка сохранения выделения: $e');
     }
+  }
+
+  Future<void> _publishSelectedQuote() async {
+    final selection = _selection;
+    final content = _chapter?['content']?.toString() ?? '';
+    if (selection == null ||
+        _selectedText.isEmpty ||
+        selection.end > content.length) {
+      return;
+    }
+    if (_wordCount(_selectedText) > _maxQuoteWords) {
+      _showError('Цитата не может быть длиннее $_maxQuoteWords слов');
+      return;
+    }
+
+    try {
+      final annotation = await _annotationService.createAnnotation(
+        token: widget.token,
+        bookId: widget.bookId,
+        chapterOrder: _currentChapter,
+        startOffset: selection.start,
+        endOffset: selection.end,
+        highlightedText: content.substring(selection.start, selection.end),
+        color: '#FFD166',
+      );
+      await _communityService.publishQuote(
+        token: widget.token,
+        bookId: widget.bookId,
+        annotationId: annotation.id,
+      );
+      if (!mounted) return;
+      setState(() {
+        _annotations = [..._annotations, annotation]
+          ..sort((a, b) => a.startOffset.compareTo(b.startOffset));
+        _selection = null;
+        _selectedText = '';
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Цитата опубликована'),
+          backgroundColor: context.palette.success,
+        ),
+      );
+    } catch (e) {
+      _showError('Ошибка публикации цитаты: $e');
+    }
+  }
+
+  int _wordCount(String text) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return 0;
+    return trimmed.split(RegExp(r'\s+')).length;
   }
 
   Future<void> _openLookupSheet() async {
@@ -878,6 +935,7 @@ class _ReaderScreenState extends State<ReaderScreen>
               ),
             )
           : GestureDetector(
+              behavior: HitTestBehavior.opaque,
               onTap: _toggleControls,
               child: Container(
                 decoration: BoxDecoration(
@@ -999,6 +1057,37 @@ class _ReaderScreenState extends State<ReaderScreen>
                                     color: palette.border,
                                   ),
                                   TextButton.icon(
+                                    onPressed:
+                                        _wordCount(_selectedText) <=
+                                            _maxQuoteWords
+                                        ? _publishSelectedQuote
+                                        : null,
+                                    icon: Icon(
+                                      Icons.format_quote_rounded,
+                                      color:
+                                          _wordCount(_selectedText) <=
+                                              _maxQuoteWords
+                                          ? palette.accent
+                                          : palette.mutedText,
+                                    ),
+                                    label: Text(
+                                      'Цитата',
+                                      style: TextStyle(
+                                        color:
+                                            _wordCount(_selectedText) <=
+                                                _maxQuoteWords
+                                            ? palette.text
+                                            : palette.mutedText,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                  Container(
+                                    width: 1,
+                                    height: 28,
+                                    color: palette.border,
+                                  ),
+                                  TextButton.icon(
                                     onPressed: _isLookupLoading
                                         ? null
                                         : _openLookupSheet,
@@ -1071,77 +1160,25 @@ class _ReaderScreenState extends State<ReaderScreen>
                               child: SafeArea(
                                 top: false,
                                 child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
                                   children: [
-                                    // Previous button
                                     Expanded(
-                                      child: Container(
-                                        height: 50,
-                                        decoration: BoxDecoration(
-                                          gradient: _currentChapter > 1
-                                              ? LinearGradient(
-                                                  colors: [
-                                                    palette.text.withValues(
-                                                      alpha: palette.isDark
-                                                          ? 0.10
-                                                          : 0.08,
-                                                    ),
-                                                    palette.text.withValues(
-                                                      alpha: palette.isDark
-                                                          ? 0.05
-                                                          : 0.04,
-                                                    ),
-                                                  ],
-                                                )
-                                              : null,
-                                          color: _currentChapter <= 1
-                                              ? palette.text.withValues(
-                                                  alpha: palette.isDark
-                                                      ? 0.03
-                                                      : 0.05,
-                                                )
-                                              : null,
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          border: Border.all(
-                                            color: palette.border,
-                                            width: 1.5,
-                                          ),
-                                        ),
-                                        child: ElevatedButton.icon(
-                                          onPressed: _currentChapter > 1
-                                              ? _prevChapter
-                                              : null,
-                                          icon: const Icon(
-                                            Icons.arrow_back_rounded,
-                                          ),
-                                          label: const Text('Назад'),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: Colors.transparent,
-                                            shadowColor: Colors.transparent,
-                                            foregroundColor: _currentChapter > 1
-                                                ? palette.text
-                                                : palette.mutedText.withValues(
-                                                    alpha: 0.45,
-                                                  ),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(12),
-                                            ),
-                                          ),
-                                        ),
+                                      child: _buildChapterNavButton(
+                                        icon: Icons.arrow_back_rounded,
+                                        label: 'Назад',
+                                        enabled: _currentChapter > 1,
+                                        accent: false,
+                                        onPressed: _prevChapter,
                                       ),
                                     ),
-
-                                    // Chapter counter
                                     Padding(
                                       padding: const EdgeInsets.symmetric(
-                                        horizontal: 16,
+                                        horizontal: 12,
                                       ),
                                       child: Container(
                                         padding: const EdgeInsets.symmetric(
-                                          horizontal: 16,
-                                          vertical: 8,
+                                          horizontal: 14,
+                                          vertical: 12,
                                         ),
                                         decoration: BoxDecoration(
                                           gradient: palette.accentGradient,
@@ -1159,70 +1196,14 @@ class _ReaderScreenState extends State<ReaderScreen>
                                         ),
                                       ),
                                     ),
-
-                                    // Next button
                                     Expanded(
-                                      child: Container(
-                                        height: 50,
-                                        decoration: BoxDecoration(
-                                          gradient:
-                                              _currentChapter < _totalChapters
-                                              ? palette.accentGradient
-                                              : null,
-                                          color:
-                                              _currentChapter >= _totalChapters
-                                              ? palette.text.withValues(
-                                                  alpha: palette.isDark
-                                                      ? 0.03
-                                                      : 0.05,
-                                                )
-                                              : null,
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          border:
-                                              _currentChapter >= _totalChapters
-                                              ? Border.all(
-                                                  color: palette.border,
-                                                  width: 1.5,
-                                                )
-                                              : null,
-                                          boxShadow:
-                                              _currentChapter < _totalChapters
-                                              ? [
-                                                  BoxShadow(
-                                                    color: palette.accent
-                                                        .withValues(alpha: 0.3),
-                                                    blurRadius: 15,
-                                                    offset: const Offset(0, 4),
-                                                  ),
-                                                ]
-                                              : null,
-                                        ),
-                                        child: ElevatedButton.icon(
-                                          onPressed:
-                                              _currentChapter < _totalChapters
-                                              ? _nextChapter
-                                              : null,
-                                          icon: const Icon(
-                                            Icons.arrow_forward_rounded,
-                                          ),
-                                          label: const Text('Вперёд'),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: Colors.transparent,
-                                            shadowColor: Colors.transparent,
-                                            foregroundColor:
-                                                _currentChapter < _totalChapters
-                                                ? palette.onAccent
-                                                : palette.mutedText.withValues(
-                                                    alpha: 0.45,
-                                                  ),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(12),
-                                            ),
-                                          ),
-                                        ),
+                                      child: _buildChapterNavButton(
+                                        icon: Icons.arrow_forward_rounded,
+                                        label: 'Вперёд',
+                                        enabled:
+                                            _currentChapter < _totalChapters,
+                                        accent: true,
+                                        onPressed: _nextChapter,
                                       ),
                                     ),
                                   ],
@@ -1287,6 +1268,43 @@ class _ReaderScreenState extends State<ReaderScreen>
       spans.add(TextSpan(text: content.substring(cursor), style: baseStyle));
     }
     return TextSpan(children: spans, style: baseStyle);
+  }
+
+  Widget _buildChapterNavButton({
+    required IconData icon,
+    required String label,
+    required bool enabled,
+    required bool accent,
+    required VoidCallback onPressed,
+  }) {
+    final palette = context.palette;
+    return Container(
+      height: 54,
+      decoration: BoxDecoration(
+        gradient: enabled && accent ? palette.accentGradient : null,
+        color: !enabled || !accent
+            ? palette.text.withValues(alpha: palette.isDark ? 0.05 : 0.08)
+            : null,
+        borderRadius: BorderRadius.circular(12),
+        border: !enabled || !accent ? Border.all(color: palette.border) : null,
+      ),
+      child: ElevatedButton.icon(
+        onPressed: enabled ? onPressed : null,
+        icon: Icon(icon),
+        label: Text(label),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          foregroundColor: enabled
+              ? (accent ? palette.onAccent : palette.text)
+              : palette.mutedText.withValues(alpha: 0.45),
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildAnnotationCard(
@@ -1513,6 +1531,759 @@ class _ReaderScreenState extends State<ReaderScreen>
             ),
           ),
       ],
+    );
+  }
+}
+
+class _ReviewsSheet extends StatefulWidget {
+  final String token;
+  final int bookId;
+  final String bookTitle;
+  final int initialRating;
+  final ValueChanged<int> onRatingChanged;
+
+  const _ReviewsSheet({
+    required this.token,
+    required this.bookId,
+    required this.bookTitle,
+    required this.initialRating,
+    required this.onRatingChanged,
+  });
+
+  @override
+  State<_ReviewsSheet> createState() => _ReviewsSheetState();
+}
+
+class _ReviewsSheetState extends State<_ReviewsSheet> {
+  final CommunityService _service = CommunityService();
+  final TextEditingController _reviewController = TextEditingController();
+  List<CommunityReview> _reviews = [];
+  bool _isLoading = true;
+  bool _isSaving = false;
+  int _rating = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _rating = widget.initialRating;
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _reviewController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    setState(() => _isLoading = true);
+    try {
+      final reviews = await _service.getReviews(widget.token, widget.bookId);
+      final mine = reviews.where((review) => review.currentUserReview).toList();
+      if (mine.isNotEmpty) {
+        _reviewController.text = mine.first.text;
+        _rating = mine.first.rating;
+      }
+      if (!mounted) return;
+      setState(() {
+        _reviews = reviews;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$e'), backgroundColor: context.palette.danger),
+      );
+    }
+  }
+
+  Future<void> _saveReview() async {
+    final text = _reviewController.text.trim();
+    if (_isSaving || text.isEmpty || _rating < 1) return;
+    setState(() => _isSaving = true);
+    try {
+      await _service.saveReview(
+        token: widget.token,
+        bookId: widget.bookId,
+        rating: _rating,
+        text: text,
+      );
+      widget.onRatingChanged(_rating);
+      await _load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('$e'),
+            backgroundColor: context.palette.danger,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  Future<void> _replyTo(int reviewId, {int? parentReplyId}) async {
+    final controller = TextEditingController();
+    final text = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        final palette = context.palette;
+        return AlertDialog(
+          backgroundColor: palette.elevated,
+          title: Text('Ответить', style: TextStyle(color: palette.text)),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            minLines: 3,
+            maxLines: 6,
+            style: TextStyle(color: palette.text),
+            decoration: const InputDecoration(hintText: 'Ваш ответ'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Отмена', style: TextStyle(color: palette.mutedText)),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, controller.text.trim()),
+              child: const Text('Опубликовать'),
+            ),
+          ],
+        );
+      },
+    );
+    controller.dispose();
+    if (text == null || text.isEmpty) return;
+    await _service.createReply(
+      token: widget.token,
+      bookId: widget.bookId,
+      reviewId: reviewId,
+      parentReplyId: parentReplyId,
+      text: text,
+    );
+    await _load();
+  }
+
+  Future<void> _voteReview(CommunityReview review, int vote) async {
+    await _service.voteReview(
+      widget.token,
+      widget.bookId,
+      review.id,
+      review.currentUserVote == vote ? 0 : vote,
+    );
+    await _load();
+  }
+
+  Future<void> _voteReply(CommunityReply reply, int vote) async {
+    await _service.voteReply(
+      widget.token,
+      widget.bookId,
+      reply.id,
+      reply.currentUserVote == vote ? 0 : vote,
+    );
+    await _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.86,
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+      decoration: BoxDecoration(
+        color: palette.elevated,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border.all(color: palette.border),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 42,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: palette.border,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Отзывы',
+              style: TextStyle(
+                color: palette.text,
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 14),
+            _ReviewComposer(
+              controller: _reviewController,
+              rating: _rating,
+              isSaving: _isSaving,
+              onRatingChanged: (rating) => setState(() => _rating = rating),
+              onSave: _saveReview,
+            ),
+            const SizedBox(height: 14),
+            Expanded(
+              child: _isLoading
+                  ? Center(
+                      child: CircularProgressIndicator(color: palette.accent),
+                    )
+                  : _reviews.isEmpty
+                  ? Center(
+                      child: Text(
+                        'Пока нет отзывов.',
+                        style: TextStyle(color: palette.mutedText),
+                      ),
+                    )
+                  : ListView.separated(
+                      itemCount: _reviews.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 12),
+                      itemBuilder: (context, index) {
+                        final review = _reviews[index];
+                        return _ReviewCard(
+                          review: review,
+                          onVote: (vote) => _voteReview(review, vote),
+                          onReply: () => _replyTo(review.id),
+                          onReplyVote: _voteReply,
+                          onReplyToReply: (reply) =>
+                              _replyTo(review.id, parentReplyId: reply.id),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ReviewComposer extends StatelessWidget {
+  final TextEditingController controller;
+  final int rating;
+  final bool isSaving;
+  final ValueChanged<int> onRatingChanged;
+  final VoidCallback onSave;
+
+  const _ReviewComposer({
+    required this.controller,
+    required this.rating,
+    required this.isSaving,
+    required this.onRatingChanged,
+    required this.onSave,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: palette.surface.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: palette.border),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              for (var star = 1; star <= 5; star++)
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () => onRatingChanged(star),
+                  icon: Icon(
+                    star <= rating
+                        ? Icons.star_rounded
+                        : Icons.star_border_rounded,
+                    color: palette.warning,
+                  ),
+                ),
+              const Spacer(),
+              ElevatedButton(
+                onPressed: isSaving ? null : onSave,
+                child: isSaving
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Опубликовать'),
+              ),
+            ],
+          ),
+          TextField(
+            controller: controller,
+            minLines: 2,
+            maxLines: 4,
+            style: TextStyle(color: palette.text),
+            decoration: InputDecoration(
+              hintText: 'Напишите отзыв',
+              hintStyle: TextStyle(color: palette.mutedText),
+              border: InputBorder.none,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReviewCard extends StatelessWidget {
+  final CommunityReview review;
+  final ValueChanged<int> onVote;
+  final VoidCallback onReply;
+  final ValueChanged<CommunityReply> onReplyToReply;
+  final void Function(CommunityReply reply, int vote) onReplyVote;
+
+  const _ReviewCard({
+    required this.review,
+    required this.onVote,
+    required this.onReply,
+    required this.onReplyToReply,
+    required this.onReplyVote,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: palette.surface.withValues(alpha: 0.50),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: palette.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _AuthorRow(
+            nickname: review.nickname,
+            initial: review.avatarInitial,
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (var star = 1; star <= 5; star++)
+                  Icon(
+                    star <= review.rating
+                        ? Icons.star_rounded
+                        : Icons.star_border_rounded,
+                    color: palette.warning,
+                    size: 16,
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          _ExpandableText(review.text),
+          const SizedBox(height: 8),
+          _ActionsRow(
+            likes: review.likes,
+            dislikes: review.dislikes,
+            currentVote: review.currentUserVote,
+            onVote: onVote,
+            onReply: onReply,
+          ),
+          for (final reply in review.replies)
+            _ReplyCard(
+              reply: reply,
+              depth: 1,
+              onVote: onReplyVote,
+              onReply: onReplyToReply,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReplyCard extends StatelessWidget {
+  final CommunityReply reply;
+  final int depth;
+  final void Function(CommunityReply reply, int vote) onVote;
+  final ValueChanged<CommunityReply> onReply;
+
+  const _ReplyCard({
+    required this.reply,
+    required this.depth,
+    required this.onVote,
+    required this.onReply,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Padding(
+      padding: EdgeInsets.only(
+        left: (depth.clamp(1, 4) * 14).toDouble(),
+        top: 10,
+      ),
+      child: Container(
+        padding: const EdgeInsets.only(left: 10),
+        decoration: BoxDecoration(
+          border: Border(left: BorderSide(color: palette.border, width: 2)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _AuthorRow(nickname: reply.nickname, initial: reply.avatarInitial),
+            const SizedBox(height: 8),
+            _ExpandableText(reply.text),
+            _ActionsRow(
+              likes: reply.likes,
+              dislikes: reply.dislikes,
+              currentVote: reply.currentUserVote,
+              onVote: (vote) => onVote(reply, vote),
+              onReply: () => onReply(reply),
+            ),
+            for (final child in reply.replies)
+              _ReplyCard(
+                reply: child,
+                depth: depth + 1,
+                onVote: onVote,
+                onReply: onReply,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ActionsRow extends StatelessWidget {
+  final int likes;
+  final int dislikes;
+  final int currentVote;
+  final ValueChanged<int> onVote;
+  final VoidCallback onReply;
+
+  const _ActionsRow({
+    required this.likes,
+    required this.dislikes,
+    required this.currentVote,
+    required this.onVote,
+    required this.onReply,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Row(
+      children: [
+        IconButton(
+          visualDensity: VisualDensity.compact,
+          onPressed: () => onVote(1),
+          icon: Icon(
+            Icons.thumb_up_alt_rounded,
+            size: 18,
+            color: currentVote == 1 ? palette.accent : palette.mutedText,
+          ),
+        ),
+        Text('$likes', style: TextStyle(color: palette.mutedText)),
+        IconButton(
+          visualDensity: VisualDensity.compact,
+          onPressed: () => onVote(-1),
+          icon: Icon(
+            Icons.thumb_down_alt_rounded,
+            size: 18,
+            color: currentVote == -1 ? palette.danger : palette.mutedText,
+          ),
+        ),
+        Text('$dislikes', style: TextStyle(color: palette.mutedText)),
+        TextButton.icon(
+          onPressed: onReply,
+          icon: Icon(Icons.reply_rounded, size: 18, color: palette.mutedText),
+          label: Text('Ответить', style: TextStyle(color: palette.mutedText)),
+        ),
+      ],
+    );
+  }
+}
+
+class _AuthorRow extends StatelessWidget {
+  final String nickname;
+  final String initial;
+  final Widget? trailing;
+
+  const _AuthorRow({
+    required this.nickname,
+    required this.initial,
+    this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Row(
+      children: [
+        CircleAvatar(
+          radius: 15,
+          backgroundColor: palette.accent.withValues(alpha: 0.18),
+          child: Text(
+            initial.isEmpty ? 'U' : initial[0].toUpperCase(),
+            style: TextStyle(
+              color: palette.accent,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            nickname,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: palette.text, fontWeight: FontWeight.bold),
+          ),
+        ),
+        ?trailing,
+      ],
+    );
+  }
+}
+
+class _ExpandableText extends StatefulWidget {
+  final String text;
+
+  const _ExpandableText(this.text);
+
+  @override
+  State<_ExpandableText> createState() => _ExpandableTextState();
+}
+
+class _ExpandableTextState extends State<_ExpandableText> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final words = widget.text.trim().split(RegExp(r'\s+'));
+    final shouldCut = words.length > 80;
+    final shown = shouldCut && !_expanded
+        ? '${words.take(80).join(' ')}...'
+        : widget.text;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(shown, style: TextStyle(color: palette.text, height: 1.42)),
+        if (shouldCut)
+          TextButton(
+            onPressed: () => setState(() => _expanded = !_expanded),
+            child: Text(
+              _expanded ? 'Скрыть' : 'Показать больше',
+              style: TextStyle(color: palette.accent),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _QuotesSheet extends StatefulWidget {
+  final String token;
+  final int bookId;
+
+  const _QuotesSheet({required this.token, required this.bookId});
+
+  @override
+  State<_QuotesSheet> createState() => _QuotesSheetState();
+}
+
+class _QuotesSheetState extends State<_QuotesSheet> {
+  final CommunityService _service = CommunityService();
+  List<FavoriteQuote> _quotes = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _isLoading = true);
+    try {
+      final quotes = await _service.getBookQuotes(widget.token, widget.bookId);
+      if (!mounted) return;
+      setState(() {
+        _quotes = quotes;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$e'), backgroundColor: context.palette.danger),
+      );
+    }
+  }
+
+  Future<void> _vote(FavoriteQuote quote, int vote) async {
+    await _service.voteQuote(
+      widget.token,
+      widget.bookId,
+      quote.id,
+      quote.currentUserVote == vote ? 0 : vote,
+    );
+    await _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.78,
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+      decoration: BoxDecoration(
+        color: palette.elevated,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border.all(color: palette.border),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 42,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: palette.border,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Цитаты',
+              style: TextStyle(
+                color: palette.text,
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Expanded(
+              child: _isLoading
+                  ? Center(
+                      child: CircularProgressIndicator(color: palette.accent),
+                    )
+                  : _quotes.isEmpty
+                  ? Center(
+                      child: Text(
+                        'Пока нет опубликованных цитат.',
+                        style: TextStyle(color: palette.mutedText),
+                      ),
+                    )
+                  : ListView.separated(
+                      itemCount: _quotes.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 12),
+                      itemBuilder: (context, index) {
+                        final quote = _quotes[index];
+                        return _QuoteCard(
+                          quote: quote,
+                          onVote: (vote) => _vote(quote, vote),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _QuoteCard extends StatefulWidget {
+  final FavoriteQuote quote;
+  final ValueChanged<int> onVote;
+
+  const _QuoteCard({required this.quote, required this.onVote});
+
+  @override
+  State<_QuoteCard> createState() => _QuoteCardState();
+}
+
+class _QuoteCardState extends State<_QuoteCard> {
+  bool _showDetails = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final quote = widget.quote;
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () => setState(() => _showDetails = !_showDetails),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: palette.surface.withValues(alpha: 0.50),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: palette.border),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              quote.text,
+              style: TextStyle(
+                color: palette.text,
+                height: 1.45,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+            if (_showDetails) ...[
+              const SizedBox(height: 10),
+              Text(
+                'Глава ${quote.chapterOrder} · ${quote.nickname}',
+                style: TextStyle(color: palette.mutedText, fontSize: 12),
+              ),
+            ],
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () => widget.onVote(1),
+                  icon: Icon(
+                    Icons.thumb_up_alt_rounded,
+                    color: quote.currentUserVote == 1
+                        ? palette.accent
+                        : palette.mutedText,
+                    size: 18,
+                  ),
+                ),
+                Text(
+                  '${quote.likes}',
+                  style: TextStyle(color: palette.mutedText),
+                ),
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () => widget.onVote(-1),
+                  icon: Icon(
+                    Icons.thumb_down_alt_rounded,
+                    color: quote.currentUserVote == -1
+                        ? palette.danger
+                        : palette.mutedText,
+                    size: 18,
+                  ),
+                ),
+                Text(
+                  '${quote.dislikes}',
+                  style: TextStyle(color: palette.mutedText),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

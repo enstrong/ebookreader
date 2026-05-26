@@ -26,6 +26,7 @@ import scipy.sparse as sparse
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MODEL_DIR = REPO_ROOT / "data/recommendations/experiments/als_reads_20k_f256_i10_lam1p0_validation_split"
 METADATA_CSV = REPO_ROOT / "data/recommendations/hybrid/book_metadata_20k.csv"
+WORK_MAP_CSV = REPO_ROOT / "data/recommendations/hybrid/goodreads_work_map.csv"
 HOST = os.environ.get("RECOMMENDATION_HOST", "127.0.0.1")
 PORT = int(os.environ.get("RECOMMENDATION_PORT", "8001"))
 
@@ -50,15 +51,58 @@ def load_model_artifacts():
     return model, mappings, metadata, model_meta
 
 
+def load_work_map(path: Path) -> tuple[dict[int, str], dict[str, list[int]]]:
+    if not path.exists():
+        return {}, {}
+
+    book_to_work: dict[int, str] = {}
+    work_to_books: dict[str, list[int]] = {}
+    with path.open("r", encoding="utf-8", newline="") as file:
+        for row in pd.read_csv(file, usecols=["goodreads_book_id", "work_id"], chunksize=250_000):
+            for book_id, work_id in zip(row["goodreads_book_id"], row["work_id"]):
+                try:
+                    book_id_int = int(book_id)
+                except (TypeError, ValueError):
+                    continue
+                work_id_str = "" if pd.isna(work_id) else str(work_id).strip()
+                if not work_id_str:
+                    continue
+                book_to_work[book_id_int] = work_id_str
+                work_to_books.setdefault(work_id_str, []).append(book_id_int)
+    return book_to_work, work_to_books
+
+
 MODEL, MAPPINGS, METADATA, MODEL_META = load_model_artifacts()
 BOOK_TO_IDX = {int(k): int(v) for k, v in MAPPINGS["book_to_idx"].items()}
 IDX_TO_BOOK = {int(k): int(v) for k, v in MAPPINGS["idx_to_book"].items()}
 N_ITEMS = len(BOOK_TO_IDX)
 META_FRAME = pd.read_csv(METADATA_CSV)
+BOOK_TO_WORK, WORK_TO_BOOKS = load_work_map(WORK_MAP_CSV)
 POPULAR_BOOK_IDS = META_FRAME.sort_values(
     ["ratings_count", "average_rating"],
     ascending=[False, False],
 )["goodreads_book_id"].astype(int).tolist()
+MODEL_BOOK_IDS_BY_WORK: dict[str, list[int]] = {}
+MODEL_BOOK_RATING_COUNT = {
+    int(row.goodreads_book_id): int(row.ratings_count or 0)
+    for row in META_FRAME.itertuples(index=False)
+}
+for model_book_id in BOOK_TO_IDX:
+    work_id = BOOK_TO_WORK.get(model_book_id)
+    if work_id:
+        MODEL_BOOK_IDS_BY_WORK.setdefault(work_id, []).append(model_book_id)
+for model_book_ids in MODEL_BOOK_IDS_BY_WORK.values():
+    model_book_ids.sort(key=lambda book_id: MODEL_BOOK_RATING_COUNT.get(book_id, 0), reverse=True)
+
+
+def model_book_for(book_id: int) -> int | None:
+    if book_id in BOOK_TO_IDX:
+        return book_id
+    work_id = BOOK_TO_WORK.get(book_id)
+    if not work_id:
+        return None
+    candidates = MODEL_BOOK_IDS_BY_WORK.get(work_id) or []
+    return candidates[0] if candidates else None
 
 
 def explicit_signal(rating: float, user_mean: float) -> float:
@@ -77,26 +121,34 @@ def one_book_five_star_signal() -> float:
     return explicit_signal(5.0, user_mean)
 
 
-def normalize_interactions(raw: list[dict]) -> list[tuple[int, float]]:
+def normalize_interactions(raw: list[dict]) -> tuple[list[tuple[int, float]], set[int], set[str]]:
     ratings = [
         float(item.get("rating") or 0)
         for item in raw
         if float(item.get("rating") or 0) > 0
     ]
     user_mean = sum(ratings) / len(ratings) if ratings else 0.0
-    sources: list[tuple[int, float]] = []
+    signal_by_book_id: dict[int, float] = {}
+    blocked_book_ids: set[int] = set()
+    blocked_work_ids: set[str] = set()
 
     for item in raw:
         try:
-            book_id = int(
+            raw_book_id = int(
                 item.get("goodreadsBookId")
                 or item.get("goodreads_book_id")
                 or item.get("goodreadsId")
             )
         except (TypeError, ValueError):
             continue
-        if book_id not in BOOK_TO_IDX:
+
+        work_id = BOOK_TO_WORK.get(raw_book_id)
+        if work_id:
+            blocked_work_ids.add(work_id)
+        book_id = model_book_for(raw_book_id)
+        if book_id is None:
             continue
+        blocked_book_ids.add(book_id)
 
         rating = float(item.get("rating") or 0)
         status = str(item.get("status") or "").upper()
@@ -115,10 +167,11 @@ def normalize_interactions(raw: list[dict]) -> list[tuple[int, float]]:
             signal = 0.4
 
         if signal > 0:
-            sources.append((book_id, signal))
+            signal_by_book_id[book_id] = max(signal_by_book_id.get(book_id, 0.0), signal)
 
+    sources = list(signal_by_book_id.items())
     sources.sort(key=lambda pair: pair[1], reverse=True)
-    return sources[:50]
+    return sources[:50], blocked_book_ids, blocked_work_ids
 
 
 def fake_user_row(sources: list[tuple[int, float]]) -> sparse.csr_matrix:
@@ -145,7 +198,15 @@ def reason_for(candidate_id: int, sources: list[tuple[int, float]]) -> str:
     return "Понравилось похожим читателям"
 
 
-def recommend_from_sources(sources: list[tuple[int, float]], limit: int, candidate_pool: int = 500) -> dict:
+def recommend_from_sources(
+    sources: list[tuple[int, float]],
+    limit: int,
+    candidate_pool: int = 500,
+    blocked_book_ids: set[int] | None = None,
+    blocked_work_ids: set[str] | None = None,
+) -> dict:
+    blocked_book_ids = blocked_book_ids or set()
+    blocked_work_ids = blocked_work_ids or set()
     if not sources:
         return {
             "recommendations": popular_fallback(limit),
@@ -157,7 +218,7 @@ def recommend_from_sources(sources: list[tuple[int, float]], limit: int, candida
     item_indices, als_scores = MODEL.recommend(
         0,
         user_row,
-        N=max(candidate_pool, limit),
+        N=max(candidate_pool + len(blocked_book_ids), limit),
         filter_already_liked_items=True,
         recalculate_user=True,
     )
@@ -167,9 +228,14 @@ def recommend_from_sources(sources: list[tuple[int, float]], limit: int, candida
     final_scores = CONFIG.alpha * minmax(als_scores) + (1.0 - CONFIG.alpha) * minmax(content_scores)
     order = np.argsort(-final_scores, kind="stable")
     rows = []
-    for offset in order[:limit]:
+    for offset in order:
         item_idx = int(item_indices[offset])
         book_id = int(IDX_TO_BOOK[item_idx])
+        if book_id in blocked_book_ids:
+            continue
+        work_id = BOOK_TO_WORK.get(book_id)
+        if work_id and work_id in blocked_work_ids:
+            continue
         rows.append(
             {
                 "goodreadsBookId": book_id,
@@ -179,6 +245,8 @@ def recommend_from_sources(sources: list[tuple[int, float]], limit: int, candida
                 "reason": reason_for(book_id, sources),
             }
         )
+        if len(rows) >= limit:
+            break
     return {
         "recommendations": rows,
         "sourceCount": len(sources),
@@ -202,9 +270,16 @@ def popular_fallback(limit: int) -> list[dict]:
 
 
 def similar_for_book(book_id: int, limit: int) -> dict:
-    if book_id not in BOOK_TO_IDX:
+    model_book_id = model_book_for(book_id)
+    if model_book_id is None:
         return {"similar": [], "sourceCount": 0, "model": "hybrid_als_metadata"}
-    result = recommend_from_sources([(book_id, one_book_five_star_signal())], limit)
+    blocked_work_ids = {BOOK_TO_WORK[book_id]} if book_id in BOOK_TO_WORK else set()
+    result = recommend_from_sources(
+        [(model_book_id, one_book_five_star_signal())],
+        limit,
+        blocked_book_ids={model_book_id},
+        blocked_work_ids=blocked_work_ids,
+    )
     return {
         "similar": result["recommendations"],
         "sourceCount": 1,
@@ -223,7 +298,7 @@ class Handler(BaseHTTPRequestHandler):
             except ValueError:
                 self.write_json({"similar": []}, status=400)
                 return
-            self.write_json(similar_for_book(book_id, min(max(limit, 1), 100)))
+            self.write_json(similar_for_book(book_id, min(max(limit, 1), 500)))
             return
         if parsed.path == "/health":
             self.write_json({"status": "ok", "model": "hybrid_als_metadata"})
@@ -241,7 +316,15 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path in {"/recommend", "/preview"}:
             limit = int(payload.get("limit") or 50)
             interactions = payload.get("interactions") or []
-            self.write_json(recommend_from_sources(normalize_interactions(interactions), min(max(limit, 1), 100)))
+            sources, blocked_book_ids, blocked_work_ids = normalize_interactions(interactions)
+            self.write_json(
+                recommend_from_sources(
+                    sources,
+                    min(max(limit, 1), 500),
+                    blocked_book_ids=blocked_book_ids,
+                    blocked_work_ids=blocked_work_ids,
+                )
+            )
             return
         self.write_json({"message": "Not found"}, status=404)
 

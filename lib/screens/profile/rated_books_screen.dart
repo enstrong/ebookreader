@@ -258,6 +258,7 @@ class _RatedBooksScreenState extends State<RatedBooksScreen> {
     final ratingDate = _dateText(book['ratingDate'] ?? book['ratedAt']);
     final averageRating = _asDouble(book['averageRating']);
     final ratingsCount = _asInt(book['ratingsCount']);
+    final reviewText = (book['reviewText'] ?? '').toString().trim();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -308,6 +309,19 @@ class _RatedBooksScreenState extends State<RatedBooksScreen> {
                       ),
                       const SizedBox(height: 12),
                       _buildStars(rating),
+                      if (reviewText.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        Text(
+                          reviewText,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: palette.text.withValues(alpha: 0.78),
+                            height: 1.35,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 12),
                       Wrap(
                         spacing: 8,

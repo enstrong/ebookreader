@@ -12,8 +12,11 @@ import com.example.ebookreader.model.BookAnnotation;
 
 @Repository
 public interface BookAnnotationRepository extends JpaRepository<BookAnnotation, Long> {
+    List<BookAnnotation> findByUserIdOrderByUpdatedAtDesc(Long userId);
     List<BookAnnotation> findByUserIdAndBookIdOrderByChapterOrderAscStartOffsetAsc(Long userId, Long bookId);
     List<BookAnnotation> findByUserIdAndBookIdAndChapterOrderOrderByStartOffsetAsc(Long userId, Long bookId, Integer chapterOrder);
+    List<BookAnnotation> findByBookIdAndPublishedQuoteTrueOrderByPublishedQuoteAtDescCreatedAtDesc(Long bookId);
+    List<BookAnnotation> findByUserIdAndPublishedQuoteTrueOrderByPublishedQuoteAtDescCreatedAtDesc(Long userId);
     Optional<BookAnnotation> findByIdAndUserIdAndBookId(Long id, Long userId, Long bookId);
 
     @Modifying

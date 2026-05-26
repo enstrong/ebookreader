@@ -162,28 +162,26 @@ class _RegisterScreenState extends State<RegisterScreen>
                               shape: BoxShape.circle,
                               gradient: LinearGradient(
                                 colors: [
-                                  const Color(
-                                    0xFF14FFEC,
-                                  ).withValues(alpha: 0.3),
-                                  const Color(
-                                    0xFF0D7377,
-                                  ).withValues(alpha: 0.2),
+                                  palette.accent.withValues(alpha: 0.22),
+                                  palette.secondaryAccent.withValues(
+                                    alpha: 0.16,
+                                  ),
                                 ],
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(
-                                    0xFF14FFEC,
-                                  ).withValues(alpha: 0.3),
-                                  blurRadius: 40,
-                                  spreadRadius: 5,
+                                  color: palette.accent.withValues(
+                                    alpha: palette.isDark ? 0.28 : 0.16,
+                                  ),
+                                  blurRadius: 36,
+                                  spreadRadius: 2,
                                 ),
                               ],
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.person_add_rounded,
                               size: 56,
-                              color: Color(0xFF14FFEC),
+                              color: palette.accent,
                             ),
                           ),
 
@@ -191,15 +189,14 @@ class _RegisterScreenState extends State<RegisterScreen>
 
                           // Title
                           ShaderMask(
-                            shaderCallback: (bounds) => const LinearGradient(
-                              colors: [Color(0xFF14FFEC), Color(0xFF0D7377)],
-                            ).createShader(bounds),
-                            child: const Text(
+                            shaderCallback: (bounds) =>
+                                palette.accentGradient.createShader(bounds),
+                            child: Text(
                               'Регистрация',
                               style: TextStyle(
                                 fontSize: 32,
                                 fontWeight: FontWeight.bold,
-                                color: Colors.white,
+                                color: palette.onAccent,
                                 letterSpacing: 1.2,
                               ),
                             ),
@@ -211,7 +208,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                             'Присоединяйтесь к нашему сообществу читателей',
                             style: TextStyle(
                               fontSize: 15,
-                              color: Colors.white.withValues(alpha: 0.6),
+                              color: palette.mutedText,
                             ),
                           ),
 
@@ -336,25 +333,28 @@ class _RegisterScreenState extends State<RegisterScreen>
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.transparent,
                                 shadowColor: Colors.transparent,
+                                foregroundColor: palette.onAccent,
+                                disabledForegroundColor: palette.onAccent
+                                    .withValues(alpha: 0.72),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(16),
                                 ),
                               ),
                               child: _isLoading
-                                  ? const SizedBox(
+                                  ? SizedBox(
                                       height: 24,
                                       width: 24,
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2.5,
-                                        color: Colors.white,
+                                        color: palette.onAccent,
                                       ),
                                     )
-                                  : const Text(
+                                  : Text(
                                       'Зарегистрироваться',
                                       style: TextStyle(
                                         fontSize: 18,
                                         fontWeight: FontWeight.w600,
-                                        color: Colors.white,
+                                        color: palette.onAccent,
                                         letterSpacing: 0.5,
                                       ),
                                     ),
@@ -407,23 +407,22 @@ class _RegisterScreenState extends State<RegisterScreen>
     TextInputType? keyboardType,
     String? Function(String?)? validator,
   }) {
+    final palette = context.palette;
+
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         gradient: LinearGradient(
           colors: [
-            Colors.white.withValues(alpha: 0.05),
-            Colors.white.withValues(alpha: 0.02),
+            palette.elevated.withValues(alpha: palette.isDark ? 0.20 : 0.90),
+            palette.surface.withValues(alpha: palette.isDark ? 0.12 : 0.72),
           ],
         ),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.1),
-          width: 1.5,
-        ),
+        border: Border.all(color: palette.border, width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 10,
+            color: Colors.black.withValues(alpha: palette.isDark ? 0.14 : 0.06),
+            blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
@@ -432,24 +431,22 @@ class _RegisterScreenState extends State<RegisterScreen>
         controller: controller,
         obscureText: obscureText,
         keyboardType: keyboardType,
-        style: const TextStyle(color: Colors.white, fontSize: 16),
+        cursorColor: palette.accent,
+        style: TextStyle(color: palette.text, fontSize: 16),
         decoration: InputDecoration(
           labelText: label,
           labelStyle: TextStyle(
-            color: Colors.white.withValues(alpha: 0.6),
+            color: palette.mutedText,
             fontSize: 14,
           ),
-          prefixIcon: Icon(
-            icon,
-            color: const Color(0xFF14FFEC).withValues(alpha: 0.7),
-          ),
+          prefixIcon: Icon(icon, color: palette.accent.withValues(alpha: 0.72)),
           suffixIcon: suffixIcon,
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 20,
             vertical: 18,
           ),
-          errorStyle: const TextStyle(color: Color(0xFFFF6B9D)),
+          errorStyle: TextStyle(color: palette.danger),
         ),
         validator: validator,
       ),

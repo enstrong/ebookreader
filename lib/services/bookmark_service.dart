@@ -66,6 +66,34 @@ class BookmarkService {
     }
   }
 
+  /// Удаляет книгу из библиотеки, не стирая оценку или отзыв пользователя.
+  Future<void> removeFromLibrary(String token, int bookId) async {
+    try {
+      print('=== REMOVE FROM LIBRARY ===');
+      print('URL: ${ApiConstants.baseUrl}/user/books/$bookId/library');
+
+      final response = await http.delete(
+        Uri.parse('${ApiConstants.baseUrl}/user/books/$bookId/library'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      print('Status: ${response.statusCode}');
+      print('Body: ${response.body}');
+
+      if (response.statusCode != 200) {
+        throw Exception(
+          'Ошибка удаления из библиотеки: ${response.statusCode}',
+        );
+      }
+    } catch (e) {
+      print('Error in removeFromLibrary: $e');
+      rethrow;
+    }
+  }
+
   /// Возвращает список книг, добавленных пользователем в закладки.
   ///
   /// Отправляет GET-запрос на `/user/books/bookmarks`.
@@ -162,6 +190,36 @@ class BookmarkService {
       );
     } catch (e) {
       print('Error in updateRating: $e');
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> markAsRead(String token, int bookId) async {
+    try {
+      print('=== MARK AS READ ===');
+      print('URL: ${ApiConstants.baseUrl}/user/books/$bookId/finish');
+
+      final response = await http.post(
+        Uri.parse('${ApiConstants.baseUrl}/user/books/$bookId/finish'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      print('Status: ${response.statusCode}');
+      print('Body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        if (response.body.isEmpty) return {};
+        return json.decode(response.body) as Map<String, dynamic>;
+      }
+
+      throw Exception(
+        'Ошибка отметки книги: ${response.statusCode} ${response.body}',
+      );
+    } catch (e) {
+      print('Error in markAsRead: $e');
       rethrow;
     }
   }

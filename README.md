@@ -527,6 +527,15 @@ The app development continues almost every single day, but I'm gonna group the u
 - Improved the audiobook UI and added background playback so listening can continue even after closing the app.
 - Improved the Admin page UI.
 
+
+## May 26th, 2026
+- Added reviews section for books and ability to write and publish them.
+- Added quotes section for books.
+- Added "mark as read" feature.
+- Added around 4000 books in russian, 7 readable ones, and 1 audiobook for `White Nights`.
+- Fixed recommendations for books in russian language.
+- Improved Library UI by splitting into `reading`, `want to read`, and `finished`.
+
 ## References
 
 - Hu, Y., Koren, Y., & Volinsky, C. (2008). *Collaborative Filtering for Implicit Feedback Datasets*. IEEE International Conference on Data Mining.

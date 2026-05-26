@@ -34,6 +34,7 @@ migrate_working_dir/
 /coverage/
 
 # Local SDK / runtime
+.env
 oracleJdk-26.jdk/
 
 # Maven/Gradle build outputs

@@ -52,6 +52,12 @@ public class BookAnnotation {
     @Column(nullable = false)
     private String color = "#14FFEC";
 
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    private Boolean publishedQuote = false;
+
+    @Column
+    private LocalDateTime publishedQuoteAt;
+
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
@@ -96,6 +102,12 @@ public class BookAnnotation {
 
     public String getColor() { return color; }
     public void setColor(String color) { this.color = color == null || color.isBlank() ? "#14FFEC" : color; }
+
+    public boolean isPublishedQuote() { return Boolean.TRUE.equals(publishedQuote); }
+    public void setPublishedQuote(boolean publishedQuote) { this.publishedQuote = publishedQuote; }
+
+    public LocalDateTime getPublishedQuoteAt() { return publishedQuoteAt; }
+    public void setPublishedQuoteAt(LocalDateTime publishedQuoteAt) { this.publishedQuoteAt = publishedQuoteAt; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

@@ -80,6 +80,7 @@ class _RecommendationOnboardingScreenState
         .map(
           (book) => {
             'goodreadsBookId': book['goodreadsId'] ?? book['goodreads_id'],
+            'language': book['language'],
             'rating': 5,
           },
         )

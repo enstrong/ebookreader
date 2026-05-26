@@ -51,6 +51,9 @@ public class UserBook {
     @Column(nullable = false)
     private boolean bookmarked = false;
 
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    private boolean hiddenFromLibrary = false;
+
     @Enumerated(EnumType.STRING)
     @Column
     private ReadingStatus status = ReadingStatus.WANT_TO_READ;
@@ -60,6 +63,15 @@ public class UserBook {
 
     @Column
     private LocalDateTime ratedAt;
+
+    @Column(length = 6000)
+    private String reviewText;
+
+    @Column
+    private LocalDateTime reviewCreatedAt;
+
+    @Column
+    private LocalDateTime reviewUpdatedAt;
 
     @Column
     private LocalDateTime startedAt;
@@ -164,6 +176,14 @@ public class UserBook {
         this.bookmarked = bookmarked;
     }
 
+    public boolean isHiddenFromLibrary() {
+        return hiddenFromLibrary;
+    }
+
+    public void setHiddenFromLibrary(boolean hiddenFromLibrary) {
+        this.hiddenFromLibrary = hiddenFromLibrary;
+    }
+
     public ReadingStatus getStatus() {
         if (status == null) {
             return ReadingStatus.WANT_TO_READ;
@@ -189,6 +209,30 @@ public class UserBook {
 
     public void setRatedAt(LocalDateTime ratedAt) {
         this.ratedAt = ratedAt;
+    }
+
+    public String getReviewText() {
+        return reviewText;
+    }
+
+    public void setReviewText(String reviewText) {
+        this.reviewText = reviewText;
+    }
+
+    public LocalDateTime getReviewCreatedAt() {
+        return reviewCreatedAt;
+    }
+
+    public void setReviewCreatedAt(LocalDateTime reviewCreatedAt) {
+        this.reviewCreatedAt = reviewCreatedAt;
+    }
+
+    public LocalDateTime getReviewUpdatedAt() {
+        return reviewUpdatedAt;
+    }
+
+    public void setReviewUpdatedAt(LocalDateTime reviewUpdatedAt) {
+        this.reviewUpdatedAt = reviewUpdatedAt;
     }
 
     public LocalDateTime getStartedAt() {

@@ -14,7 +14,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import org.mockito.MockitoAnnotations;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import com.example.ebookreader.config.JwtUtil;
 import com.example.ebookreader.controller.AuthController;
@@ -33,7 +35,6 @@ class AuthControllerTest {
     @Mock
     private PasswordEncoder passwordEncoder;
 
-    @Mock
     private JwtUtil jwtUtil;
 
     @Mock
@@ -45,6 +46,8 @@ class AuthControllerTest {
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
+        jwtUtil = new TestJwtUtil();
+        ReflectionTestUtils.setField(authController, "jwtUtil", jwtUtil);
     }
 
     @Test
@@ -61,8 +64,6 @@ class AuthControllerTest {
 
         when(userRepository.findByNickname("testuser")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("password123", "hashed_password")).thenReturn(true);
-        when(jwtUtil.generateToken(any(), any())).thenReturn("mocked_token");
-
         // When
         ResponseEntity<?> response = authController.login(request);
 
@@ -108,8 +109,6 @@ class AuthControllerTest {
             saved.setId(10L);
             return saved;
         });
-        when(jwtUtil.generateToken(any(), any())).thenReturn("mocked_google_token");
-
         ResponseEntity<?> response = authController.googleAuth(request);
 
         assertEquals(200, response.getStatusCodeValue());
@@ -139,8 +138,6 @@ class AuthControllerTest {
                 .thenReturn(new GoogleAccount("google-sub-1", "reader@example.com", true, "Reader One"));
         when(userRepository.findByGoogleSubject("google-sub-1")).thenReturn(Optional.of(user));
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(jwtUtil.generateToken(any(), any())).thenReturn("mocked_google_token");
-
         ResponseEntity<?> response = authController.googleAuth(request);
 
         assertEquals(200, response.getStatusCodeValue());
@@ -164,11 +161,16 @@ class AuthControllerTest {
         when(userRepository.findByGoogleSubject("google-sub-1")).thenReturn(Optional.empty());
         when(userRepository.findByEmailIgnoreCase("reader@example.com")).thenReturn(Optional.of(user));
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(jwtUtil.generateToken(any(), any())).thenReturn("mocked_google_token");
-
         ResponseEntity<?> response = authController.googleAuth(request);
 
         assertEquals(200, response.getStatusCodeValue());
         assertEquals("google-sub-1", user.getGoogleSubject());
+    }
+
+    private static class TestJwtUtil extends JwtUtil {
+        @Override
+        public String generateToken(Long userId, UserDetails userDetails) {
+            return "test_token_for_" + userDetails.getUsername();
+        }
     }
 }

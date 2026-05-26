@@ -2,7 +2,10 @@ package com.example.ebookreader.controller;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
@@ -26,7 +29,8 @@ import com.example.ebookreader.dto.BookPageResponse;
 import com.example.ebookreader.dto.ChapterDTO;
 import com.example.ebookreader.model.Book;
 import com.example.ebookreader.model.BookAvailability;
-import com.example.ebookreader.model.ReadingStatus;
+import com.example.ebookreader.model.BookAnnotation;
+import com.example.ebookreader.repository.BookAnnotationRepository;
 import com.example.ebookreader.repository.UserBookRepository;
 import com.example.ebookreader.repository.UserRepository;
 import com.example.ebookreader.config.JwtUtil;
@@ -39,18 +43,25 @@ import com.example.ebookreader.service.BookService; // Импортируем с
 @CrossOrigin(origins = "*")
 public class BookController {
 
+    private static final Set<String> PUBLIC_DOMAIN_AUDIO_GOODREADS_IDS = Set.of(
+            "269322",
+            "pg-ru-21183"
+    );
+
     private final BookService bookService; // Используем сервис
     private final AdminService adminService;
     private final UserBookRepository userBookRepository;
+    private final BookAnnotationRepository bookAnnotationRepository;
     private final UserRepository userRepository;
     private final JwtUtil jwtUtil;
     private final DemoAudiobookSeeder demoAudiobookSeeder;
 
     @Autowired
-    public BookController(BookService bookService, AdminService adminService, UserBookRepository userBookRepository, UserRepository userRepository, JwtUtil jwtUtil, DemoAudiobookSeeder demoAudiobookSeeder) {
+    public BookController(BookService bookService, AdminService adminService, UserBookRepository userBookRepository, BookAnnotationRepository bookAnnotationRepository, UserRepository userRepository, JwtUtil jwtUtil, DemoAudiobookSeeder demoAudiobookSeeder) {
         this.bookService = bookService;
         this.adminService = adminService;
         this.userBookRepository = userBookRepository;
+        this.bookAnnotationRepository = bookAnnotationRepository;
         this.userRepository = userRepository;
         this.jwtUtil = jwtUtil;
         this.demoAudiobookSeeder = demoAudiobookSeeder;
@@ -85,11 +96,23 @@ public class BookController {
         try {
             String username = jwtUtil.extractUsername(token.replace("Bearer ", ""));
             return userRepository.findByNickname(username)
-                    .map(user -> userBookRepository
-                            .findByUserIdAndStatusOrderByLastReadAtDesc(user.getId(), ReadingStatus.READING)
-                            .stream()
-                            .map(userBook -> userBook.getBook())
-                            .toList())
+                    .map(user -> {
+                        Set<Long> seenBookIds = new HashSet<>();
+                        List<Book> books = new ArrayList<>();
+                        userBookRepository.findLibraryByUserId(user.getId()).forEach(userBook -> {
+                            Book book = userBook.getBook();
+                            if (book != null && seenBookIds.add(book.getId())) {
+                                books.add(book);
+                            }
+                        });
+                        for (BookAnnotation annotation : bookAnnotationRepository.findByUserIdOrderByUpdatedAtDesc(user.getId())) {
+                            Book book = annotation.getBook();
+                            if (book != null && seenBookIds.add(book.getId())) {
+                                books.add(book);
+                            }
+                        }
+                        return books;
+                    })
                     .map(ResponseEntity::ok)
                     .orElseGet(() -> ResponseEntity.ok(List.of()));
         } catch (Exception e) {
@@ -248,7 +271,7 @@ public class BookController {
     }
 
     private void assertAudioAccess(String token, Long bookId) {
-        if (demoAudiobookSeeder.isDemoBook(bookId)) {
+        if (isPublicDomainAudiobook(bookId)) {
             assertAuthenticated(token);
             return;
         }
@@ -258,6 +281,13 @@ public class BookController {
         if (!hasAccess) {
             throw new ResponseStatusException(HttpStatus.PAYMENT_REQUIRED, "Для прослушивания нужна аудиоподписка");
         }
+    }
+
+    private boolean isPublicDomainAudiobook(Long bookId) {
+        return bookService.getBookById(bookId)
+                .map(Book::getGoodreadsId)
+                .map(PUBLIC_DOMAIN_AUDIO_GOODREADS_IDS::contains)
+                .orElse(false);
     }
 
     private void assertAuthenticated(String token) {
