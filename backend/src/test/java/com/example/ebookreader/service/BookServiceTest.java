@@ -33,6 +33,9 @@ class BookServiceTest {
     @Mock
     private BookAnnotationRepository bookAnnotationRepository;
 
+    @Mock
+    private BookCanonicalizationService canonicalizationService;
+
     @InjectMocks
     private BookServiceImpl bookService;
 
@@ -52,6 +55,8 @@ class BookServiceTest {
         book2.setTitle("Book 2");
 
         when(bookRepository.findAll()).thenReturn(Arrays.asList(book1, book2));
+        when(canonicalizationService.canonicalizeBooks(Arrays.asList(book1, book2)))
+                .thenReturn(Arrays.asList(book1, book2));
 
         List<Book> books = bookService.getAllBooks();
 
@@ -67,6 +72,7 @@ class BookServiceTest {
         book.setTitle("Test Book");
 
         when(bookRepository.findById(1L)).thenReturn(Optional.of(book));
+        when(canonicalizationService.findCanonicalById(1L)).thenReturn(Optional.of(book));
 
         Book foundBook = bookService.getBookById(1L).orElse(null);
 

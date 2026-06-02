@@ -88,7 +88,8 @@ public class BookController {
 
     @GetMapping("/library")
     public ResponseEntity<List<Book>> getLibraryBooks(
-            @RequestHeader(value = "Authorization", required = false) String token) {
+            @RequestHeader(value = "Authorization", required = false) String token,
+            @RequestParam(required = false, defaultValue = "50") int limit) {
         if (token == null || !token.startsWith("Bearer ")) {
             return ResponseEntity.ok(List.of());
         }
@@ -97,15 +98,22 @@ public class BookController {
             String username = jwtUtil.extractUsername(token.replace("Bearer ", ""));
             return userRepository.findByNickname(username)
                     .map(user -> {
+                        int safeLimit = clampListLimit(limit);
                         Set<Long> seenBookIds = new HashSet<>();
                         List<Book> books = new ArrayList<>();
                         userBookRepository.findLibraryByUserId(user.getId()).forEach(userBook -> {
+                            if (books.size() >= safeLimit) {
+                                return;
+                            }
                             Book book = userBook.getBook();
                             if (book != null && seenBookIds.add(book.getId())) {
                                 books.add(book);
                             }
                         });
                         for (BookAnnotation annotation : bookAnnotationRepository.findByUserIdOrderByUpdatedAtDesc(user.getId())) {
+                            if (books.size() >= safeLimit) {
+                                break;
+                            }
                             Book book = annotation.getBook();
                             if (book != null && seenBookIds.add(book.getId())) {
                                 books.add(book);
@@ -182,6 +190,13 @@ public class BookController {
                 .map(String::trim)
                 .filter(value -> !value.isEmpty())
                 .toList();
+    }
+
+    private int clampListLimit(int limit) {
+        if (limit < 1) {
+            return 50;
+        }
+        return Math.min(limit, 100);
     }
 
     @GetMapping("/{id}")

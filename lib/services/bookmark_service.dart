@@ -98,13 +98,13 @@ class BookmarkService {
   ///
   /// Отправляет GET-запрос на `/user/books/bookmarks`.
   /// При пустом ответе возвращает пустой список.
-  Future<List<dynamic>> getBookmarks(String token) async {
+  Future<List<dynamic>> getBookmarks(String token, {int limit = 50}) async {
     try {
       print('=== GET BOOKMARKS ===');
-      print('URL: ${ApiConstants.baseUrl}/user/books/bookmarks');
+      print('URL: ${ApiConstants.baseUrl}/user/books/bookmarks?limit=$limit');
 
       final response = await http.get(
-        Uri.parse('${ApiConstants.baseUrl}/user/books/bookmarks'),
+        Uri.parse('${ApiConstants.baseUrl}/user/books/bookmarks?limit=$limit'),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',

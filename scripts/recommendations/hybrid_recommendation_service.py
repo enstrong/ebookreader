@@ -24,9 +24,24 @@ import pandas as pd
 import scipy.sparse as sparse
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-MODEL_DIR = REPO_ROOT / "data/recommendations/experiments/als_reads_20k_f256_i10_lam1p0_validation_split"
-METADATA_CSV = REPO_ROOT / "data/recommendations/hybrid/book_metadata_20k.csv"
-WORK_MAP_CSV = REPO_ROOT / "data/recommendations/hybrid/goodreads_work_map.csv"
+MODEL_DIR = Path(
+    os.environ.get(
+        "RECOMMENDATION_MODEL_DIR",
+        REPO_ROOT / "data/recommendations/experiments/als_reads_workcanon_20k_f256_i2_lam1p0_validation_split",
+    )
+)
+METADATA_CSV = Path(
+    os.environ.get(
+        "RECOMMENDATION_METADATA_CSV",
+        REPO_ROOT / "data/recommendations/hybrid/book_metadata_workcanon_20k_i5.csv",
+    )
+)
+WORK_MAP_CSV = Path(
+    os.environ.get(
+        "RECOMMENDATION_WORK_MAP_CSV",
+        REPO_ROOT / "data/recommendations/hybrid/goodreads_work_map.csv",
+    )
+)
 HOST = os.environ.get("RECOMMENDATION_HOST", "127.0.0.1")
 PORT = int(os.environ.get("RECOMMENDATION_PORT", "8001"))
 
@@ -301,7 +316,17 @@ class Handler(BaseHTTPRequestHandler):
             self.write_json(similar_for_book(book_id, min(max(limit, 1), 500)))
             return
         if parsed.path == "/health":
-            self.write_json({"status": "ok", "model": "hybrid_als_metadata"})
+            self.write_json(
+                {
+                    "status": "ok",
+                    "model": "hybrid_als_metadata",
+                    "modelDir": str(MODEL_DIR),
+                    "metadataCsv": str(METADATA_CSV),
+                    "iterations": MODEL_META.get("iterations"),
+                    "factors": MODEL_META.get("factors"),
+                    "regularization": MODEL_META.get("regularization"),
+                }
+            )
             return
         self.write_json({"message": "Not found"}, status=404)
 

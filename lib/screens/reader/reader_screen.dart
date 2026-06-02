@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:ebookreader/models/book_annotation.dart';
 import 'package:ebookreader/models/community_review.dart';
 import 'package:ebookreader/models/favorite_quote.dart';
@@ -13,6 +14,7 @@ import 'package:ebookreader/services/bookmark_service.dart';
 import 'package:ebookreader/services/community_service.dart';
 import 'package:ebookreader/services/lookup_service.dart';
 import 'package:ebookreader/theme/app_theme.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Экран чтения книги.
 ///
@@ -65,12 +67,29 @@ class _ReaderScreenState extends State<ReaderScreen>
   String _selectedText = '';
   double _fontSize = 18;
   double _brightness = 1.0;
+  double _horizontalPadding = 24;
+  double _verticalPadding = 24;
+  Color? _customReaderBackgroundColor;
+  Color? _customReaderFontColor;
+  Color? _customReaderHighlightColor;
+  Color? _customReaderTranslationColor;
   double _segmentProgress = 0.0;
   BookAnnotation? _pendingScrollAnnotation;
   Timer? _progressSaveTimer;
   bool _restoredInitialScroll = false;
   late AnimationController _animController;
   static const int _maxQuoteWords = 120;
+  static const String _systemFontFamily = 'System';
+  static const String _readerFontPreferenceKey = 'reader_font_family';
+  static const String _readerHorizontalPaddingKey = 'reader_horizontal_padding';
+  static const String _readerVerticalPaddingKey = 'reader_vertical_padding';
+  static const String _readerBackgroundColorKey = 'reader_background_color';
+  static const String _readerFontColorKey = 'reader_font_color';
+  static const String _readerHighlightColorKey = 'reader_highlight_color';
+  static const String _readerTranslationColorKey = 'reader_translation_color';
+  static const String _readerRecentColorsKey = 'reader_recent_colors';
+  String _readerFontFamily = _systemFontFamily;
+  List<Color> _recentReaderColors = [];
 
   @override
   void initState() {
@@ -83,6 +102,7 @@ class _ReaderScreenState extends State<ReaderScreen>
       vsync: this,
     )..value = 1.0;
     _scrollController.addListener(_onScrollProgressChanged);
+    _loadReaderPreferences();
     _loadChapter();
   }
 
@@ -108,15 +128,8 @@ class _ReaderScreenState extends State<ReaderScreen>
         widget.token,
         widget.bookId,
       );
-      final annotations = await _annotationService.getChapterAnnotations(
-        widget.token,
-        widget.bookId,
-        _currentChapter,
-      );
-      final progress = await _bookmarkService.getProgress(
-        widget.token,
-        widget.bookId,
-      );
+      final annotations = await _loadChapterAnnotationsSafely();
+      final progress = await _loadProgressSafely();
 
       await _saveTextProgress();
 
@@ -180,6 +193,76 @@ class _ReaderScreenState extends State<ReaderScreen>
         ),
       );
     }
+  }
+
+  Future<List<BookAnnotation>> _loadChapterAnnotationsSafely() async {
+    try {
+      return await _annotationService.getChapterAnnotations(
+        widget.token,
+        widget.bookId,
+        _currentChapter,
+      );
+    } catch (e) {
+      debugPrint('Reader annotations unavailable: $e');
+      return [];
+    }
+  }
+
+  Future<Map<String, dynamic>> _loadProgressSafely() async {
+    try {
+      final progress = await _bookmarkService.getProgress(
+        widget.token,
+        widget.bookId,
+      );
+      return Map<String, dynamic>.from(progress);
+    } catch (e) {
+      debugPrint('Reader progress unavailable: $e');
+      return const {};
+    }
+  }
+
+  Future<void> _loadReaderPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedFont = prefs.getString(_readerFontPreferenceKey);
+    final savedHorizontalPadding = prefs.getDouble(_readerHorizontalPaddingKey);
+    final savedVerticalPadding = prefs.getDouble(_readerVerticalPaddingKey);
+    final savedBackgroundColor = prefs.getInt(_readerBackgroundColorKey);
+    final savedFontColor = prefs.getInt(_readerFontColorKey);
+    final savedHighlightColor = prefs.getInt(_readerHighlightColorKey);
+    final savedTranslationColor = prefs.getInt(_readerTranslationColorKey);
+    final savedRecentColors = prefs.getStringList(_readerRecentColorsKey);
+    if (!mounted) return;
+    setState(() {
+      if (savedFont != null &&
+          _readerFontOptions.any((font) => font.family == savedFont)) {
+        _readerFontFamily = savedFont;
+      }
+      if (savedHorizontalPadding != null) {
+        _horizontalPadding = savedHorizontalPadding.clamp(12.0, 56.0);
+      }
+      if (savedVerticalPadding != null) {
+        _verticalPadding = savedVerticalPadding.clamp(12.0, 64.0);
+      }
+      if (savedBackgroundColor != null) {
+        _customReaderBackgroundColor = Color(savedBackgroundColor);
+      }
+      if (savedFontColor != null) {
+        _customReaderFontColor = Color(savedFontColor);
+      }
+      if (savedHighlightColor != null) {
+        _customReaderHighlightColor = Color(savedHighlightColor);
+      }
+      if (savedTranslationColor != null) {
+        _customReaderTranslationColor = Color(savedTranslationColor);
+      }
+      if (savedRecentColors != null) {
+        _recentReaderColors = savedRecentColors
+            .map(int.tryParse)
+            .whereType<int>()
+            .map(Color.new)
+            .toList();
+      }
+    });
   }
 
   void _nextChapter() {
@@ -249,6 +332,7 @@ class _ReaderScreenState extends State<ReaderScreen>
         startOffset: selection.start,
         endOffset: selection.end,
         highlightedText: content.substring(selection.start, selection.end),
+        color: _colorToHex(_readerHighlightColor),
       );
       setState(() {
         _annotations = [..._annotations, annotation]
@@ -285,7 +369,7 @@ class _ReaderScreenState extends State<ReaderScreen>
         startOffset: selection.start,
         endOffset: selection.end,
         highlightedText: content.substring(selection.start, selection.end),
-        color: '#FFD166',
+        color: _colorToHex(_readerTranslationColor),
       );
       await _communityService.publishQuote(
         token: widget.token,
@@ -370,7 +454,7 @@ class _ReaderScreenState extends State<ReaderScreen>
         endOffset: selection.end,
         highlightedText: content.substring(selection.start, selection.end),
         note: _buildLookupNote(result),
-        color: '#FFD166',
+        color: _colorToHex(_readerTranslationColor),
       );
       if (!mounted) return;
       setState(() {
@@ -422,13 +506,31 @@ class _ReaderScreenState extends State<ReaderScreen>
     return lines.join('\n');
   }
 
-  Color _annotationColor(String rawColor) {
-    final normalized = rawColor.trim().replaceFirst('#', '');
-    final value = int.tryParse(normalized, radix: 16);
-    if (value == null) {
-      return context.palette.highlight;
+  Color _displayAnnotationColor(BookAnnotation annotation) {
+    if (_isTranslationAnnotation(annotation)) {
+      return _readerTranslationColor;
     }
-    return Color(0xFF000000 | value);
+    return _readerHighlightColor;
+  }
+
+  bool _isTranslationAnnotation(BookAnnotation annotation) {
+    return annotation.note.contains('Перевод:');
+  }
+
+  Color get _readerBackgroundColor =>
+      _customReaderBackgroundColor ?? context.palette.background;
+
+  Color get _readerFontColor => _customReaderFontColor ?? context.palette.text;
+
+  Color get _readerHighlightColor =>
+      _customReaderHighlightColor ?? context.palette.highlight;
+
+  Color get _readerTranslationColor =>
+      _customReaderTranslationColor ?? const Color(0xFFFFD166);
+
+  String _colorToHex(Color color) {
+    final value = color.toARGB32() & 0xFFFFFF;
+    return '#${value.toRadixString(16).padLeft(6, '0').toUpperCase()}';
   }
 
   Future<void> _showNoteEditor(BookAnnotation annotation) async {
@@ -939,11 +1041,16 @@ class _ReaderScreenState extends State<ReaderScreen>
               onTap: _toggleControls,
               child: Container(
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [palette.background, palette.surface],
-                  ),
+                  color: _customReaderBackgroundColor == null
+                      ? null
+                      : _readerBackgroundColor,
+                  gradient: _customReaderBackgroundColor == null
+                      ? LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [palette.background, palette.surface],
+                        )
+                      : null,
                 ),
                 child: Opacity(
                   opacity: _brightness,
@@ -952,10 +1059,12 @@ class _ReaderScreenState extends State<ReaderScreen>
                       SingleChildScrollView(
                         controller: _scrollController,
                         padding: EdgeInsets.fromLTRB(
-                          24,
-                          _showControls ? 24 : 80,
-                          24,
-                          120,
+                          _horizontalPadding,
+                          _showControls
+                              ? _verticalPadding
+                              : _verticalPadding + 56,
+                          _horizontalPadding,
+                          _verticalPadding + 96,
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -995,11 +1104,13 @@ class _ReaderScreenState extends State<ReaderScreen>
                                   const SizedBox(height: 8),
                                   Text(
                                     _chapter?['title'] ?? 'Без названия',
-                                    style: TextStyle(
-                                      fontSize: _fontSize + 6,
-                                      fontWeight: FontWeight.bold,
-                                      color: palette.text,
-                                      height: 1.4,
+                                    style: _readerTextStyle(
+                                      TextStyle(
+                                        fontSize: _fontSize + 6,
+                                        fontWeight: FontWeight.bold,
+                                        color: _readerFontColor,
+                                        height: 1.4,
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -1221,13 +1332,14 @@ class _ReaderScreenState extends State<ReaderScreen>
   }
 
   TextSpan _buildHighlightedContent() {
-    final palette = context.palette;
     final content = _chapter?['content']?.toString() ?? '';
-    final baseStyle = TextStyle(
-      fontSize: _fontSize,
-      height: 1.9,
-      color: palette.text.withValues(alpha: 0.88),
-      letterSpacing: 0.3,
+    final baseStyle = _readerTextStyle(
+      TextStyle(
+        fontSize: _fontSize,
+        height: 1.9,
+        color: _readerFontColor.withValues(alpha: 0.88),
+        letterSpacing: 0.3,
+      ),
     );
     if (content.isEmpty || _annotations.isEmpty) {
       return TextSpan(text: content, style: baseStyle);
@@ -1242,7 +1354,7 @@ class _ReaderScreenState extends State<ReaderScreen>
       final start = annotation.startOffset.clamp(0, content.length);
       final end = annotation.endOffset.clamp(0, content.length);
       if (end <= start || start < cursor) continue;
-      final annotationColor = _annotationColor(annotation.color);
+      final annotationColor = _displayAnnotationColor(annotation);
 
       if (start > cursor) {
         spans.add(
@@ -1253,7 +1365,7 @@ class _ReaderScreenState extends State<ReaderScreen>
         TextSpan(
           text: content.substring(start, end),
           style: baseStyle.copyWith(
-            color: palette.text,
+            color: _readerFontColor,
             backgroundColor: annotationColor.withValues(alpha: 0.38),
             decoration: TextDecoration.underline,
             decorationColor: annotationColor.withValues(alpha: 0.85),
@@ -1314,7 +1426,7 @@ class _ReaderScreenState extends State<ReaderScreen>
     required VoidCallback onDelete,
   }) {
     final palette = context.palette;
-    final annotationColor = _annotationColor(annotation.color);
+    final annotationColor = _displayAnnotationColor(annotation);
     return Material(
       color: palette.elevated.withValues(alpha: palette.isDark ? 0.55 : 0.90),
       borderRadius: BorderRadius.circular(16),
@@ -1373,7 +1485,7 @@ class _ReaderScreenState extends State<ReaderScreen>
                 maxLines: 4,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: palette.text.withValues(alpha: 0.86),
+                  color: _readerFontColor.withValues(alpha: 0.86),
                   height: 1.45,
                   fontStyle: FontStyle.italic,
                 ),
@@ -1398,76 +1510,243 @@ class _ReaderScreenState extends State<ReaderScreen>
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (context) => StatefulBuilder(
         builder: (context, setModalState) {
           final palette = context.palette;
-          return Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [palette.elevated, palette.background],
+          final maxHeight = MediaQuery.sizeOf(context).height * 0.82;
+          return ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: maxHeight),
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [palette.elevated, palette.background],
+                ),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24),
+                ),
+                border: Border.all(color: palette.border, width: 1.5),
               ),
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(24),
-              ),
-              border: Border.all(color: palette.border, width: 1.5),
-            ),
-            child: SafeArea(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: palette.border,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
+              child: SafeArea(
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: palette.border,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      Text(
+                        'Настройки чтения',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: palette.text,
+                        ),
+                      ),
+                      const SizedBox(height: 22),
+                      const AppThemePicker(),
+                      const SizedBox(height: 28),
+                      _buildReaderFontRow(),
+                      const SizedBox(height: 14),
+                      _buildReaderAdditionalSettingsRow(),
+                      const SizedBox(height: 24),
+                      _buildReaderSliderRow(
+                        icon: Icons.format_size,
+                        label: 'Размер шрифта',
+                        value: _fontSize,
+                        min: 14,
+                        max: 28,
+                        divisions: 7,
+                        trailing: '${_fontSize.round()}',
+                        onChanged: (value) {
+                          setState(() => _fontSize = value);
+                          setModalState(() {});
+                        },
+                      ),
+                      const SizedBox(height: 24),
+                      _buildReaderSliderRow(
+                        icon: Icons.brightness_6,
+                        label: 'Яркость',
+                        value: _brightness,
+                        min: 0.5,
+                        max: 1.0,
+                        onChanged: (value) {
+                          setState(() => _brightness = value);
+                          setModalState(() {});
+                        },
+                      ),
+                      const SizedBox(height: 18),
+                      _buildResetReaderSettingsButton(
+                        () => setModalState(() {}),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 24),
-                  Text(
-                    'Настройки чтения',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: palette.text,
-                    ),
-                  ),
-                  const SizedBox(height: 22),
-                  const AppThemePicker(),
-                  const SizedBox(height: 28),
-                  _buildReaderSliderRow(
-                    icon: Icons.format_size,
-                    label: 'Размер шрифта',
-                    value: _fontSize,
-                    min: 14,
-                    max: 28,
-                    divisions: 7,
-                    trailing: '${_fontSize.round()}',
-                    onChanged: (value) {
-                      setState(() => _fontSize = value);
-                      setModalState(() {});
-                    },
-                  ),
-                  const SizedBox(height: 24),
-                  _buildReaderSliderRow(
-                    icon: Icons.brightness_6,
-                    label: 'Яркость',
-                    value: _brightness,
-                    min: 0.5,
-                    max: 1.0,
-                    onChanged: (value) {
-                      setState(() => _brightness = value);
-                      setModalState(() {});
-                    },
-                  ),
-                ],
+                ),
               ),
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildReaderFontRow() {
+    final palette = context.palette;
+    final selectedFont = _readerFontOptions.firstWhere(
+      (font) => font.family == _readerFontFamily,
+      orElse: () => _readerFontOptions.first,
+    );
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: _openFontSelector,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: palette.elevated.withValues(alpha: 0.58),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: palette.border),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    palette.accent.withValues(alpha: 0.2),
+                    palette.secondaryAccent.withValues(alpha: 0.1),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(Icons.font_download_rounded, color: palette.accent),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Шрифт',
+                    style: TextStyle(
+                      color: palette.text.withValues(alpha: 0.8),
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    selectedFont.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: _fontPreviewStyle(
+                      selectedFont.family,
+                      TextStyle(
+                        color: palette.text,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Icon(Icons.chevron_right_rounded, color: palette.mutedText),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReaderAdditionalSettingsRow() {
+    final palette = context.palette;
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: _openAdditionalSettings,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: palette.elevated.withValues(alpha: 0.58),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: palette.border),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    palette.accent.withValues(alpha: 0.2),
+                    palette.secondaryAccent.withValues(alpha: 0.1),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(Icons.tune_rounded, color: palette.accent),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Дополнительно',
+                    style: TextStyle(
+                      color: palette.text.withValues(alpha: 0.8),
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Отступы и цвета',
+                    style: TextStyle(
+                      color: palette.text,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Icon(Icons.chevron_right_rounded, color: palette.mutedText),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildResetReaderSettingsButton(VoidCallback refreshSheet) {
+    final palette = context.palette;
+    return Align(
+      alignment: Alignment.center,
+      child: TextButton.icon(
+        onPressed: () => _confirmResetReaderSettings(refreshSheet),
+        icon: Icon(Icons.restart_alt_rounded, size: 17, color: palette.danger),
+        label: Text(
+          'Вернуть настройки чтения по умолчанию',
+          style: TextStyle(
+            color: palette.danger,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        style: TextButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          minimumSize: const Size(0, 36),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
       ),
     );
   }
@@ -1531,6 +1810,1377 @@ class _ReaderScreenState extends State<ReaderScreen>
             ),
           ),
       ],
+    );
+  }
+
+  Future<void> _openFontSelector() async {
+    final selected = await Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => _ReaderFontPickerScreen(
+          selectedFamily: _readerFontFamily,
+          fonts: _readerFontOptions,
+        ),
+      ),
+    );
+    if (!mounted || selected == null || selected == _readerFontFamily) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_readerFontPreferenceKey, selected);
+    if (!mounted) return;
+    setState(() => _readerFontFamily = selected);
+  }
+
+  Future<void> _openAdditionalSettings() async {
+    final selected = await Navigator.of(context)
+        .push<_ReaderAdditionalSettings>(
+          MaterialPageRoute(
+            fullscreenDialog: true,
+            builder: (_) => _ReaderAdditionalSettingsScreen(
+              horizontalPadding: _horizontalPadding,
+              verticalPadding: _verticalPadding,
+              backgroundColor: _readerBackgroundColor,
+              fontColor: _readerFontColor,
+              highlightColor: _readerHighlightColor,
+              translationColor: _readerTranslationColor,
+              defaultBackgroundColor: context.palette.background,
+              defaultFontColor: context.palette.text,
+              defaultHighlightColor: context.palette.highlight,
+              defaultTranslationColor: const Color(0xFFFFD166),
+              recentColors: _recentReaderColors,
+            ),
+          ),
+        );
+    if (!mounted || selected == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(
+      _readerHorizontalPaddingKey,
+      selected.horizontalPadding,
+    );
+    await prefs.setDouble(_readerVerticalPaddingKey, selected.verticalPadding);
+    await prefs.setInt(
+      _readerBackgroundColorKey,
+      selected.backgroundColor.toARGB32(),
+    );
+    await prefs.setInt(_readerFontColorKey, selected.fontColor.toARGB32());
+    await prefs.setInt(
+      _readerHighlightColorKey,
+      selected.highlightColor.toARGB32(),
+    );
+    await prefs.setInt(
+      _readerTranslationColorKey,
+      selected.translationColor.toARGB32(),
+    );
+    final recentColors = _mergedRecentColors(selected);
+    await prefs.setStringList(
+      _readerRecentColorsKey,
+      recentColors.map((color) => color.toARGB32().toString()).toList(),
+    );
+    if (!mounted) return;
+    setState(() {
+      _horizontalPadding = selected.horizontalPadding;
+      _verticalPadding = selected.verticalPadding;
+      _customReaderBackgroundColor = selected.backgroundColor;
+      _customReaderFontColor = selected.fontColor;
+      _customReaderHighlightColor = selected.highlightColor;
+      _customReaderTranslationColor = selected.translationColor;
+      _recentReaderColors = recentColors;
+    });
+  }
+
+  List<Color> _mergedRecentColors(_ReaderAdditionalSettings selected) {
+    final seen = <int>{};
+    final colors = <Color>[];
+    for (final color in [
+      selected.backgroundColor,
+      selected.fontColor,
+      selected.highlightColor,
+      selected.translationColor,
+      ..._recentReaderColors,
+    ]) {
+      final value = color.toARGB32();
+      if (seen.add(value)) {
+        colors.add(color);
+      }
+      if (colors.length >= 12) break;
+    }
+    return colors;
+  }
+
+  Future<void> _confirmResetReaderSettings(VoidCallback refreshSheet) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        final palette = context.palette;
+        return AlertDialog(
+          backgroundColor: palette.elevated,
+          title: Text(
+            'Сбросить настройки?',
+            style: TextStyle(color: palette.text),
+          ),
+          content: Text(
+            'Шрифт, размер, яркость, отступы и цвета чтения вернутся по умолчанию.',
+            style: TextStyle(color: palette.mutedText),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text('Отмена', style: TextStyle(color: palette.mutedText)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text('Сбросить', style: TextStyle(color: palette.danger)),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_readerFontPreferenceKey);
+    await prefs.remove(_readerHorizontalPaddingKey);
+    await prefs.remove(_readerVerticalPaddingKey);
+    await prefs.remove(_readerBackgroundColorKey);
+    await prefs.remove(_readerFontColorKey);
+    await prefs.remove(_readerHighlightColorKey);
+    await prefs.remove(_readerTranslationColorKey);
+    await prefs.remove(_readerRecentColorsKey);
+    if (!mounted) return;
+    setState(() {
+      _fontSize = 18;
+      _brightness = 1.0;
+      _readerFontFamily = _systemFontFamily;
+      _horizontalPadding = 24;
+      _verticalPadding = 24;
+      _customReaderBackgroundColor = null;
+      _customReaderFontColor = null;
+      _customReaderHighlightColor = null;
+      _customReaderTranslationColor = null;
+      _recentReaderColors = [];
+    });
+    refreshSheet();
+  }
+
+  TextStyle _readerTextStyle(TextStyle style) {
+    return _fontPreviewStyle(_readerFontFamily, style);
+  }
+
+  TextStyle _fontPreviewStyle(String family, TextStyle style) {
+    if (family == _systemFontFamily) {
+      return style;
+    }
+    return GoogleFonts.getFont(family, textStyle: style);
+  }
+}
+
+class _ReaderFontOption {
+  final String name;
+  final String family;
+  final String note;
+  final String sample;
+  final bool accessibility;
+
+  const _ReaderFontOption({
+    required this.name,
+    required this.family,
+    required this.note,
+    required this.sample,
+    this.accessibility = false,
+  });
+}
+
+const List<_ReaderFontOption> _readerFontOptions = [
+  _ReaderFontOption(
+    name: 'System',
+    family: 'System',
+    note: 'Default device font',
+    sample: 'A clean default for everyday reading.',
+  ),
+  _ReaderFontOption(
+    name: 'Literata',
+    family: 'Literata',
+    note: 'Modern book serif',
+    sample: 'The page felt calm, open, and easy to stay inside.',
+  ),
+  _ReaderFontOption(
+    name: 'Merriweather',
+    family: 'Merriweather',
+    note: 'Comfortable long reading',
+    sample: 'A steady serif with generous rhythm and clear shapes.',
+  ),
+  _ReaderFontOption(
+    name: 'Lora',
+    family: 'Lora',
+    note: 'Soft literary serif',
+    sample: 'Every sentence keeps a little warmth on the page.',
+  ),
+  _ReaderFontOption(
+    name: 'Libre Baskerville',
+    family: 'Libre Baskerville',
+    note: 'Classic print feel',
+    sample: 'A traditional page voice with strong paragraph texture.',
+  ),
+  _ReaderFontOption(
+    name: 'EB Garamond',
+    family: 'EB Garamond',
+    note: 'Elegant old-style serif',
+    sample: 'The old house stood quiet beneath the winter moon.',
+  ),
+  _ReaderFontOption(
+    name: 'Crimson Text',
+    family: 'Crimson Text',
+    note: 'Bookish and compact',
+    sample: 'A narrow, graceful shape for dense chapters.',
+  ),
+  _ReaderFontOption(
+    name: 'Cormorant Garamond',
+    family: 'Cormorant Garamond',
+    note: 'Dramatic literary serif',
+    sample: 'It gives chapter pages a sharper, more classical voice.',
+  ),
+  _ReaderFontOption(
+    name: 'Source Serif 4',
+    family: 'Source Serif 4',
+    note: 'Clear editorial serif',
+    sample: 'Balanced letters make the paragraph feel composed.',
+  ),
+  _ReaderFontOption(
+    name: 'Noto Serif',
+    family: 'Noto Serif',
+    note: 'Wide language support',
+    sample: 'A reliable serif for mixed-language libraries.',
+  ),
+  _ReaderFontOption(
+    name: 'PT Serif',
+    family: 'PT Serif',
+    note: 'Strong Cyrillic support',
+    sample: 'Русский текст остается плотным и хорошо читаемым.',
+  ),
+  _ReaderFontOption(
+    name: 'Spectral',
+    family: 'Spectral',
+    note: 'Calm editorial serif',
+    sample: 'A refined newspaper-like rhythm for slower reading.',
+  ),
+  _ReaderFontOption(
+    name: 'Vollkorn',
+    family: 'Vollkorn',
+    note: 'Warm and sturdy',
+    sample: 'The letters sit firmly, even at smaller sizes.',
+  ),
+  _ReaderFontOption(
+    name: 'Alegreya',
+    family: 'Alegreya',
+    note: 'Humanist literary serif',
+    sample: 'A page with movement, warmth, and readable contrast.',
+  ),
+  _ReaderFontOption(
+    name: 'Bitter',
+    family: 'Bitter',
+    note: 'Slab serif clarity',
+    sample: 'A little heavier, useful when contrast is low.',
+  ),
+  _ReaderFontOption(
+    name: 'Roboto Slab',
+    family: 'Roboto Slab',
+    note: 'Modern slab serif',
+    sample: 'Crisp and steady without feeling too formal.',
+  ),
+  _ReaderFontOption(
+    name: 'Arvo',
+    family: 'Arvo',
+    note: 'Geometric slab serif',
+    sample: 'Clear shapes that hold up well on bright screens.',
+  ),
+  _ReaderFontOption(
+    name: 'Cardo',
+    family: 'Cardo',
+    note: 'Classical serif',
+    sample: 'A scholarly, older printed-book texture.',
+  ),
+  _ReaderFontOption(
+    name: 'Tinos',
+    family: 'Tinos',
+    note: 'Times-like serif',
+    sample: 'Familiar newspaper proportions for traditional readers.',
+  ),
+  _ReaderFontOption(
+    name: 'Atkinson Hyperlegible',
+    family: 'Atkinson Hyperlegible',
+    note: 'Accessibility focused',
+    sample: 'Distinct letters help reduce visual confusion.',
+    accessibility: true,
+  ),
+  _ReaderFontOption(
+    name: 'Lexend',
+    family: 'Lexend',
+    note: 'Dyslexia-friendly spacing',
+    sample: 'Open spacing can make long lines feel less crowded.',
+    accessibility: true,
+  ),
+  _ReaderFontOption(
+    name: 'Open Sans',
+    family: 'Open Sans',
+    note: 'Clean sans serif',
+    sample: 'Simple, neutral, and easy for fast scanning.',
+  ),
+];
+
+class _ReaderFontPickerScreen extends StatelessWidget {
+  final String selectedFamily;
+  final List<_ReaderFontOption> fonts;
+
+  const _ReaderFontPickerScreen({
+    required this.selectedFamily,
+    required this.fonts,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Scaffold(
+      backgroundColor: palette.background,
+      appBar: AppBar(
+        backgroundColor: palette.surface,
+        elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.close_rounded, color: palette.text),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          'Шрифт чтения',
+          style: TextStyle(color: palette.text, fontWeight: FontWeight.bold),
+        ),
+      ),
+      body: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 32),
+        itemCount: fonts.length,
+        separatorBuilder: (context, index) => const SizedBox(height: 12),
+        itemBuilder: (context, index) {
+          final font = fonts[index];
+          final isSelected = font.family == selectedFamily;
+          return _ReaderFontOptionTile(
+            font: font,
+            isSelected: isSelected,
+            onTap: () => Navigator.pop(context, font.family),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ReaderFontOptionTile extends StatelessWidget {
+  final _ReaderFontOption font;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _ReaderFontOptionTile({
+    required this.font,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final previewStyle = _fontOptionStyle(
+      font.family,
+      TextStyle(color: palette.text, fontSize: 19, height: 1.45),
+    );
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? palette.accent.withValues(alpha: 0.14)
+              : palette.elevated.withValues(alpha: 0.62),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: isSelected ? palette.accent : palette.border,
+            width: isSelected ? 1.6 : 1,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    font.name,
+                    style: _fontOptionStyle(
+                      font.family,
+                      TextStyle(
+                        color: palette.text,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ),
+                if (font.accessibility)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: palette.secondaryAccent.withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      'accessibility',
+                      style: TextStyle(
+                        color: palette.secondaryAccent,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                const SizedBox(width: 10),
+                Icon(
+                  isSelected
+                      ? Icons.check_circle_rounded
+                      : Icons.circle_outlined,
+                  color: isSelected ? palette.accent : palette.mutedText,
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              font.note,
+              style: TextStyle(color: palette.mutedText, fontSize: 12),
+            ),
+            const SizedBox(height: 14),
+            Text(font.sample, style: previewStyle),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+TextStyle _fontOptionStyle(String family, TextStyle style) {
+  if (family == _ReaderScreenState._systemFontFamily) {
+    return style;
+  }
+  return GoogleFonts.getFont(family, textStyle: style);
+}
+
+class _ReaderAdditionalSettings {
+  final double horizontalPadding;
+  final double verticalPadding;
+  final Color backgroundColor;
+  final Color fontColor;
+  final Color highlightColor;
+  final Color translationColor;
+
+  const _ReaderAdditionalSettings({
+    required this.horizontalPadding,
+    required this.verticalPadding,
+    required this.backgroundColor,
+    required this.fontColor,
+    required this.highlightColor,
+    required this.translationColor,
+  });
+}
+
+class _ReaderAdditionalSettingsScreen extends StatefulWidget {
+  final double horizontalPadding;
+  final double verticalPadding;
+  final Color backgroundColor;
+  final Color fontColor;
+  final Color highlightColor;
+  final Color translationColor;
+  final Color defaultBackgroundColor;
+  final Color defaultFontColor;
+  final Color defaultHighlightColor;
+  final Color defaultTranslationColor;
+  final List<Color> recentColors;
+
+  const _ReaderAdditionalSettingsScreen({
+    required this.horizontalPadding,
+    required this.verticalPadding,
+    required this.backgroundColor,
+    required this.fontColor,
+    required this.highlightColor,
+    required this.translationColor,
+    required this.defaultBackgroundColor,
+    required this.defaultFontColor,
+    required this.defaultHighlightColor,
+    required this.defaultTranslationColor,
+    required this.recentColors,
+  });
+
+  @override
+  State<_ReaderAdditionalSettingsScreen> createState() =>
+      _ReaderAdditionalSettingsScreenState();
+}
+
+class _ReaderAdditionalSettingsScreenState
+    extends State<_ReaderAdditionalSettingsScreen> {
+  late double _horizontalPadding = widget.horizontalPadding;
+  late double _verticalPadding = widget.verticalPadding;
+  late Color _backgroundColor = widget.backgroundColor;
+  late Color _fontColor = widget.fontColor;
+  late Color _highlightColor = widget.highlightColor;
+  late Color _translationColor = widget.translationColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Scaffold(
+      backgroundColor: palette.background,
+      appBar: AppBar(
+        backgroundColor: palette.surface,
+        elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.close_rounded, color: palette.text),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          'Дополнительно',
+          style: TextStyle(color: palette.text, fontWeight: FontWeight.bold),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(
+              context,
+              _ReaderAdditionalSettings(
+                horizontalPadding: _horizontalPadding,
+                verticalPadding: _verticalPadding,
+                backgroundColor: _backgroundColor,
+                fontColor: _fontColor,
+                highlightColor: _highlightColor,
+                translationColor: _translationColor,
+              ),
+            ),
+            child: Text(
+              'Готово',
+              style: TextStyle(
+                color: palette.accent,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 32),
+        children: [
+          _SettingsSectionLabel('Отступы'),
+          _SectionResetButton(
+            label: 'Вернуть отступы по умолчанию',
+            onPressed: () => setState(() {
+              _horizontalPadding = 24;
+              _verticalPadding = 24;
+            }),
+          ),
+          const SizedBox(height: 10),
+          _PaddingPreviewCard(
+            horizontalPadding: _horizontalPadding,
+            verticalPadding: _verticalPadding,
+            backgroundColor: _backgroundColor,
+            fontColor: _fontColor,
+            highlightColor: _highlightColor,
+          ),
+          const SizedBox(height: 20),
+          _PaddingSliderCard(
+            icon: Icons.swap_horiz_rounded,
+            label: 'Горизонтальные',
+            value: _horizontalPadding,
+            min: 12,
+            max: 56,
+            divisions: 11,
+            onChanged: (value) => setState(() => _horizontalPadding = value),
+          ),
+          const SizedBox(height: 14),
+          _PaddingSliderCard(
+            icon: Icons.swap_vert_rounded,
+            label: 'Вертикальные',
+            value: _verticalPadding,
+            min: 12,
+            max: 64,
+            divisions: 13,
+            onChanged: (value) => setState(() => _verticalPadding = value),
+          ),
+          const SizedBox(height: 26),
+          _SettingsSectionLabel('Цвета'),
+          _SectionResetButton(
+            label: 'Вернуть цвета по умолчанию',
+            onPressed: () => setState(() {
+              _backgroundColor = widget.defaultBackgroundColor;
+              _fontColor = widget.defaultFontColor;
+              _highlightColor = widget.defaultHighlightColor;
+              _translationColor = widget.defaultTranslationColor;
+            }),
+          ),
+          const SizedBox(height: 10),
+          _ReaderColorTile(
+            label: 'Фон',
+            color: _backgroundColor,
+            recentColors: widget.recentColors,
+            onChanged: (color) => setState(() => _backgroundColor = color),
+          ),
+          const SizedBox(height: 12),
+          _ReaderColorTile(
+            label: 'Текст',
+            color: _fontColor,
+            recentColors: widget.recentColors,
+            onChanged: (color) => setState(() => _fontColor = color),
+          ),
+          const SizedBox(height: 12),
+          _ReaderColorTile(
+            label: 'Выделение',
+            color: _highlightColor,
+            recentColors: widget.recentColors,
+            onChanged: (color) => setState(() => _highlightColor = color),
+          ),
+          const SizedBox(height: 12),
+          _ReaderColorTile(
+            label: 'Сохранённый перевод',
+            color: _translationColor,
+            recentColors: widget.recentColors,
+            onChanged: (color) => setState(() => _translationColor = color),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SettingsSectionLabel extends StatelessWidget {
+  final String text;
+
+  const _SettingsSectionLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Text(
+      text,
+      style: TextStyle(
+        color: palette.text,
+        fontSize: 18,
+        fontWeight: FontWeight.w800,
+      ),
+    );
+  }
+}
+
+class _SectionResetButton extends StatelessWidget {
+  final String label;
+  final VoidCallback onPressed;
+
+  const _SectionResetButton({required this.label, required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: TextButton.icon(
+        onPressed: onPressed,
+        icon: Icon(Icons.restart_alt_rounded, size: 15, color: palette.accent),
+        label: Text(
+          label,
+          style: TextStyle(
+            color: palette.accent,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        style: TextButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
+          minimumSize: const Size(0, 30),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+      ),
+    );
+  }
+}
+
+class _PaddingPreviewCard extends StatelessWidget {
+  final double horizontalPadding;
+  final double verticalPadding;
+  final Color backgroundColor;
+  final Color fontColor;
+  final Color highlightColor;
+
+  const _PaddingPreviewCard({
+    required this.horizontalPadding,
+    required this.verticalPadding,
+    required this.backgroundColor,
+    required this.fontColor,
+    required this.highlightColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: palette.elevated.withValues(alpha: 0.62),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: palette.border),
+      ),
+      child: AspectRatio(
+        aspectRatio: 0.72,
+        child: Container(
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: palette.border),
+          ),
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: horizontalPadding * 0.55,
+              vertical: verticalPadding * 0.55,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 96,
+                  height: 14,
+                  decoration: BoxDecoration(
+                    color: palette.accent.withValues(alpha: 0.45),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                for (final entry in const [1.0, 0.82, 0.94, 0.74, 0.88].indexed)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: FractionallySizedBox(
+                      widthFactor: entry.$2,
+                      child: Container(
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: entry.$1 == 1
+                              ? highlightColor.withValues(alpha: 0.46)
+                              : fontColor.withValues(alpha: 0.28),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PaddingSliderCard extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final double value;
+  final double min;
+  final double max;
+  final int divisions;
+  final ValueChanged<double> onChanged;
+
+  const _PaddingSliderCard({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.divisions,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: palette.elevated.withValues(alpha: 0.62),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: palette.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: palette.accent),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: palette.text,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              Text(
+                value.round().toString(),
+                style: TextStyle(
+                  color: palette.accent,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Slider(
+            value: value,
+            min: min,
+            max: max,
+            divisions: divisions,
+            activeColor: palette.accent,
+            inactiveColor: palette.border,
+            onChanged: onChanged,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReaderColorTile extends StatefulWidget {
+  final String label;
+  final Color color;
+  final List<Color> recentColors;
+  final ValueChanged<Color> onChanged;
+
+  const _ReaderColorTile({
+    required this.label,
+    required this.color,
+    required this.recentColors,
+    required this.onChanged,
+  });
+
+  @override
+  State<_ReaderColorTile> createState() => _ReaderColorTileState();
+}
+
+class _ReaderColorTileState extends State<_ReaderColorTile> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Container(
+      decoration: BoxDecoration(
+        color: palette.elevated.withValues(alpha: 0.62),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: palette.border),
+      ),
+      child: Column(
+        children: [
+          InkWell(
+            borderRadius: BorderRadius.circular(18),
+            onTap: () => setState(() => _expanded = !_expanded),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: widget.color,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: palette.border, width: 1.4),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      widget.label,
+                      style: TextStyle(
+                        color: palette.text,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    _hex(widget.color),
+                    style: TextStyle(
+                      color: palette.mutedText,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(
+                    _expanded
+                        ? Icons.expand_less_rounded
+                        : Icons.expand_more_rounded,
+                    color: palette.mutedText,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_expanded)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: _ReaderColorEditor(
+                color: widget.color,
+                recentColors: widget.recentColors,
+                onChanged: widget.onChanged,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  String _hex(Color color) {
+    final value = color.toARGB32() & 0xFFFFFF;
+    return '#${value.toRadixString(16).padLeft(6, '0').toUpperCase()}';
+  }
+}
+
+class _ReaderColorEditor extends StatefulWidget {
+  final Color color;
+  final List<Color> recentColors;
+  final ValueChanged<Color> onChanged;
+
+  const _ReaderColorEditor({
+    required this.color,
+    required this.recentColors,
+    required this.onChanged,
+  });
+
+  @override
+  State<_ReaderColorEditor> createState() => _ReaderColorEditorState();
+}
+
+class _ReaderColorEditorState extends State<_ReaderColorEditor> {
+  late HSVColor _hsv = HSVColor.fromColor(widget.color);
+
+  @override
+  void didUpdateWidget(covariant _ReaderColorEditor oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.color != widget.color) {
+      _hsv = HSVColor.fromColor(widget.color);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (widget.recentColors.isNotEmpty) ...[
+          Text(
+            'Недавние',
+            style: TextStyle(color: palette.mutedText, fontSize: 12),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final color in widget.recentColors)
+                _RecentColorButton(
+                  color: color,
+                  selected: color.toARGB32() == widget.color.toARGB32(),
+                  onTap: () => _setColor(color),
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
+        ],
+        _SaturationValuePicker(
+          hsv: _hsv,
+          onChanged: (saturation, value) {
+            _updateHsv(_hsv.withSaturation(saturation).withValue(value));
+          },
+        ),
+        const SizedBox(height: 12),
+        _HueStrip(
+          hue: _hsv.hue,
+          onChanged: (hue) => _updateHsv(_hsv.withHue(hue)),
+        ),
+        const SizedBox(height: 12),
+        _ColorValueFields(color: widget.color, onChanged: _setColor),
+      ],
+    );
+  }
+
+  void _updateHsv(HSVColor hsv) {
+    setState(() => _hsv = hsv);
+    widget.onChanged(hsv.toColor().withAlpha(255));
+  }
+
+  void _setColor(Color color) {
+    setState(() => _hsv = HSVColor.fromColor(color));
+    widget.onChanged(color.withAlpha(255));
+  }
+}
+
+class _RecentColorButton extends StatelessWidget {
+  final Color color;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _RecentColorButton({
+    required this.color,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return InkWell(
+      borderRadius: BorderRadius.circular(999),
+      onTap: onTap,
+      child: Container(
+        width: 34,
+        height: 34,
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: selected ? palette.accent : palette.border,
+            width: selected ? 2.4 : 1.2,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SaturationValuePicker extends StatelessWidget {
+  final HSVColor hsv;
+  final void Function(double saturation, double value) onChanged;
+
+  const _SaturationValuePicker({required this.hsv, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final hueColor = HSVColor.fromAHSV(1, hsv.hue, 1, 1).toColor();
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        const height = 180.0;
+        return GestureDetector(
+          onPanDown: (details) => _select(details.localPosition, width, height),
+          onPanUpdate: (details) =>
+              _select(details.localPosition, width, height),
+          child: Stack(
+            children: [
+              Container(
+                height: height,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
+                  color: hueColor,
+                  border: Border.all(color: context.palette.border),
+                ),
+              ),
+              Container(
+                height: height,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
+                  gradient: const LinearGradient(
+                    colors: [Colors.white, Colors.transparent],
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                  ),
+                ),
+              ),
+              Container(
+                height: height,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
+                  gradient: const LinearGradient(
+                    colors: [Colors.transparent, Colors.black],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                  ),
+                ),
+              ),
+              Positioned(
+                left: (hsv.saturation * width).clamp(0.0, width) - 8,
+                top: ((1 - hsv.value) * height).clamp(0.0, height) - 8,
+                child: Container(
+                  width: 16,
+                  height: 16,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2),
+                    boxShadow: const [
+                      BoxShadow(color: Colors.black45, blurRadius: 4),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _select(Offset position, double width, double height) {
+    final saturation = (position.dx / width).clamp(0.0, 1.0);
+    final value = (1 - position.dy / height).clamp(0.0, 1.0);
+    onChanged(saturation, value);
+  }
+}
+
+class _HueStrip extends StatelessWidget {
+  final double hue;
+  final ValueChanged<double> onChanged;
+
+  const _HueStrip({required this.hue, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        return GestureDetector(
+          onPanDown: (details) => _select(details.localPosition.dx, width),
+          onPanUpdate: (details) => _select(details.localPosition.dx, width),
+          child: Stack(
+            alignment: Alignment.centerLeft,
+            children: [
+              Container(
+                height: 18,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(999),
+                  gradient: const LinearGradient(
+                    colors: [
+                      Color(0xFFFF0000),
+                      Color(0xFFFFFF00),
+                      Color(0xFF00FF00),
+                      Color(0xFF00FFFF),
+                      Color(0xFF0000FF),
+                      Color(0xFFFF00FF),
+                      Color(0xFFFF0000),
+                    ],
+                  ),
+                ),
+              ),
+              Positioned(
+                left: (hue / 360 * width).clamp(0.0, width) - 7,
+                child: Container(
+                  width: 14,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: Colors.white, width: 2),
+                    boxShadow: const [
+                      BoxShadow(color: Colors.black45, blurRadius: 4),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _select(double dx, double width) {
+    onChanged((dx / width * 360).clamp(0.0, 360.0));
+  }
+}
+
+class _ColorValueFields extends StatelessWidget {
+  final Color color;
+  final ValueChanged<Color> onChanged;
+
+  const _ColorValueFields({required this.color, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final argb = color.toARGB32();
+    final red = (argb >> 16) & 0xFF;
+    final green = (argb >> 8) & 0xFF;
+    final blue = argb & 0xFF;
+    final hex =
+        '#${((red << 16) | (green << 8) | blue).toRadixString(16).padLeft(6, '0').toUpperCase()}';
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        _ColorTextField(
+          label: 'HEX',
+          value: hex,
+          width: 116,
+          onCommit: (value) {
+            final parsed = _parseHex(value);
+            if (parsed != null) onChanged(parsed);
+          },
+        ),
+        _RgbNumberField(
+          label: 'R',
+          value: red,
+          onChanged: (value) =>
+              onChanged(Color.fromARGB(255, value, green, blue)),
+        ),
+        _RgbNumberField(
+          label: 'G',
+          value: green,
+          onChanged: (value) =>
+              onChanged(Color.fromARGB(255, red, value, blue)),
+        ),
+        _RgbNumberField(
+          label: 'B',
+          value: blue,
+          onChanged: (value) =>
+              onChanged(Color.fromARGB(255, red, green, value)),
+        ),
+        Text(
+          'RGB',
+          style: TextStyle(
+            color: palette.mutedText,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Color? _parseHex(String raw) {
+    final normalized = raw.trim().replaceFirst('#', '');
+    if (normalized.length != 6) return null;
+    final value = int.tryParse(normalized, radix: 16);
+    if (value == null) return null;
+    return Color(0xFF000000 | value);
+  }
+}
+
+class _ColorTextField extends StatefulWidget {
+  final String label;
+  final String value;
+  final double width;
+  final ValueChanged<String> onCommit;
+
+  const _ColorTextField({
+    required this.label,
+    required this.value,
+    required this.width,
+    required this.onCommit,
+  });
+
+  @override
+  State<_ColorTextField> createState() => _ColorTextFieldState();
+}
+
+class _ColorTextFieldState extends State<_ColorTextField> {
+  late final TextEditingController _controller;
+  late final FocusNode _focusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.value);
+    _focusNode = FocusNode();
+    _focusNode.addListener(_onFocusChanged);
+  }
+
+  @override
+  void didUpdateWidget(covariant _ColorTextField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_focusNode.hasFocus && _controller.text != widget.value) {
+      _controller.text = widget.value;
+    }
+  }
+
+  @override
+  void dispose() {
+    _focusNode.removeListener(_onFocusChanged);
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return SizedBox(
+      width: widget.width,
+      child: TextFormField(
+        controller: _controller,
+        focusNode: _focusNode,
+        style: TextStyle(color: palette.text, fontWeight: FontWeight.w700),
+        keyboardType: widget.label == 'HEX'
+            ? TextInputType.text
+            : const TextInputType.numberWithOptions(decimal: false),
+        textInputAction: TextInputAction.done,
+        decoration: InputDecoration(
+          labelText: widget.label,
+          labelStyle: TextStyle(color: palette.mutedText, fontSize: 12),
+          isDense: true,
+          enabledBorder: OutlineInputBorder(
+            borderSide: BorderSide(color: palette.border),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderSide: BorderSide(color: palette.accent),
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+        onChanged: _commit,
+        onFieldSubmitted: _submit,
+        onTapOutside: (_) => _submit(_controller.text),
+      ),
+    );
+  }
+
+  void _onFocusChanged() {
+    if (!_focusNode.hasFocus) {
+      _commit(_controller.text);
+    }
+  }
+
+  void _commit(String value) {
+    widget.onCommit(value);
+  }
+
+  void _submit(String value) {
+    _commit(value);
+    _focusNode.unfocus();
+  }
+}
+
+class _RgbNumberField extends StatelessWidget {
+  final String label;
+  final int value;
+  final ValueChanged<int> onChanged;
+
+  const _RgbNumberField({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _ColorTextField(
+      label: label,
+      value: value.toString(),
+      width: 58,
+      onCommit: (raw) {
+        final parsed = int.tryParse(raw.trim());
+        if (parsed == null) return;
+        onChanged(parsed.clamp(0, 255));
+      },
     );
   }
 }

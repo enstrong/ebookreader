@@ -536,6 +536,27 @@ The app development continues almost every single day, but I'm gonna group the u
 - Fixed recommendations for books in russian language.
 - Improved Library UI by splitting into `reading`, `want to read`, and `finished`.
 
+
+## June 2nd, 2026
+So after working on the app itself I realized that I have a LOT of duplicate books. If they are in the dataset, they're 100% polluting it. They are in the dataset.
+
+So I cleaned it up, removed the least popular duplicates, leaving the most popular copies. `777,324` books turned into `534,695`. Quarter of a million duplicates.
+
+I also conducted some experiments on the amount of iterations. In the end, `2` iterations + a cleaned up dataset gave me the best ever MRR:
+
+| Level | Model | Eval setup | Hit@5 | Hit@10 | Hit@20 | Hit@50 | MRR |
+|---|---|---|---:|---:|---:|---:|---:|
+|  2 | Item-CF, rating = 5 | old 5k restricted | 19.20% | 25.58% | 34.03% | 48.38% | 0.1494 |
+|  3 | ALS read-aware 256f lambda 1.0 10i | true validation 20k | 23.73% | 29.94% | 36.85% | 47.66% | 0.1779 |
+|  4 | Hybrid ALS + metadata | true validation 20k | 24.99% | 30.94% | 37.89% | 48.90% | 0.1869 |
+|  4 | Hybrid ALS + metadata  on a clean dataset| true validation 20k | 27.37% | 33.88% | 41.48% | 51.78% | 0.2143 |
+
+
+Also:
+- Added font and paddings customization to reader screen
+- Added background color, font color, highlight and saved color customizations to reader screen
+
+
 ## References
 
 - Hu, Y., Koren, Y., & Volinsky, C. (2008). *Collaborative Filtering for Implicit Feedback Datasets*. IEEE International Conference on Data Mining.

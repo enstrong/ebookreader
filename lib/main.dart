@@ -122,6 +122,8 @@ class _MyAppState extends State<MyApp> {
             title: 'EBook Reader',
             debugShowCheckedModeBanner: false,
             theme: AppTheme.themeData(palette),
+            builder: (context, child) =>
+                _KeyboardDismissScope(child: child ?? const SizedBox.shrink()),
             home: startScreen,
             routes: {
               '/login': (_) => const LoginScreen(),
@@ -133,6 +135,36 @@ class _MyAppState extends State<MyApp> {
           ),
         );
       },
+    );
+  }
+}
+
+class _KeyboardDismissScope extends StatelessWidget {
+  final Widget child;
+
+  const _KeyboardDismissScope({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (event) {
+        final focus = FocusManager.instance.primaryFocus;
+        if (focus == null) return;
+
+        final focusedContext = focus.context;
+        final renderObject = focusedContext?.findRenderObject();
+        if (renderObject is RenderBox) {
+          final offset = renderObject.localToGlobal(Offset.zero);
+          final focusedBounds = offset & renderObject.size;
+          if (focusedBounds.contains(event.position)) {
+            return;
+          }
+        }
+
+        focus.unfocus();
+      },
+      child: child,
     );
   }
 }

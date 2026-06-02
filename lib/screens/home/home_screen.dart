@@ -137,7 +137,10 @@ class _HomeScreenState extends State<HomeScreen>
       var hasNext = false;
 
       if (widget.libraryOnly) {
-        final books = await _bookmarkService.getBookmarks(widget.token);
+        final books = await _bookmarkService.getBookmarks(
+          widget.token,
+          limit: _pageSize,
+        );
         cleanBooks.addAll(books.cast<dynamic>());
         try {
           _demoAudiobook = await _bookService.getDemoAudiobook(widget.token);

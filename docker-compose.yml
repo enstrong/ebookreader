@@ -60,9 +60,13 @@ services:
     restart: unless-stopped
     ports:
       - "8001:8001"
+    environment:
+      RECOMMENDATION_MODEL_DIR: /app/data/recommendations/experiments/als_reads_workcanon_20k_f256_i2_lam1p0_validation_split
+      RECOMMENDATION_METADATA_CSV: /app/data/recommendations/hybrid/book_metadata_workcanon_20k_i5.csv
+      RECOMMENDATION_WORK_MAP_CSV: /app/data/recommendations/hybrid/goodreads_work_map.csv
     volumes:
-      - ./data/recommendations/experiments/als_reads_20k_f256_i10_lam1p0_validation_split:/app/data/recommendations/experiments/als_reads_20k_f256_i10_lam1p0_validation_split:ro
-      - ./data/recommendations/hybrid/book_metadata_20k.csv:/app/data/recommendations/hybrid/book_metadata_20k.csv:ro
+      - ./data/recommendations/experiments/als_reads_workcanon_20k_f256_i2_lam1p0_validation_split:/app/data/recommendations/experiments/als_reads_workcanon_20k_f256_i2_lam1p0_validation_split:ro
+      - ./data/recommendations/hybrid/book_metadata_workcanon_20k_i5.csv:/app/data/recommendations/hybrid/book_metadata_workcanon_20k_i5.csv:ro
       - ./data/recommendations/hybrid/goodreads_work_map.csv:/app/data/recommendations/hybrid/goodreads_work_map.csv:ro
     healthcheck:
       test:

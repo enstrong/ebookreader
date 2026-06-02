@@ -1,0 +1,57 @@
+[
+  {
+    "model": "Previous best hybrid (old duplicate-aware ALS), tested on canonical validation",
+    "users_evaluated": 9897,
+    "candidate_pool_recall": 0.8359098716782863,
+    "Hit@5": 0.25270283924421544,
+    "Hit@10": 0.31292310801252904,
+    "Hit@20": 0.38213600080832577,
+    "Hit@50": 0.4910578963322219,
+    "MRR": 0.1885673990765078,
+    "path": "data/recommendations/hybrid/previous_best_on_workcanon_validation_author50_alpha06_candidate1000.json"
+  },
+  {
+    "model": "Work-canonical ALS 256f \u03bb1.0 5i, pure ALS",
+    "users_evaluated": 9905,
+    "candidate_pool_recall": null,
+    "Hit@5": 0.2651186269560828,
+    "Hit@10": 0.32549217566885413,
+    "Hit@20": 0.396668349318526,
+    "Hit@50": 0.508833922261484,
+    "MRR": 0.2022054516178125,
+    "path": "data/recommendations/experiments/als_reads_workcanon_20k_f256_i5_lam1p0_validation_split/evaluation_validation_20k.json"
+  },
+  {
+    "model": "Work-canonical hybrid 256f \u03bb1.0 5i",
+    "users_evaluated": 9905,
+    "candidate_pool_recall": 0.8479555779909137,
+    "Hit@5": 0.276123170116103,
+    "Hit@10": 0.33871781928319034,
+    "Hit@20": 0.4125189298334175,
+    "Hit@50": 0.5210499747602221,
+    "MRR": 0.21257890459395754,
+    "path": "data/recommendations/hybrid/workcanon_i5_author50_alpha06_candidate1000.json"
+  },
+  {
+    "model": "Work-canonical ALS 256f \u03bb1.0 10i, pure ALS",
+    "users_evaluated": 9905,
+    "candidate_pool_recall": null,
+    "Hit@5": 0.2606764260474508,
+    "Hit@10": 0.3241797072185765,
+    "Hit@20": 0.39444724886421,
+    "Hit@50": 0.5068147400302877,
+    "MRR": 0.1980626686073131,
+    "path": "data/recommendations/experiments/als_reads_workcanon_20k_f256_i10_lam1p0_validation_split/evaluation_validation_20k.json"
+  },
+  {
+    "model": "Work-canonical hybrid 256f \u03bb1.0 10i",
+    "users_evaluated": 9905,
+    "candidate_pool_recall": 0.8509843513377082,
+    "Hit@5": 0.2755174154467441,
+    "Hit@10": 0.337203432609793,
+    "Hit@20": 0.40908632004038364,
+    "Hit@50": 0.5211509338717819,
+    "MRR": 0.2103705040563164,
+    "path": "data/recommendations/hybrid/workcanon_i10_author50_alpha06_candidate1000.json"
+  }
+]

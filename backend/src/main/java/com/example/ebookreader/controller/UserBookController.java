@@ -2,6 +2,7 @@ package com.example.ebookreader.controller;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -21,6 +22,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.ebookreader.config.JwtUtil;
@@ -300,15 +302,21 @@ public class UserBookController {
 
     // Получить все закладки пользователя
     @GetMapping("/bookmarks")
-    public ResponseEntity<?> getBookmarks(@RequestHeader("Authorization") String token) {
+    public ResponseEntity<?> getBookmarks(
+            @RequestHeader("Authorization") String token,
+            @RequestParam(required = false, defaultValue = "50") int limit) {
         String username = jwtUtil.extractUsername(token.replace("Bearer ", ""));
         
         return userRepository.findByNickname(username)
                 .map(user -> {
+                    int safeLimit = clampListLimit(limit);
                     List<UserBook> bookmarks = userBookRepository.findLibraryByUserId(user.getId());
                     Set<Long> seenBookIds = new HashSet<>();
                     List<Map<String, Object>> result = new ArrayList<>();
                     for (UserBook ub : bookmarks) {
+                        if (result.size() >= safeLimit) {
+                            break;
+                        }
                         if (ub.getBook() == null || !seenBookIds.add(ub.getBook().getId())) {
                             continue;
                         }
@@ -321,6 +329,9 @@ public class UserBookController {
                     }
 
                     for (BookAnnotation annotation : bookAnnotationRepository.findByUserIdOrderByUpdatedAtDesc(user.getId())) {
+                        if (result.size() >= safeLimit) {
+                            break;
+                        }
                         Book book = annotation.getBook();
                         if (book == null || !seenBookIds.add(book.getId())) {
                             continue;
@@ -548,15 +559,23 @@ public class UserBookController {
     @GetMapping("/{bookId}/reviews")
     public ResponseEntity<?> getBookReviews(
             @RequestHeader("Authorization") String token,
-            @PathVariable Long bookId) {
+            @PathVariable Long bookId,
+            @RequestParam(required = false, defaultValue = "50") int limit) {
         Optional<User> userOpt = getUserFromToken(token);
         Optional<Book> bookOpt = findCanonicalBook(bookId);
         if (userOpt.isEmpty() || bookOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
 
+        int safeLimit = clampListLimit(limit);
         List<UserBook> reviews = userBookRepository.findReviewsByBookId(bookOpt.get().getId());
-        List<Long> reviewIds = reviews.stream().map(UserBook::getId).collect(Collectors.toList());
+        List<UserBook> selectedReviews = reviews.stream()
+                .map(review -> Map.entry(review, reviewPayload(review, List.of(), Map.of(), userOpt.get())))
+                .sorted(Map.Entry.comparingByValue(reviewCommunityComparator()))
+                .limit(safeLimit)
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toList());
+        List<Long> reviewIds = selectedReviews.stream().map(UserBook::getId).collect(Collectors.toList());
         List<BookReviewReply> replies = reviewIds.isEmpty()
                 ? List.of()
                 : bookReviewReplyRepository.findByReviewIdInOrderByCreatedAtAsc(reviewIds);
@@ -567,9 +586,10 @@ public class UserBookController {
                 .filter(reply -> reply.getParentReply() != null)
                 .collect(Collectors.groupingBy(reply -> reply.getParentReply().getId()));
 
-        List<BookReviewDTO> result = reviews.stream()
+        List<BookReviewDTO> result = selectedReviews.stream()
                 .map(review -> reviewPayload(review, repliesByReview.getOrDefault(review.getId(), List.of()),
                         repliesByParent, userOpt.get()))
+                .sorted(reviewCommunityComparator())
                 .collect(Collectors.toList());
         return ResponseEntity.ok(result);
     }
@@ -685,16 +705,20 @@ public class UserBookController {
     @GetMapping("/{bookId}/quotes")
     public ResponseEntity<?> getBookQuotes(
             @RequestHeader("Authorization") String token,
-            @PathVariable Long bookId) {
+            @PathVariable Long bookId,
+            @RequestParam(required = false, defaultValue = "50") int limit) {
         Optional<User> userOpt = getUserFromToken(token);
         Optional<Book> bookOpt = findCanonicalBook(bookId);
         if (userOpt.isEmpty() || bookOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
+        int safeLimit = clampListLimit(limit);
         List<FavoriteQuoteDTO> quotes = bookAnnotationRepository
                 .findByBookIdAndPublishedQuoteTrueOrderByPublishedQuoteAtDescCreatedAtDesc(bookOpt.get().getId())
                 .stream()
                 .map(annotation -> quotePayload(annotation, userOpt.get()))
+                .sorted(quoteCommunityComparator())
+                .limit(safeLimit)
                 .collect(Collectors.toList());
         return ResponseEntity.ok(quotes);
     }
@@ -1066,6 +1090,33 @@ public class UserBookController {
                 "likes", communityReactionRepository.countByTargetTypeAndTargetIdAndValue(targetType, targetId, 1),
                 "dislikes", communityReactionRepository.countByTargetTypeAndTargetIdAndValue(targetType, targetId, -1)
         );
+    }
+
+    private Comparator<BookReviewDTO> reviewCommunityComparator() {
+        return Comparator.comparingDouble((BookReviewDTO review) -> communityScore(review.getLikes(), review.getDislikes()))
+                .reversed()
+                .thenComparing(Comparator.comparingInt(BookReviewDTO::getLikes).reversed());
+    }
+
+    private Comparator<FavoriteQuoteDTO> quoteCommunityComparator() {
+        return Comparator.comparingDouble((FavoriteQuoteDTO quote) -> communityScore(quote.getLikes(), quote.getDislikes()))
+                .reversed()
+                .thenComparing(Comparator.comparingInt(FavoriteQuoteDTO::getLikes).reversed());
+    }
+
+    private double communityScore(int likes, int dislikes) {
+        int totalVotes = likes + dislikes;
+        if (totalVotes <= 0) {
+            return 0;
+        }
+        return (double) likes / totalVotes;
+    }
+
+    private int clampListLimit(int limit) {
+        if (limit < 1) {
+            return 50;
+        }
+        return Math.min(limit, 100);
     }
 
     private int currentUserVote(User user, String targetType, Long targetId) {

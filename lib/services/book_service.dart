@@ -114,13 +114,13 @@ class BookService {
   }
 
   /// Возвращает книги, которые текущий пользователь сейчас читает.
-  Future<List<dynamic>> getLibraryBooks(String token) async {
+  Future<List<dynamic>> getLibraryBooks(String token, {int limit = 50}) async {
     try {
       print('=== GET LIBRARY BOOKS REQUEST ===');
-      print('URL: $baseUrl/books/library');
+      print('URL: $baseUrl/books/library?limit=$limit');
 
       final response = await http.get(
-        Uri.parse('$baseUrl/books/library'),
+        Uri.parse('$baseUrl/books/library?limit=$limit'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',

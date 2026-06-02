@@ -11,15 +11,23 @@ class CommunityService {
     'Content-Type': 'application/json',
   };
 
-  Future<List<CommunityReview>> getReviews(String token, int bookId) async {
+  Future<List<CommunityReview>> getReviews(
+    String token,
+    int bookId, {
+    int limit = 50,
+  }) async {
     final response = await http.get(
-      Uri.parse('${ApiConstants.baseUrl}/user/books/$bookId/reviews'),
+      Uri.parse(
+        '${ApiConstants.baseUrl}/user/books/$bookId/reviews?limit=$limit',
+      ),
       headers: _headers(token),
     );
     _throwIfError(response, 'Ошибка загрузки отзывов');
-    return _decodeList(
+    final reviews = _decodeList(
       response.body,
     ).map((item) => CommunityReview.fromJson(item)).toList();
+    reviews.sort(_compareReviewRank);
+    return reviews;
   }
 
   Future<CommunityReview> saveReview({
@@ -90,15 +98,23 @@ class CommunityService {
     _throwIfError(response, 'Ошибка голосования');
   }
 
-  Future<List<FavoriteQuote>> getBookQuotes(String token, int bookId) async {
+  Future<List<FavoriteQuote>> getBookQuotes(
+    String token,
+    int bookId, {
+    int limit = 50,
+  }) async {
     final response = await http.get(
-      Uri.parse('${ApiConstants.baseUrl}/user/books/$bookId/quotes'),
+      Uri.parse(
+        '${ApiConstants.baseUrl}/user/books/$bookId/quotes?limit=$limit',
+      ),
       headers: _headers(token),
     );
     _throwIfError(response, 'Ошибка загрузки цитат');
-    return _decodeList(
+    final quotes = _decodeList(
       response.body,
     ).map((item) => FavoriteQuote.fromJson(item)).toList();
+    quotes.sort(_compareQuoteRank);
+    return quotes;
   }
 
   Future<List<FavoriteQuote>> getMyQuotes(String token) async {
@@ -162,5 +178,29 @@ class CommunityService {
       }
     }
     throw Exception('$fallback: ${response.statusCode}');
+  }
+
+  int _compareReviewRank(CommunityReview a, CommunityReview b) {
+    final scoreCompare = _communityScore(
+      b.likes,
+      b.dislikes,
+    ).compareTo(_communityScore(a.likes, a.dislikes));
+    if (scoreCompare != 0) return scoreCompare;
+    return b.likes.compareTo(a.likes);
+  }
+
+  int _compareQuoteRank(FavoriteQuote a, FavoriteQuote b) {
+    final scoreCompare = _communityScore(
+      b.likes,
+      b.dislikes,
+    ).compareTo(_communityScore(a.likes, a.dislikes));
+    if (scoreCompare != 0) return scoreCompare;
+    return b.likes.compareTo(a.likes);
+  }
+
+  double _communityScore(int likes, int dislikes) {
+    final totalVotes = likes + dislikes;
+    if (totalVotes <= 0) return 0;
+    return likes / totalVotes;
   }
 }

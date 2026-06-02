@@ -36,7 +36,7 @@ public class CommunityReaction {
     @Column(name = "target_id", nullable = false)
     private Long targetId;
 
-    @Column(nullable = false)
+    @Column(name = "\"value\"", nullable = false)
     private Integer value;
 
     @Column(nullable = false)
