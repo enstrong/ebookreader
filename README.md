@@ -1,17 +1,21 @@
-#  eBookReader
+# eBookReader
+
+### Live demo is available [here](https://ebookreader.158-180-40-180.sslip.io/)
 
 A cross-platform book app built with Flutter, Spring Boot, and PostgreSQL.
-This diploma project is a joint app created with my partner over several months; now I’m continuing it solo.
+This completed diploma project was developed with my partner over several months. I later finished the remaining features and added the ML recommendation system.
+
+The live demo opens directly into a private library with sample books, an audiobook, notes, and ratings. No registration or setup is needed, and each visitor's data expires after 24 hours.
 
 ## What this app does
 
-- Upload books as files from the app, including EPUB and other supported formats.
-- Store uploaded book metadata, covers, and content in a backend service.
-- Read books on mobile and desktop with a polished Flutter interface.
-- Manage books, login/auth, and basic library organization.
+- Browse a book catalog and save titles to your personal library.
+- Store book metadata, covers, content, and reading progress in a backend service.
+- Read available books in a mobile-first Flutter interface, with a browser demo for mobile and desktop.
+- Manage accounts, bookmarks, and reading status.
 - Keep local state and user preferences with `shared_preferences`.
 - Get personalized book recommendations from a hybrid recommendation system.
-- Rate books and inspect the user's rating history.
+- Rate books and view your rating history.
 - Highlight text, save notes, look up dictionary definitions, and translate selected passages inside the reader.
 - Listen to the public-domain demo audiobook and move between text and audio with saved progress.
 - Switch between multiple visual themes.
@@ -20,21 +24,21 @@ This diploma project is a joint app created with my partner over several months;
 
 ### Book upload
 
-- Upload books using the file picker UI.
-- EPUB is supported, and the app is designed to accept other book formats if they are allowed by the parser.
-- Uploaded books are stored in the backend and become available in the app library.
+- Book imports and catalog management are handled through the admin interface.
+- The admin file importer supports EPUB, FB2, and TXT files; regular reader accounts use the existing catalog.
+- The browser demo also supports private uploads in these formats. They are temporary and are deleted with the visitor's session.
 
 ### Library experience
 
-- Browse and search your books.
-- View book details, cover art, and metadata.
-- Use the app as a personal reading manager.
-- See a visible demo audiobook entry point even when the library is empty.
+- Browse and search the catalog and your saved books.
+- View book details, cover art, and metadata. Full text is available for readable titles, not every book in the recommendation catalog.
+- Organize books into reading, want-to-read, and finished lists.
+- Open the demo audiobook directly from the library.
 - Check rated books, star values, and rating dates from the user page.
 
 ### Reading experience
 
-- Read imported books inside the app.
+- Read books with available text inside the app.
 - Highlight words or passages and attach notes.
 - Look up English and Russian dictionary definitions from selected text.
 - Translate selected English words or passages into Russian through LibreTranslate.
@@ -43,7 +47,7 @@ This diploma project is a joint app created with my partner over several months;
 
 ### Audiobooks and sync
 
-- Open the seeded public-domain demo audiobook, The Raven.
+- Open the included public-domain demo audiobook, The Raven.
 - Use a focused audio player with play/pause, seek, segment navigation, and speed control.
 - Save audiobook progress and resume later.
 - Continue from reading to listening, or from listening back to the matching text segment.
@@ -51,38 +55,38 @@ This diploma project is a joint app created with my partner over several months;
 ### Recommendations and ratings
 
 - Generate personalized recommendations from reading and rating signals.
-- Use a Python recommendation service for hybrid model logic.
+- Use a Python service that combines a trained ALS model with author and genre metadata.
 - Store and display rated books so recommendation behavior can be inspected per user.
 
 ### Authentication
 
-- Login and user management are handled by the backend service.
-- Secure sessions and profile-based library support.
-- Google OAuth supports login and registration.
+- Login, registration, and user management are handled by the backend service.
+- JWT-based sessions keep each user's library and reading data separate.
+- The mobile app supports Google OAuth login and registration; the live demo creates temporary visitor accounts automatically.
 
 ### Backend / infrastructure
 
 - Backend service lives in `backend/` and is built with Java/Spring Boot.
-- Uses PostgreSQL for data storage.
-- Docker support is included for local backend environment setup.
+- Uses PostgreSQL for book data, reading progress, ratings, and annotations.
+- Docker Compose runs the live demo's backend, database, recommendation service, and LibreTranslate on Oracle Cloud.
 
 ## Tech stack
 
 - Flutter frontend
 - Spring Boot backend
 - PostgreSQL database
-- Docker-compatible backend setup
+- Docker Compose deployment
 - Python recommendation service for model training and serving
 - Recommendation model tooling with `implicit`, `numpy`, `pandas`, and `scipy`
-- LibreTranslate-compatible translation service
-- File upload via Flutter `file_picker`
-- EPUB parsing and book asset handling via Dart packages
+- LibreTranslate translation service
+- File selection via Flutter `file_picker` in the admin and demo importers
+- EPUB, FB2, and TXT parsing and book asset handling
 
 ## Author
 
-- Project started with a partner, developed together for 2 months (October and February).
-- Partner, that absolutely deserves a lot of credit - [Shonkurieta](https://github.com/Shonkurieta). Frontend developer of this project and also added the EPUB support.
-- Project finished as a solo developer, defended it as my diploma project and graduated with honors.
+- Project started with a partner and developed together for two months (October and February). I finished the project and added the ML part in May.
+- My partner, [Shonkurieta](https://github.com/Shonkurieta), deserves a lot of credit for developing the frontend and adding EPUB support.
+- I completed the project as a solo developer, defended it as my diploma project, and graduated with honors.
 
 
 ---
