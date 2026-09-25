@@ -43,7 +43,17 @@ class ApiConstants {
 
     // Если это уже полный URL
     if (coverPath.startsWith('http')) {
-      return _preferLargeGoodreadsCover(coverPath);
+      final url = _preferLargeGoodreadsCover(coverPath);
+      final uri = Uri.tryParse(url);
+      // CanvasKit needs image bytes; Goodreads does not supply browser CORS headers.
+      // The demo proxy only serves the fixed Goodreads image host and cover paths.
+      if (kIsWeb &&
+          demoMode &&
+          uri?.host == 'images.gr-assets.com' &&
+          RegExp(r'^/books/[0-9]+[sml]/[0-9]+\.jpg$').hasMatch(uri!.path)) {
+        return '$apiBase/cover-images${uri.path}';
+      }
+      return url;
     }
 
     // Получаем имя файла
