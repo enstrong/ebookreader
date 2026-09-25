@@ -98,6 +98,7 @@ public class UserBookController {
     }
 
     private void refreshBookCommunityStats(Book book) {
+        if (com.example.ebookreader.demo.DemoAccess.isDemo()) return;
         long ratingsCount = userBookRepository.countRatingsByBookId(book.getId());
         Double averageRating = userBookRepository.averageRatingByBookId(book.getId());
         long reviewCount = userBookRepository.countReviewsByBookId(book.getId());
@@ -586,6 +587,7 @@ public class UserBookController {
         int safeLimit = clampListLimit(limit);
         List<UserBook> reviews = userBookRepository.findReviewsByBookId(bookOpt.get().getId());
         List<UserBook> selectedReviews = reviews.stream()
+                .filter(review -> com.example.ebookreader.demo.DemoAccess.canReadUser(review.getUser().getId()))
                 .map(review -> Map.entry(review, reviewPayload(review, List.of(), Map.of(), userOpt.get())))
                 .sorted(Map.Entry.comparingByValue(reviewCommunityComparator()))
                 .limit(safeLimit)
@@ -657,7 +659,8 @@ public class UserBookController {
             @RequestBody BookReviewRequest request) {
         Optional<User> userOpt = getUserFromToken(token);
         Optional<Book> bookOpt = findCanonicalBook(bookId);
-        Optional<UserBook> reviewOpt = userBookRepository.findById(reviewId);
+        Optional<UserBook> reviewOpt = userBookRepository.findById(reviewId)
+                .filter(review -> com.example.ebookreader.demo.DemoAccess.canReadUser(review.getUser().getId()));
         if (userOpt.isEmpty() || bookOpt.isEmpty() || reviewOpt.isEmpty()
                 || !bookOpt.get().getId().equals(reviewOpt.get().getBook().getId())) {
             return ResponseEntity.notFound().build();
@@ -674,7 +677,8 @@ public class UserBookController {
             @RequestBody BookReviewRequest request) {
         Optional<User> userOpt = getUserFromToken(token);
         Optional<Book> bookOpt = findCanonicalBook(bookId);
-        Optional<UserBook> reviewOpt = userBookRepository.findById(reviewId);
+        Optional<UserBook> reviewOpt = userBookRepository.findById(reviewId)
+                .filter(review -> com.example.ebookreader.demo.DemoAccess.canReadUser(review.getUser().getId()));
         if (userOpt.isEmpty() || bookOpt.isEmpty() || reviewOpt.isEmpty()
                 || !bookOpt.get().getId().equals(reviewOpt.get().getBook().getId())) {
             return ResponseEntity.notFound().build();
@@ -710,7 +714,8 @@ public class UserBookController {
             @PathVariable Long replyId,
             @RequestBody BookReviewRequest request) {
         Optional<User> userOpt = getUserFromToken(token);
-        Optional<BookReviewReply> replyOpt = bookReviewReplyRepository.findById(replyId);
+        Optional<BookReviewReply> replyOpt = bookReviewReplyRepository.findById(replyId)
+                .filter(reply -> com.example.ebookreader.demo.DemoAccess.canReadUser(reply.getUser().getId()));
         if (userOpt.isEmpty() || replyOpt.isEmpty()
                 || !replyOpt.get().getReview().getBook().getId().equals(findCanonicalBook(bookId).map(Book::getId).orElse(null))) {
             return ResponseEntity.notFound().build();
@@ -733,6 +738,7 @@ public class UserBookController {
         List<FavoriteQuoteDTO> quotes = bookAnnotationRepository
                 .findByBookIdAndPublishedQuoteTrueOrderByPublishedQuoteAtDescCreatedAtDesc(bookOpt.get().getId())
                 .stream()
+                .filter(annotation -> com.example.ebookreader.demo.DemoAccess.canReadUser(annotation.getUser().getId()))
                 .map(annotation -> quotePayload(annotation, userOpt.get()))
                 .sorted(quoteCommunityComparator())
                 .limit(safeLimit)
@@ -749,6 +755,7 @@ public class UserBookController {
         List<FavoriteQuoteDTO> quotes = bookAnnotationRepository
                 .findByUserIdAndPublishedQuoteTrueOrderByPublishedQuoteAtDescCreatedAtDesc(userOpt.get().getId())
                 .stream()
+                .filter(annotation -> com.example.ebookreader.demo.DemoAccess.canReadUser(annotation.getUser().getId()))
                 .map(annotation -> quotePayload(annotation, userOpt.get()))
                 .collect(Collectors.toList());
         return ResponseEntity.ok(quotes);
@@ -789,7 +796,8 @@ public class UserBookController {
             @RequestBody BookReviewRequest request) {
         Optional<User> userOpt = getUserFromToken(token);
         Optional<Book> bookOpt = findCanonicalBook(bookId);
-        Optional<BookAnnotation> quoteOpt = bookAnnotationRepository.findById(quoteId);
+        Optional<BookAnnotation> quoteOpt = bookAnnotationRepository.findById(quoteId)
+                .filter(quote -> com.example.ebookreader.demo.DemoAccess.canReadUser(quote.getUser().getId()));
         if (userOpt.isEmpty() || bookOpt.isEmpty() || quoteOpt.isEmpty()
                 || !quoteOpt.get().isPublishedQuote()
                 || !bookOpt.get().getId().equals(quoteOpt.get().getBook().getId())) {

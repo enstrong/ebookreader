@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'constants/api_constants.dart';
+import 'screens/demo/demo_start_screen.dart';
 
 import 'package:ebookreader/screens/admin/admin_main_screen.dart';
 import 'package:ebookreader/theme/app_theme.dart';
@@ -17,12 +19,13 @@ import 'screens/user/user_home.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: ".env");
-  await JustAudioBackground.init(
-    androidNotificationChannelId: 'com.example.ebookreader.audio',
-    androidNotificationChannelName: 'Audiobook playback',
-    androidNotificationOngoing: true,
-  );
+  if (!ApiConstants.demoMode) await dotenv.load(fileName: ".env");
+  if (!kIsWeb)
+    await JustAudioBackground.init(
+      androidNotificationChannelId: 'com.example.ebookreader.audio',
+      androidNotificationChannelName: 'Audiobook playback',
+      androidNotificationOngoing: true,
+    );
   runApp(const MyApp());
 }
 
@@ -68,6 +71,9 @@ class _MyAppState extends State<MyApp> {
     }
 
     await _themeController.load();
+    if (ApiConstants.demoMode && !prefs.containsKey('app_language')) {
+      await prefs.setString('app_language', 'en');
+    }
     await _languageController.load();
 
     setState(() {
@@ -105,7 +111,9 @@ class _MyAppState extends State<MyApp> {
 
     Widget startScreen;
 
-    if (token != null && role != null) {
+    if (ApiConstants.demoMode) {
+      startScreen = const DemoStartScreen();
+    } else if (token != null && role != null) {
       if (role == 'ADMIN') {
         startScreen = AdminMainScreen(token: token!);
       } else {
@@ -134,7 +142,9 @@ class _MyAppState extends State<MyApp> {
               ),
               home: startScreen,
               routes: {
-                '/login': (_) => const LoginScreen(),
+                '/login': (_) => ApiConstants.demoMode
+                    ? const DemoStartScreen()
+                    : const LoginScreen(),
                 '/register': (_) => const RegisterScreen(),
                 '/home': (_) => HomeScreen(token: token ?? ''),
                 '/admin': (_) => AdminMainScreen(token: token ?? ''),

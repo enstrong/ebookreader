@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../constants/api_constants.dart';
+import '../demo/demo_controls.dart';
 import 'package:ebookreader/screens/home/home_screen.dart';
 import 'package:ebookreader/screens/profile/profile_screen.dart';
 import 'package:ebookreader/screens/recommendations/for_you_screen.dart';
@@ -18,7 +20,7 @@ class UserHome extends StatefulWidget {
 }
 
 class _UserHomeState extends State<UserHome> {
-  int _selectedIndex = 0;
+  int _selectedIndex = ApiConstants.demoMode ? 1 : 0;
   final StorageService _storage = StorageService();
   String? _currentToken;
 
@@ -54,6 +56,7 @@ class _UserHomeState extends State<UserHome> {
     ];
 
     return Scaffold(
+      appBar: ApiConstants.demoMode ? DemoControls(token: token) : null,
       backgroundColor: palette.background,
       body: Container(
         decoration: BoxDecoration(gradient: palette.pageGradient),

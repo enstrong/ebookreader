@@ -280,7 +280,12 @@ public class BookController {
         demoAudiobookSeeder.seed();
     }
 
+    @org.springframework.beans.factory.annotation.Value("${ebookreader.demo.enabled:false}")
+    private boolean demoEnabled;
+
     private void assertAudioAccess(String token, Long bookId) {
+        if (demoEnabled && bookService.getBookById(bookId)
+                .filter(book -> book.getDemoOwnerId() == null && book.isListenable()).isPresent()) return;
         authenticatedUser(token);
     }
 

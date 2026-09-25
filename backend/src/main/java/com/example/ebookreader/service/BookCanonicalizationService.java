@@ -37,12 +37,17 @@ public class BookCanonicalizationService {
         if (bookId == null) {
             return Optional.empty();
         }
+        Optional<Book> requested = bookRepository.findById(bookId);
+        if (requested.isEmpty() || !com.example.ebookreader.demo.DemoAccess.canRead(requested.get())) return Optional.empty();
+        if (requested.get().getDemoOwnerId() != null) return requested;
         Long canonicalId = index().canonicalIdByBookId().getOrDefault(bookId, bookId);
         return bookRepository.findById(canonicalId);
     }
 
     @Transactional(readOnly = true)
     public Book canonicalize(Book book) {
+        if (book != null && !com.example.ebookreader.demo.DemoAccess.canRead(book)) return null;
+        if (book != null && book.getDemoOwnerId() != null) return book;
         if (book == null || book.getId() == null) {
             return book;
         }
@@ -62,6 +67,7 @@ public class BookCanonicalizationService {
         CanonicalIndex index = index();
         List<Long> orderedCanonicalIds = books.stream()
                 .filter(Objects::nonNull)
+                .filter(com.example.ebookreader.demo.DemoAccess::canRead)
                 .map(Book::getId)
                 .filter(Objects::nonNull)
                 .map(bookId -> index.canonicalIdByBookId().getOrDefault(bookId, bookId))
@@ -136,7 +142,7 @@ public class BookCanonicalizationService {
     private CanonicalIndex buildIndex() {
         Map<String, Book> canonicalByKey = new HashMap<>();
         Map<Long, String> keyByBookId = new HashMap<>();
-        List<Book> books = bookRepository.findAll();
+        List<Book> books = bookRepository.findAll().stream().filter(b -> b.getDemoOwnerId() == null).toList();
 
         for (Book book : books) {
             String key = canonicalKey(book);

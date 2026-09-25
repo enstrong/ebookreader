@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 /// Константы для работы с серверным API.
@@ -5,8 +6,16 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 /// Все URL формируются на основе базового адреса сервера,
 /// заданного в переменной окружения `API_BASE_URL` файла `.env`.
 class ApiConstants {
+  static const demoMode = bool.fromEnvironment('DEMO_MODE');
+  static String get origin {
+    const configured = String.fromEnvironment('API_BASE_URL');
+    if (configured.isNotEmpty) return configured;
+    if (kIsWeb) return Uri.base.origin;
+    return dotenv.env['API_BASE_URL'] ?? 'http://localhost:8080';
+  }
+
   /// Базовый URL API (включает префикс `/api`).
-  static String get baseUrl => '${dotenv.env['API_BASE_URL']}/api';
+  static String get baseUrl => '$origin/api';
 
   /// URL для эндпоинтов аутентификации (`/api/auth`).
   static String get authUrl => '$baseUrl/auth';
@@ -30,7 +39,7 @@ class ApiConstants {
   /// Если [coverPath] начинается с `/`, URL формируется как `{host}{coverPath}`.
   /// В противном случае добавляется разделитель `/`.
   static String getCoverUrl(String coverPath) {
-    final apiBase = dotenv.env['API_BASE_URL'] ?? 'http://192.168.1.90:8080';
+    final apiBase = origin;
 
     // Если это уже полный URL
     if (coverPath.startsWith('http')) {
@@ -57,7 +66,7 @@ class ApiConstants {
 
   /// Формирует полный URL для потокового аудио.
   static String getAudioUrl(String streamPath) {
-    final apiBase = dotenv.env['API_BASE_URL'] ?? 'http://192.168.1.90:8080';
+    final apiBase = origin;
     if (streamPath.startsWith('http')) return streamPath;
     if (streamPath.startsWith('/')) return '$apiBase$streamPath';
     return '$baseUrl/$streamPath';

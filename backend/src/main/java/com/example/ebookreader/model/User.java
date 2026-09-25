@@ -44,6 +44,12 @@ public class User {
     @JsonIgnore // ❗ предотвращает рекурсивную сериализацию
     private List<UserBook> userBooks;
 
+    @Column(name = "demo_expires_at")
+    private java.time.Instant demoExpiresAt;
+
+    public java.time.Instant getDemoExpiresAt() { return demoExpiresAt; }
+    public void setDemoExpiresAt(java.time.Instant value) { demoExpiresAt = value; }
+
     // Constructors
     public User() {}
 

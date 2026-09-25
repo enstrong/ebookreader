@@ -1,0 +1,26 @@
+ebookreader:
+  demo:
+    enabled: true
+    seed-audiobook: true
+    seed-supplemental-catalog: true
+  jwt:
+    secret: ${JWT_SECRET}
+spring:
+  jpa:
+    show-sql: false
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 11MB
+  graphql:
+    graphiql:
+      enabled: false
+server:
+  error:
+    include-message: never
+    include-stacktrace: never
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false

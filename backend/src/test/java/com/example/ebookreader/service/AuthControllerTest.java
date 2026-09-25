@@ -168,6 +168,7 @@ class AuthControllerTest {
     }
 
     private static class TestJwtUtil extends JwtUtil {
+        TestJwtUtil() { super(""); }
         @Override
         public String generateToken(Long userId, UserDetails userDetails) {
             return "test_token_for_" + userDetails.getUsername();

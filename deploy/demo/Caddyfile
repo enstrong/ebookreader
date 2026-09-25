@@ -1,0 +1,12 @@
+{$DEMO_HOST} {
+    encode gzip zstd
+    header {
+        X-Content-Type-Options nosniff
+        Referrer-Policy same-origin
+        X-Frame-Options DENY
+        Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    }
+    reverse_proxy web:80 {
+        header_up X-Real-IP {remote_host}
+    }
+}

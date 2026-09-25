@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../constants/api_constants.dart';
+import '../demo/demo_controls.dart';
 import 'package:ebookreader/services/user_service.dart';
 import 'package:ebookreader/services/storage_service.dart';
 import 'package:ebookreader/screens/profile/favorite_quotes_screen.dart';
@@ -86,6 +88,10 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Future<void> _logout() async {
+    if (ApiConstants.demoMode) {
+      await resetDemo(context, _currentToken);
+      return;
+    }
     final palette = context.palette;
     showDialog(
       context: context,
@@ -649,16 +655,17 @@ class _ProfileScreenState extends State<ProfileScreen>
 
                         const SizedBox(height: 16),
 
-                        _buildMenuItem(
-                          icon: Icons.person_outline,
-                          title: context.tr('Смена имени пользователя'),
-                          description: nickname.isNotEmpty
-                              ? nickname
-                              : context.tr('Не установлен'),
-                          onTap: _showNicknameDialog,
-                        ),
+                        if (!ApiConstants.demoMode)
+                          _buildMenuItem(
+                            icon: Icons.person_outline,
+                            title: context.tr('Смена имени пользователя'),
+                            description: nickname.isNotEmpty
+                                ? nickname
+                                : context.tr('Не установлен'),
+                            onTap: _showNicknameDialog,
+                          ),
 
-                        if (canChangePassword) ...[
+                        if (canChangePassword && !ApiConstants.demoMode) ...[
                           const SizedBox(height: 16),
                           _buildMenuItem(
                             icon: Icons.lock_outline,

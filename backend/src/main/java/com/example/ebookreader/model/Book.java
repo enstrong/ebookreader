@@ -71,6 +71,13 @@ public class Book {
     @Column
     private BookAvailability availability = BookAvailability.METADATA_ONLY;
 
+    @Column(name = "demo_owner_id")
+    private Long demoOwnerId;
+
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    public Long getDemoOwnerId() { return demoOwnerId; }
+    public void setDemoOwnerId(Long value) { demoOwnerId = value; }
+
     // Getters and Setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }

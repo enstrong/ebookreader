@@ -114,6 +114,7 @@ public class BookServiceImpl implements BookService {
     @Override
     @Transactional(readOnly = true)
     public List<ChapterDTO> getBookChapters(Long bookId) {
+        if (getBookById(bookId).isEmpty()) return List.of();
         List<Chapter> chapters = chapterRepository.findByBookIdOrderByChapterOrderAsc(bookId);
         return chapters.stream()
                 .map(ch -> new ChapterDTO(
@@ -128,6 +129,7 @@ public class BookServiceImpl implements BookService {
     @Override
     @Transactional(readOnly = true)
     public Optional<ChapterDTO> getChapter(Long bookId, int chapterOrder) {
+        if (getBookById(bookId).isEmpty()) return Optional.empty();
         return chapterRepository.findByBookIdAndChapterOrder(bookId, chapterOrder)
                 .map(ch -> new ChapterDTO(
                         ch.getId(),
@@ -140,6 +142,7 @@ public class BookServiceImpl implements BookService {
     @Override
     @Transactional(readOnly = true)
     public List<AudioTrackDTO> getAudioTracks(Long bookId) {
+        if (getBookById(bookId).isEmpty()) return List.of();
         return audioTrackRepository.findByBookIdOrderBySegmentOrderAsc(bookId).stream()
                 .map(track -> toAudioTrackDto(bookId, track))
                 .collect(Collectors.toList());
@@ -170,6 +173,9 @@ public class BookServiceImpl implements BookService {
             BookAvailability availability) {
         return (root, criteriaQuery, builder) -> {
             List<Predicate> predicates = new java.util.ArrayList<>();
+            Long viewer = com.example.ebookreader.demo.DemoAccess.userId();
+            predicates.add(viewer == null ? builder.isNull(root.get("demoOwnerId")) :
+                builder.or(builder.isNull(root.get("demoOwnerId")), builder.equal(root.get("demoOwnerId"), viewer)));
             if (criteriaQuery != null) {
                 criteriaQuery.distinct(true);
             }
