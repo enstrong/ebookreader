@@ -1090,18 +1090,7 @@ class _ReaderScreenState extends State<ReaderScreen>
               onPointerMove: _handleReaderPointerMove,
               onPointerUp: _handleReaderPointerUp,
               child: Container(
-                decoration: BoxDecoration(
-                  color: _customReaderBackgroundColor == null
-                      ? null
-                      : _readerBackgroundColor,
-                  gradient: _customReaderBackgroundColor == null
-                      ? LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [palette.background, palette.surface],
-                        )
-                      : null,
-                ),
+                decoration: BoxDecoration(color: _readerBackgroundColor),
                 child: Opacity(
                   opacity: _brightness,
                   child: Stack(
@@ -1444,10 +1433,9 @@ class _ReaderScreenState extends State<ReaderScreen>
     return Container(
       height: 54,
       decoration: BoxDecoration(
-        gradient: enabled && accent ? palette.accentGradient : null,
-        color: !enabled || !accent
-            ? palette.text.withValues(alpha: palette.isDark ? 0.05 : 0.08)
-            : null,
+        color: enabled && accent
+            ? palette.accent
+            : palette.text.withValues(alpha: palette.isDark ? 0.05 : 0.08),
         borderRadius: BorderRadius.circular(12),
         border: !enabled || !accent ? Border.all(color: palette.border) : null,
       ),

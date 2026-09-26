@@ -676,7 +676,7 @@ class _HomeScreenState extends State<HomeScreen>
         behavior: HitTestBehavior.translucent,
         onTap: _dismissKeyboard,
         child: Container(
-          decoration: BoxDecoration(gradient: palette.verticalGradient),
+          decoration: BoxDecoration(color: palette.background),
           child: SafeArea(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1594,27 +1594,11 @@ class _HomeScreenState extends State<HomeScreen>
           clipBehavior: Clip.hardEdge,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(24),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                palette.elevated.withValues(
-                  alpha: palette.isDark ? 0.18 : 0.88,
-                ),
-                palette.surface.withValues(alpha: palette.isDark ? 0.08 : 0.58),
-              ],
-            ),
+            color: palette.elevated,
             border: Border.all(
               color: isSelected ? palette.accent : palette.border,
               width: isSelected ? 2.4 : 1.5,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.3),
-                blurRadius: 15,
-                offset: const Offset(0, 8),
-              ),
-            ],
           ),
           child: Stack(
             children: [
@@ -1762,24 +1746,10 @@ class _HomeScreenState extends State<HomeScreen>
                                 vertical: 6,
                               ),
                               decoration: BoxDecoration(
-                                gradient: _isUsableAvailability(availability)
-                                    ? palette.accentGradient
-                                    : LinearGradient(
-                                        colors: [
-                                          palette.text.withValues(alpha: 0.08),
-                                          palette.text.withValues(alpha: 0.04),
-                                        ],
-                                      ),
+                                color: _isUsableAvailability(availability)
+                                    ? palette.accent
+                                    : palette.surface,
                                 borderRadius: BorderRadius.circular(10),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: palette.accent.withValues(
-                                      alpha: 0.24,
-                                    ),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -1787,7 +1757,9 @@ class _HomeScreenState extends State<HomeScreen>
                                   Icon(
                                     Icons.play_arrow_rounded,
                                     size: 16,
-                                    color: palette.onAccent,
+                                    color: _isUsableAvailability(availability)
+                                        ? palette.onAccent
+                                        : palette.text,
                                   ),
                                   const SizedBox(width: 5),
                                   Text(
@@ -1796,7 +1768,9 @@ class _HomeScreenState extends State<HomeScreen>
                                         : context.tr('Детали'),
                                     style: TextStyle(
                                       fontSize: 12,
-                                      color: palette.onAccent,
+                                      color: _isUsableAvailability(availability)
+                                          ? palette.onAccent
+                                          : palette.text,
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),

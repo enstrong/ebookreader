@@ -59,47 +59,29 @@ class _UserHomeState extends State<UserHome> {
       appBar: ApiConstants.demoMode ? DemoControls(token: token) : null,
       backgroundColor: palette.background,
       body: Container(
-        decoration: BoxDecoration(gradient: palette.pageGradient),
+        decoration: BoxDecoration(color: palette.background),
         child: IndexedStack(index: _selectedIndex, children: screens),
       ),
-      bottomNavigationBar: Container(
+      bottomNavigationBar: DecoratedBox(
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              palette.surface.withValues(alpha: 0.95),
-              palette.background,
-            ],
-          ),
-          border: Border(top: BorderSide(color: palette.border, width: 1)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.3),
-              blurRadius: 20,
-              offset: const Offset(0, -4),
-            ),
-          ],
+          color: palette.background,
+          border: Border(top: BorderSide(color: palette.border)),
         ),
         child: BottomNavigationBar(
           currentIndex: _selectedIndex,
           onTap: (index) async {
             await _updateToken();
+            if (!mounted) return;
             setState(() => _selectedIndex = index);
           },
           backgroundColor: Colors.transparent,
           elevation: 0,
           type: BottomNavigationBarType.fixed,
-          selectedIconTheme: IconThemeData(color: palette.accent),
-          unselectedIconTheme: IconThemeData(
-            color: palette.mutedText.withValues(alpha: 0.75),
-          ),
           selectedItemColor: palette.accent,
-          unselectedItemColor: palette.mutedText.withValues(alpha: 0.75),
+          unselectedItemColor: palette.mutedText,
           selectedLabelStyle: const TextStyle(
             fontWeight: FontWeight.w600,
             fontSize: 12,
-            letterSpacing: 0.5,
           ),
           unselectedLabelStyle: const TextStyle(
             fontWeight: FontWeight.w500,
@@ -107,137 +89,35 @@ class _UserHomeState extends State<UserHome> {
           ),
           items: [
             BottomNavigationBarItem(
-              icon: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: _selectedIndex == 0
-                    ? BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            palette.accent.withValues(alpha: 0.2),
-                            palette.secondaryAccent.withValues(alpha: 0.1),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: palette.accent.withValues(alpha: 0.3),
-                            blurRadius: 12,
-                            spreadRadius: 2,
-                          ),
-                        ],
-                      )
-                    : null,
-                child: const Icon(Icons.auto_awesome_outlined, size: 26),
+              icon: const Padding(
+                padding: EdgeInsets.all(8),
+                child: Icon(Icons.auto_awesome_outlined, size: 26),
               ),
-              activeIcon: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      palette.accent.withValues(alpha: 0.2),
-                      palette.secondaryAccent.withValues(alpha: 0.1),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: palette.accent.withValues(alpha: 0.3),
-                      blurRadius: 12,
-                      spreadRadius: 2,
-                    ),
-                  ],
-                ),
-                child: const Icon(Icons.auto_awesome, size: 26),
+              activeIcon: const Padding(
+                padding: EdgeInsets.all(8),
+                child: Icon(Icons.auto_awesome, size: 26),
               ),
               label: context.tr('Для вас'),
             ),
             BottomNavigationBarItem(
-              icon: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: _selectedIndex == 1
-                    ? BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            palette.accent.withValues(alpha: 0.2),
-                            palette.secondaryAccent.withValues(alpha: 0.1),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: palette.accent.withValues(alpha: 0.3),
-                            blurRadius: 12,
-                            spreadRadius: 2,
-                          ),
-                        ],
-                      )
-                    : null,
-                child: const Icon(Icons.auto_stories_outlined, size: 26),
+              icon: const Padding(
+                padding: EdgeInsets.all(8),
+                child: Icon(Icons.auto_stories_outlined, size: 26),
               ),
-              activeIcon: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      palette.accent.withValues(alpha: 0.2),
-                      palette.secondaryAccent.withValues(alpha: 0.1),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: palette.accent.withValues(alpha: 0.3),
-                      blurRadius: 12,
-                      spreadRadius: 2,
-                    ),
-                  ],
-                ),
-                child: const Icon(Icons.auto_stories, size: 26),
+              activeIcon: const Padding(
+                padding: EdgeInsets.all(8),
+                child: Icon(Icons.auto_stories, size: 26),
               ),
               label: context.tr('Библиотека'),
             ),
             BottomNavigationBarItem(
-              icon: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: _selectedIndex == 2
-                    ? BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            palette.accent.withValues(alpha: 0.2),
-                            palette.secondaryAccent.withValues(alpha: 0.1),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: palette.accent.withValues(alpha: 0.3),
-                            blurRadius: 12,
-                            spreadRadius: 2,
-                          ),
-                        ],
-                      )
-                    : null,
-                child: const Icon(Icons.person_outline, size: 26),
+              icon: const Padding(
+                padding: EdgeInsets.all(8),
+                child: Icon(Icons.person_outline, size: 26),
               ),
-              activeIcon: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      palette.accent.withValues(alpha: 0.2),
-                      palette.secondaryAccent.withValues(alpha: 0.1),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: palette.accent.withValues(alpha: 0.3),
-                      blurRadius: 12,
-                      spreadRadius: 2,
-                    ),
-                  ],
-                ),
-                child: const Icon(Icons.person, size: 26),
+              activeIcon: const Padding(
+                padding: EdgeInsets.all(8),
+                child: Icon(Icons.person, size: 26),
               ),
               label: context.tr('Профиль'),
             ),

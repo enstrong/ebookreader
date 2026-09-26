@@ -433,6 +433,7 @@ const Map<String, String> _en = {
       'Select text in a book and it will appear here.',
   'Выделения': 'Highlights',
   'Выделить': 'Highlight',
+  'Цитата': 'Quote',
   'Настройки чтения': 'Reading settings',
   'Размер шрифта': 'Font size',
   'Яркость': 'Brightness',

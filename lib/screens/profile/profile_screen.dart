@@ -460,7 +460,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     return Scaffold(
       backgroundColor: palette.background,
       body: Container(
-        decoration: BoxDecoration(gradient: palette.pageGradient),
+        decoration: BoxDecoration(color: palette.background),
         child: SafeArea(
           child: FadeTransition(
             opacity: _fadeAnimation,
@@ -682,20 +682,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                           width: double.infinity,
                           height: 58,
                           decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                Colors.red.shade600,
-                                Colors.red.shade800,
-                              ],
-                            ),
+                            color: Colors.red.shade700,
                             borderRadius: BorderRadius.circular(16),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.red.withValues(alpha: 0.4),
-                                blurRadius: 20,
-                                offset: const Offset(0, 8),
-                              ),
-                            ],
                           ),
                           child: ElevatedButton(
                             onPressed: _logout,
