@@ -73,18 +73,18 @@ class AppPalette {
 class AppTheme {
   static const dark = AppPalette(
     mode: AppThemeMode.dark,
-    background: Color(0xFF0A0E27),
-    surface: Color(0xFF1A1F3A),
-    elevated: Color(0xFF10162F),
+    background: Color(0xFF11161B),
+    surface: Color(0xFF1A2128),
+    elevated: Color(0xFF1D252D),
     text: Colors.white,
     mutedText: Color(0xFFB9C2D0),
-    accent: Color(0xFF14FFEC),
-    secondaryAccent: Color(0xFF0D7377),
+    accent: Color(0xFF71C9BC),
+    secondaryAccent: Color(0xFF427C75),
     border: Color(0x22FFFFFF),
     danger: Color(0xFFFF6B9D),
     success: Color(0xFF7CFF6B),
     warning: Color(0xFFFFD166),
-    highlight: Color(0x5514FFEC),
+    highlight: Color(0x5571C9BC),
     onAccent: Color(0xFF071018),
   );
 
@@ -160,7 +160,8 @@ class AppTheme {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
       appBarTheme: AppBarTheme(
-        backgroundColor: palette.surface,
+        backgroundColor: palette.background,
+        surfaceTintColor: Colors.transparent,
         foregroundColor: palette.text,
         elevation: 0,
         iconTheme: IconThemeData(color: palette.text),

@@ -590,19 +590,13 @@ class _BookDetailScreenState extends State<BookDetailScreen>
       body: FadeTransition(
         opacity: _fadeAnimation,
         child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [palette.background, palette.surface],
-            ),
-          ),
+          decoration: BoxDecoration(color: palette.background),
           child: CustomScrollView(
             slivers: [
               // Hero cover
               SliverToBoxAdapter(
                 child: Container(
-                  padding: const EdgeInsets.only(top: 120, bottom: 30),
+                  padding: const EdgeInsets.only(top: 24, bottom: 24),
                   child: Column(
                     children: [
                       Hero(
@@ -611,22 +605,10 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                           width: 200,
                           height: 300,
                           decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(24),
-                            boxShadow: [
-                              BoxShadow(
-                                color: palette.accent.withValues(alpha: 0.2),
-                                blurRadius: 40,
-                                spreadRadius: 5,
-                              ),
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.4),
-                                blurRadius: 20,
-                                offset: const Offset(0, 10),
-                              ),
-                            ],
+                            borderRadius: BorderRadius.circular(6),
                           ),
                           child: ClipRRect(
-                            borderRadius: BorderRadius.circular(24),
+                            borderRadius: BorderRadius.circular(6),
                             child:
                                 _book!['coverUrl'] != null &&
                                     _book!['coverUrl'].toString().isNotEmpty
@@ -675,9 +657,9 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                               _book!['title'] ?? context.tr('Без названия'),
                               style: TextStyle(
                                 color: palette.text,
-                                fontSize: 28,
+                                fontSize: 24,
                                 fontWeight: FontWeight.bold,
-                                letterSpacing: 0.5,
+                                height: 1.3,
                               ),
                               textAlign: TextAlign.center,
                               maxLines: 2,
@@ -692,46 +674,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                               ),
                             ),
                             const SizedBox(height: 12),
-                            Wrap(
-                              alignment: WrapAlignment.center,
-                              spacing: 10,
-                              runSpacing: 10,
-                              children: [
-                                if (_detailGenres().isNotEmpty)
-                                  for (final genre in _detailGenres().take(2))
-                                    _buildInfoChip(context.genreLabel(genre)),
-                                _buildLanguageChip(_bookLanguage()),
-                                _buildInfoChip(_availabilityLabel()),
-                                if (_bookPages() > 0)
-                                  _buildInfoChip(
-                                    context.pagesCount(_bookPages()),
-                                  ),
-                                if ((_book!['average_rating'] ??
-                                        _book!['averageRating'] ??
-                                        0) !=
-                                    0)
-                                  _buildInfoChip(
-                                    '${(_book!['average_rating'] ?? _book!['averageRating']).toString()} ★',
-                                  ),
-                                if ((_book!['ratings_count'] ??
-                                        _book!['ratingsCount'] ??
-                                        0) !=
-                                    0)
-                                  _buildInfoChip(
-                                    context.ratingsCount(
-                                      int.tryParse(
-                                            (_book!['ratings_count'] ??
-                                                    _book!['ratingsCount'])
-                                                .toString(),
-                                          ) ??
-                                          0,
-                                    ),
-                                  ),
-                                _buildInfoChip(
-                                  context.chaptersCount(_chapters.length),
-                                ),
-                              ],
-                            ),
+                            _buildMetadataText(),
                           ],
                         ),
                       ),
@@ -1568,7 +1511,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
     return SizedBox(
       width: double.infinity,
       height: 56,
-      child: FilledButton.icon(
+      child: OutlinedButton.icon(
         onPressed: _isMarkReadSaving ? null : _markAsRead,
         icon: _isMarkReadSaving
             ? SizedBox(
@@ -1576,17 +1519,15 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                 height: 18,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  color: palette.onAccent,
+                  color: palette.mutedText,
                 ),
               )
             : const Icon(Icons.done_all_rounded),
         label: Text(context.tr('Отметить как прочитанное')),
-        style: FilledButton.styleFrom(
-          backgroundColor: palette.accent,
-          foregroundColor: palette.onAccent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
+        style: OutlinedButton.styleFrom(
+          side: BorderSide(color: palette.border),
+          foregroundColor: palette.text,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       ),
     );
@@ -1602,25 +1543,8 @@ class _BookDetailScreenState extends State<BookDetailScreen>
     return Container(
       height: 56,
       decoration: BoxDecoration(
-        gradient: enabled
-            ? palette.accentGradient
-            : LinearGradient(
-                colors: [
-                  palette.text.withValues(alpha: 0.05),
-                  palette.text.withValues(alpha: 0.03),
-                ],
-              ),
-        borderRadius: BorderRadius.circular(16),
-        border: enabled ? null : Border.all(color: palette.border, width: 1.5),
-        boxShadow: enabled
-            ? [
-                BoxShadow(
-                  color: palette.accent.withValues(alpha: 0.28),
-                  blurRadius: 15,
-                  offset: const Offset(0, 6),
-                ),
-              ]
-            : null,
+        color: enabled ? palette.accent : palette.surface,
+        borderRadius: BorderRadius.circular(8),
       ),
       child: ElevatedButton.icon(
         onPressed: enabled ? onPressed : null,
@@ -1641,142 +1565,56 @@ class _BookDetailScreenState extends State<BookDetailScreen>
     );
   }
 
-  Widget _buildInfoChip(String label) {
+  Widget _buildMetadataText() {
     final palette = context.palette;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: palette.elevated.withValues(alpha: palette.isDark ? 0.38 : 0.74),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: palette.border),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: palette.text.withValues(alpha: 0.84),
-          fontSize: 13,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLanguageChip(String language) {
-    final palette = context.palette;
-    final flag = _languageFlag(_bookLanguageCode());
-    final display = 'Язык: $language';
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: palette.elevated.withValues(alpha: palette.isDark ? 0.38 : 0.74),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: palette.border),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (flag != null) ...[
-            Container(
-              height: 18,
-              width: 18,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: palette.surface.withValues(alpha: 0.70),
-              ),
-              alignment: Alignment.center,
-              child: Text(flag, style: const TextStyle(fontSize: 12)),
-            ),
-            const SizedBox(width: 8),
-          ],
+    final rating =
+        double.tryParse(
+          '${_book!['average_rating'] ?? _book!['averageRating'] ?? 0}',
+        ) ??
+        0;
+    final count =
+        int.tryParse(
+          '${_book!['ratings_count'] ?? _book!['ratingsCount'] ?? 0}',
+        ) ??
+        0;
+    final genres = _detailGenres().take(2).map(context.genreLabel).join(' · ');
+    final metadata = [
+      _bookLanguage(),
+      _availabilityLabel(),
+      if (_bookPages() > 0) context.pagesCount(_bookPages()),
+      context.chaptersCount(_chapters.length),
+    ].join(' · ');
+    return Column(
+      children: [
+        if (genres.isNotEmpty) ...[
           Text(
-            display,
+            genres,
+            textAlign: TextAlign.center,
             style: TextStyle(
-              color: palette.text.withValues(alpha: 0.84),
-              fontSize: 13,
+              color: palette.mutedText,
+              fontSize: 12,
+              height: 1.5,
             ),
           ),
+          const SizedBox(height: 6),
         ],
-      ),
+        Text(
+          metadata,
+          textAlign: TextAlign.center,
+          style: TextStyle(color: palette.mutedText, fontSize: 12, height: 1.5),
+        ),
+        if (rating > 0) ...[
+          const SizedBox(height: 6),
+          Text(
+            [
+              '${rating.toStringAsFixed(1)} ★',
+              if (count > 0) context.ratingsCount(count),
+            ].join(' · '),
+            style: TextStyle(color: palette.mutedText, fontSize: 12),
+          ),
+        ],
+      ],
     );
-  }
-
-  String? _languageFlag(String code) {
-    switch (code.trim().toLowerCase()) {
-      case 'en':
-      case 'eng':
-      case 'en-us':
-      case 'en-gb':
-      case 'english':
-        return '🇬🇧';
-      case 'ru':
-      case 'rus':
-      case 'русский':
-      case 'russian':
-        return '🇷🇺';
-      case 'es':
-      case 'spa':
-      case 'español':
-      case 'spanish':
-        return '🇪🇸';
-      case 'fr':
-      case 'fra':
-      case 'fre':
-      case 'français':
-      case 'french':
-        return '🇫🇷';
-      case 'de':
-      case 'ger':
-      case 'deu':
-      case 'deutsch':
-      case 'german':
-        return '🇩🇪';
-      case 'it':
-      case 'ita':
-      case 'italiano':
-      case 'italian':
-        return '🇮🇹';
-      case 'pt':
-      case 'por':
-      case 'português':
-      case 'portuguese':
-        return '🇵🇹';
-      case 'ar':
-      case 'ara':
-      case 'arabic':
-        return '🇸🇦';
-      case 'fa':
-      case 'fas':
-      case 'per':
-      case 'persian':
-        return '🇮🇷';
-      case 'pl':
-      case 'pol':
-      case 'polish':
-        return '🇵🇱';
-      case 'ja':
-      case 'jpn':
-      case 'japanese':
-        return '🇯🇵';
-      case 'ko':
-      case 'kor':
-      case 'korean':
-        return '🇰🇷';
-      case 'zh':
-      case 'zho':
-      case 'chi':
-      case 'chinese':
-      case '中文':
-        return '🇨🇳';
-      default:
-        return null;
-    }
-  }
-
-  String _bookLanguageCode() {
-    final raw =
-        _book!['language'] ?? _book!['languageCode'] ?? _book!['language_code'];
-    if (raw == null) return '';
-    return raw.toString().trim().toLowerCase();
   }
 
   Widget _buildPlaceholder() {

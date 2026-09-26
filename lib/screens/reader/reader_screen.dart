@@ -1291,16 +1291,7 @@ class _ReaderScreenState extends State<ReaderScreen>
                             child: Container(
                               padding: const EdgeInsets.all(20),
                               decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: [
-                                    palette.elevated.withValues(
-                                      alpha: palette.isDark ? 0.95 : 0.98,
-                                    ),
-                                    palette.background,
-                                  ],
-                                ),
+                                color: palette.background,
                                 border: Border(
                                   top: BorderSide(
                                     color: palette.border,
@@ -1332,7 +1323,7 @@ class _ReaderScreenState extends State<ReaderScreen>
                                           vertical: 12,
                                         ),
                                         decoration: BoxDecoration(
-                                          gradient: palette.accentGradient,
+                                          color: palette.surface,
                                           borderRadius: BorderRadius.circular(
                                             12,
                                           ),
@@ -1342,7 +1333,7 @@ class _ReaderScreenState extends State<ReaderScreen>
                                           style: TextStyle(
                                             fontSize: 16,
                                             fontWeight: FontWeight.bold,
-                                            color: palette.onAccent,
+                                            color: palette.text,
                                           ),
                                         ),
                                       ),

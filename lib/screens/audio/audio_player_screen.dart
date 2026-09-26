@@ -287,9 +287,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
       child: Stack(
         fit: StackFit.expand,
         children: [
-          DecoratedBox(
-            decoration: BoxDecoration(gradient: palette.pageGradient),
-          ),
+          DecoratedBox(decoration: BoxDecoration(color: palette.background)),
           if (coverUrl.isNotEmpty)
             Opacity(
               opacity: palette.isDark ? 0.38 : 0.24,
@@ -337,21 +335,8 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
       width: size,
       height: size,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: palette.isDark ? 0.42 : 0.18),
-            blurRadius: 36,
-            offset: const Offset(0, 22),
-          ),
-          BoxShadow(
-            color: palette.accent.withValues(
-              alpha: palette.isDark ? 0.16 : 0.10,
-            ),
-            blurRadius: 42,
-            offset: const Offset(0, 14),
-          ),
-        ],
+        color: palette.surface,
+        borderRadius: BorderRadius.circular(6),
       ),
       clipBehavior: Clip.antiAlias,
       child: coverUrl.isEmpty
@@ -372,16 +357,16 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
   Widget _buildCoverFallback(double size, {bool isLoading = false}) {
     final palette = context.palette;
     return DecoratedBox(
-      decoration: BoxDecoration(gradient: palette.accentGradient),
+      decoration: BoxDecoration(color: palette.surface),
       child: Center(
         child: isLoading
             ? CircularProgressIndicator(
-                color: palette.onAccent,
+                color: palette.mutedText,
                 strokeWidth: 2.8,
               )
             : Icon(
                 Icons.menu_book_rounded,
-                color: palette.onAccent,
+                color: palette.mutedText,
                 size: math.max(52, size * 0.30),
               ),
       ),

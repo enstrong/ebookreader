@@ -30,7 +30,6 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   late AnimationController _animController;
   late Animation<double> _fadeAnimation;
-  late Animation<double> _scaleAnimation;
 
   Map<String, dynamic>? _profile;
   bool _isLoading = true;
@@ -46,10 +45,6 @@ class _ProfileScreenState extends State<ProfileScreen>
     _fadeAnimation = CurvedAnimation(
       parent: _animController,
       curve: Curves.easeInOut,
-    );
-    _scaleAnimation = CurvedAnimation(
-      parent: _animController,
-      curve: Curves.elasticOut,
     );
     _animController.forward();
     _currentToken = widget.token;
@@ -474,103 +469,28 @@ class _ProfileScreenState extends State<ProfileScreen>
                       children: [
                         const SizedBox(height: 40),
 
-                        // Profile Avatar with Animation
-                        ScaleTransition(
-                          scale: _scaleAnimation,
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: palette.accentGradient,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: palette.accent.withValues(alpha: 0.28),
-                                  blurRadius: 30,
-                                  spreadRadius: 5,
-                                ),
-                              ],
-                            ),
-                            child: Container(
-                              padding: const EdgeInsets.all(32),
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient: LinearGradient(
-                                  colors: [palette.elevated, palette.surface],
-                                ),
-                              ),
-                              child: Text(
-                                _getInitial(),
-                                style: TextStyle(
-                                  fontSize: 48,
-                                  fontWeight: FontWeight.bold,
-                                  color: palette.accent,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(height: 32),
-
-                        // User Badge
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                palette.accent.withValues(alpha: 0.22),
-                                palette.secondaryAccent.withValues(alpha: 0.14),
-                              ],
-                            ),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: palette.accent.withValues(alpha: 0.42),
-                              width: 1.5,
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.person,
-                                color: palette.accent,
-                                size: 18,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                context.tr('ПОЛЬЗОВАТЕЛЬ'),
-                                style: TextStyle(
-                                  color: palette.accent,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12,
-                                  letterSpacing: 1.2,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        const SizedBox(height: 24),
-
-                        // Username
-                        ShaderMask(
-                          shaderCallback: (bounds) =>
-                              palette.accentGradient.createShader(bounds),
+                        CircleAvatar(
+                          radius: 36,
+                          backgroundColor: palette.surface,
                           child: Text(
-                            nickname.isNotEmpty ? nickname : username,
-                            style: const TextStyle(
-                              fontSize: 32,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                              letterSpacing: 0.5,
+                            _getInitial(),
+                            style: TextStyle(
+                              fontSize: 28,
+                              color: palette.text,
+                              fontWeight: FontWeight.w600,
                             ),
-                            textAlign: TextAlign.center,
                           ),
                         ),
-
+                        const SizedBox(height: 16),
+                        Text(
+                          nickname.isNotEmpty ? nickname : username,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 24,
+                            color: palette.text,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                         const SizedBox(height: 8),
 
                         // Email
@@ -735,70 +655,26 @@ class _ProfileScreenState extends State<ProfileScreen>
   }) {
     final palette = context.palette;
     return Container(
-      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        gradient: LinearGradient(
-          colors: [
-            palette.text.withValues(alpha: palette.isDark ? 0.05 : 0.18),
-            palette.text.withValues(alpha: palette.isDark ? 0.02 : 0.08),
-          ],
-        ),
-        border: Border.all(color: palette.border, width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        border: Border(bottom: BorderSide(color: palette.border)),
       ),
-      child: InkWell(
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(vertical: 8),
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  colors: [
-                    palette.accent.withValues(alpha: 0.3),
-                    palette.secondaryAccent.withValues(alpha: 0.2),
-                  ],
-                ),
-              ),
-              child: Icon(icon, color: palette.accent, size: 28),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      color: palette.text,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    description,
-                    style: TextStyle(color: palette.mutedText, fontSize: 13),
-                  ),
-                ],
-              ),
-            ),
-            Icon(
-              Icons.arrow_forward_ios,
-              color: palette.mutedText.withValues(alpha: 0.55),
-              size: 16,
-            ),
-          ],
+        leading: Icon(icon, color: palette.mutedText, size: 22),
+        title: Text(
+          title,
+          style: TextStyle(
+            color: palette.text,
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+          ),
         ),
+        subtitle: Text(
+          description,
+          style: TextStyle(color: palette.mutedText, fontSize: 13),
+        ),
+        trailing: Icon(Icons.chevron_right, color: palette.mutedText, size: 20),
       ),
     );
   }

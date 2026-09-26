@@ -177,7 +177,7 @@ class _BookmarksScreenState extends State<BookmarksScreen>
     return Scaffold(
       backgroundColor: palette.background,
       body: Container(
-        decoration: BoxDecoration(gradient: palette.verticalGradient),
+        decoration: BoxDecoration(color: palette.background),
         child: SafeArea(
           child: Column(
             children: [

@@ -131,7 +131,10 @@ class _ForYouScreenState extends State<ForYouScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  context.tr('AI-рекомендации по вашим оценкам'),
+                  context.tr(
+                    'Подобрано по вашим оценкам',
+                    en: 'Based on your ratings',
+                  ),
                   style: TextStyle(color: palette.mutedText, fontSize: 14),
                 ),
               ],
@@ -140,7 +143,7 @@ class _ForYouScreenState extends State<ForYouScreen> {
           IconButton(
             tooltip: context.tr('Настроить вкус'),
             onPressed: _openOnboarding,
-            icon: Icon(Icons.auto_awesome_rounded, color: palette.accent),
+            icon: Icon(Icons.tune_rounded, color: palette.mutedText),
           ),
           IconButton(
             tooltip: context.tr('Открыть каталог'),
@@ -205,53 +208,41 @@ class _ForYouScreenState extends State<ForYouScreen> {
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
       itemCount: _recommendations.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 12),
+      separatorBuilder: (context, index) =>
+          Divider(height: 1, color: context.palette.border),
       itemBuilder: (context, index) {
         final item = Map<String, dynamic>.from(_recommendations[index] as Map);
         final book = Map<String, dynamic>.from(item['book'] as Map);
-        return _buildRecommendationCard(index + 1, book, item);
+        return _buildRecommendationCard(book, item);
       },
     );
   }
 
   Widget _buildRecommendationCard(
-    int rank,
     Map<String, dynamic> book,
     Map<String, dynamic> recommendation,
   ) {
     final palette = context.palette;
     final bookId = _asInt(book['id']);
     final reason = _localizedReason(
-      recommendation['reason']?.toString() ?? 'AI match',
+      recommendation['reason']?.toString() ?? 'Similar book',
     );
     return InkWell(
-      borderRadius: BorderRadius.circular(18),
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(
           builder: (_) => BookDetailScreen(token: widget.token, bookId: bookId),
         ),
       ),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: _panelDecoration(),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16),
         child: Row(
           children: [
-            SizedBox(
-              width: 34,
-              child: Text(
-                '#$rank',
-                style: TextStyle(
-                  color: palette.accent,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
             ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: _cover(book, width: 54, height: 78),
+              borderRadius: BorderRadius.circular(4),
+              child: _cover(book, width: 64, height: 96),
             ),
-            const SizedBox(width: 14),
+            const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -262,28 +253,22 @@ class _ForYouScreenState extends State<ForYouScreen> {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: palette.text,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 15,
+                      fontSize: 16,
+                      height: 1.3,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 6),
                   Text(
                     authorLabel(book['author']),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: palette.mutedText, fontSize: 12),
+                    style: TextStyle(color: palette.mutedText, fontSize: 13),
                   ),
                   const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 6,
-                    children: [
-                      _chip(reason, palette.accent),
-                      _chip(
-                        'AI ${(100 * _asDouble(recommendation['score'])).toStringAsFixed(0)}%',
-                        palette.secondaryAccent,
-                      ),
-                    ],
+                  Text(
+                    reason,
+                    style: TextStyle(color: palette.mutedText, fontSize: 12),
                   ),
                 ],
               ),
@@ -337,25 +322,6 @@ class _ForYouScreenState extends State<ForYouScreen> {
     );
   }
 
-  Widget _chip(String text, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withValues(alpha: 0.22)),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          color: color,
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-
   BoxDecoration _panelDecoration() {
     final palette = context.palette;
     return BoxDecoration(
@@ -369,10 +335,5 @@ class _ForYouScreenState extends State<ForYouScreen> {
     if (value is int) return value;
     if (value is num) return value.toInt();
     return int.tryParse(value?.toString() ?? '') ?? 0;
-  }
-
-  double _asDouble(dynamic value) {
-    if (value is num) return value.toDouble();
-    return double.tryParse(value?.toString() ?? '') ?? 0.0;
   }
 }

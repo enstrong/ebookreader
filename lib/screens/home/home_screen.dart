@@ -689,26 +689,6 @@ class _HomeScreenState extends State<HomeScreen>
                     children: [
                       Row(
                         children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  palette.accent.withValues(alpha: 0.2),
-                                  palette.secondaryAccent.withValues(
-                                    alpha: 0.1,
-                                  ),
-                                ],
-                              ),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Icon(
-                              Icons.auto_stories_rounded,
-                              color: palette.accent,
-                              size: 26,
-                            ),
-                          ),
-                          const SizedBox(width: 14),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -784,12 +764,7 @@ class _HomeScreenState extends State<HomeScreen>
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        gradient: LinearGradient(
-          colors: [
-            palette.text.withValues(alpha: palette.isDark ? 0.08 : 0.22),
-            palette.text.withValues(alpha: palette.isDark ? 0.04 : 0.10),
-          ],
-        ),
+        color: palette.surface,
         border: Border.all(color: palette.border, width: 1.5),
       ),
       child: TextField(
@@ -1200,12 +1175,7 @@ class _HomeScreenState extends State<HomeScreen>
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: LinearGradient(
-                colors: [
-                  palette.text.withValues(alpha: palette.isDark ? 0.05 : 0.15),
-                  palette.text.withValues(alpha: palette.isDark ? 0.02 : 0.07),
-                ],
-              ),
+              color: palette.surface,
             ),
             child: Icon(
               Icons.search_off_rounded,
@@ -1386,120 +1356,104 @@ class _HomeScreenState extends State<HomeScreen>
     final palette = context.palette;
     final selected = _libraryStatusFilter == status;
     final count = _libraryStatusCount(status);
-    return SizedBox(
-      height: 34,
-      child: selected
-          ? FilledButton.icon(
-              onPressed: () {},
-              icon: Icon(icon, size: 14),
-              label: FittedBox(child: Text('$label $count')),
-              style: FilledButton.styleFrom(
-                backgroundColor: palette.accent,
-                foregroundColor: palette.onAccent,
-                textStyle: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(9),
-                ),
-              ),
-            )
-          : OutlinedButton.icon(
-              onPressed: () => _selectLibraryStatus(status),
-              icon: Icon(icon, size: 14),
-              label: FittedBox(child: Text('$label $count')),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: palette.mutedText,
-                side: BorderSide(color: palette.border),
-                textStyle: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(9),
-                ),
+    return Semantics(
+      selected: selected,
+      child: Container(
+        height: 44,
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: selected ? palette.accent : palette.border,
+              width: selected ? 2 : 1,
+            ),
+          ),
+        ),
+        child: TextButton(
+          onPressed: () => _selectLibraryStatus(status),
+          style: TextButton.styleFrom(
+            foregroundColor: selected ? palette.text : palette.mutedText,
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            shape: const RoundedRectangleBorder(),
+          ),
+          child: FittedBox(
+            child: Text(
+              '$label  $count',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
               ),
             ),
+          ),
+        ),
+      ),
     );
   }
 
   Widget _buildDemoAudiobookFeature(Map<String, dynamic> book) {
     final palette = context.palette;
-    final coverUrl = (book['coverUrl'] ?? '').toString();
+    final cover = book['coverUrl']?.toString() ?? '';
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(vertical: 12),
       decoration: BoxDecoration(
-        color: palette.elevated.withValues(alpha: palette.isDark ? 0.75 : 0.92),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: palette.border),
+        border: Border(bottom: BorderSide(color: palette.border)),
       ),
       child: Row(
         children: [
-          Container(
-            width: 58,
-            height: 82,
-            clipBehavior: Clip.antiAlias,
-            decoration: BoxDecoration(
-              color: palette.surface,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: palette.border),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: SizedBox(
+              width: 44,
+              height: 66,
+              child: cover.isEmpty
+                  ? _buildPlaceholder()
+                  : Image.network(
+                      ApiConstants.getCoverUrl(cover),
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) =>
+                          _buildPlaceholder(),
+                    ),
             ),
-            child: coverUrl.isEmpty
-                ? Icon(Icons.graphic_eq_rounded, color: palette.accent)
-                : Image.network(
-                    ApiConstants.getCoverUrl(coverUrl),
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) =>
-                        Icon(Icons.graphic_eq_rounded, color: palette.accent),
-                  ),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   context.tr('Демо-аудиокнига'),
-                  style: TextStyle(
-                    color: palette.accent,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: TextStyle(color: palette.mutedText, fontSize: 11),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 3),
                 Text(
                   book['title']?.toString() ?? 'The Raven',
-                  maxLines: 2,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: palette.text,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-                Text(
-                  '${authorLabel(book['author'])} · ${context.tr('Текст + аудио')}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: palette.mutedText, fontSize: 12),
-                ),
-                const SizedBox(height: 10),
                 Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
+                  spacing: 12,
                   children: [
-                    FilledButton.icon(
+                    TextButton.icon(
                       onPressed: () => _openDemoAudio(book),
-                      icon: const Icon(Icons.headphones_rounded, size: 18),
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        minimumSize: const Size(64, 40),
+                      ),
+                      icon: const Icon(Icons.headphones_outlined, size: 16),
                       label: Text(context.tr('Слушать')),
                     ),
-                    OutlinedButton.icon(
+                    TextButton.icon(
                       onPressed: () => _openBookPrimaryAction(book),
-                      icon: const Icon(Icons.menu_book_rounded, size: 18),
+                      style: TextButton.styleFrom(
+                        foregroundColor: palette.text,
+                        padding: EdgeInsets.zero,
+                        minimumSize: const Size(64, 40),
+                      ),
+                      icon: const Icon(Icons.menu_book_outlined, size: 16),
                       label: Text(context.tr('Читать')),
                     ),
                   ],
@@ -1536,8 +1490,8 @@ class _HomeScreenState extends State<HomeScreen>
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        childAspectRatio: 0.46,
-        crossAxisSpacing: 14,
+        childAspectRatio: 0.52,
+        crossAxisSpacing: 20,
         mainAxisSpacing: 18,
       ),
       itemCount:
@@ -1551,19 +1505,7 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           );
         }
-        return TweenAnimationBuilder(
-          duration: Duration(milliseconds: 300 + (index * 50)),
-          tween: Tween<double>(begin: 0, end: 1),
-          builder: (context, double value, child) {
-            return Transform.scale(
-              scale: value,
-              child: Opacity(
-                opacity: value,
-                child: _buildBookCard(visibleBooks[index]),
-              ),
-            );
-          },
-        );
+        return _buildBookCard(visibleBooks[index]);
       },
     );
   }
@@ -1571,246 +1513,114 @@ class _HomeScreenState extends State<HomeScreen>
   Widget _buildBookCard(Map<String, dynamic> book) {
     final palette = context.palette;
     final bookId = _asInt(book['id']);
-    final rating = (book['average_rating'] ?? book['averageRating'] ?? 0)
-        .toString();
-    final ratingsCount = _bookRatingsCount(book);
+    final title = book['title']?.toString() ?? context.tr('Без названия');
+    final author = authorLabel(book['author']);
+    final cover = book['coverUrl']?.toString() ?? '';
+    final rating =
+        double.tryParse(
+          '${book['average_rating'] ?? book['averageRating'] ?? 0}',
+        ) ??
+        0;
     final availability = _bookAvailability(book);
-    final isSelected = _selectedLibraryBookIds.contains(bookId);
-
-    return GestureDetector(
-      onLongPress: widget.libraryOnly
-          ? () => _toggleLibrarySelection(bookId)
-          : null,
-      onTap: () {
-        if (widget.libraryOnly && _selectedLibraryBookIds.isNotEmpty) {
-          _toggleLibrarySelection(bookId);
-          return;
-        }
-        _openBookDetail(bookId);
-      },
-      child: Hero(
-        tag: 'book-$bookId',
-        child: Container(
-          clipBehavior: Clip.hardEdge,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            color: palette.elevated,
-            border: Border.all(
-              color: isSelected ? palette.accent : palette.border,
-              width: isSelected ? 2.4 : 1.5,
-            ),
-          ),
-          child: Stack(
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+    final selected = _selectedLibraryBookIds.contains(bookId);
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(6),
+        onLongPress: widget.libraryOnly
+            ? () => _toggleLibrarySelection(bookId)
+            : null,
+        onTap: () {
+          if (widget.libraryOnly && _selectedLibraryBookIds.isNotEmpty) {
+            _toggleLibrarySelection(bookId);
+          } else {
+            _openBookDetail(bookId);
+          }
+        },
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Stack(
+                fit: StackFit.expand,
                 children: [
-                  // Cover image
-                  Flexible(
-                    flex: 5,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(24),
-                        ),
-                        gradient: LinearGradient(
-                          colors: [
-                            palette.text.withValues(
-                              alpha: palette.isDark ? 0.03 : 0.10,
-                            ),
-                            palette.text.withValues(
-                              alpha: palette.isDark ? 0.01 : 0.04,
-                            ),
-                          ],
-                        ),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(24),
-                        ),
-                        child:
-                            book['coverUrl'] != null &&
-                                book['coverUrl'].toString().isNotEmpty
-                            ? Image.network(
-                                ApiConstants.getCoverUrl(book['coverUrl']),
-                                width: double.infinity,
-                                fit: BoxFit.cover,
-                                loadingBuilder:
-                                    (context, child, loadingProgress) {
-                                      if (loadingProgress == null) return child;
-                                      return Container(
-                                        color: palette.surface.withValues(
-                                          alpha: 0.28,
-                                        ),
-                                        child: Center(
-                                          child: CircularProgressIndicator(
-                                            value:
-                                                loadingProgress
-                                                        .expectedTotalBytes !=
-                                                    null
-                                                ? loadingProgress
-                                                          .cumulativeBytesLoaded /
-                                                      loadingProgress
-                                                          .expectedTotalBytes!
-                                                : null,
-                                            color: palette.accent,
-                                            strokeWidth: 2,
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                errorBuilder: (context, error, stackTrace) {
-                                  debugPrint(
-                                    '❌ Ошибка загрузки обложки: $error',
-                                  );
-                                  debugPrint(
-                                    '📍 URL: ${ApiConstants.getCoverUrl(book['coverUrl'])}',
-                                  );
-                                  return _buildPlaceholder();
-                                },
-                              )
-                            : _buildPlaceholder(),
+                  Hero(
+                    tag: 'book-$bookId',
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: ColoredBox(
+                        color: palette.surface,
+                        child: cover.isEmpty
+                            ? _buildPlaceholder()
+                            : Image.network(
+                                ApiConstants.getCoverUrl(cover),
+                                fit: BoxFit.contain,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    _buildPlaceholder(),
+                              ),
                       ),
                     ),
                   ),
-
-                  // Book info
-                  Flexible(
-                    flex: 5,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 14),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Flexible(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  book['title'] ?? 'Без названия',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                    color: palette.text,
-                                    letterSpacing: 0.3,
-                                    height: 1.15,
-                                  ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  authorLabel(book['author']),
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: palette.mutedText,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 8),
-                                Wrap(
-                                  spacing: 6,
-                                  runSpacing: 6,
-                                  children: [
-                                    _buildTag(
-                                      _availabilityLabel(availability),
-                                      color: _availabilityColor(availability),
-                                    ),
-                                    if (rating != '0')
-                                      _buildTag(
-                                        '${double.tryParse(rating)?.toStringAsFixed(1) ?? rating} ★',
-                                      ),
-                                    if (ratingsCount > 0)
-                                      _buildTag(
-                                        _formatRatingsCount(ratingsCount),
-                                      ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                          GestureDetector(
-                            onTap: () {
-                              if (widget.libraryOnly &&
-                                  _selectedLibraryBookIds.isNotEmpty) {
-                                _toggleLibrarySelection(bookId);
-                                return;
-                              }
-                              _openBookPrimaryAction(book);
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: _isUsableAvailability(availability)
-                                    ? palette.accent
-                                    : palette.surface,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.play_arrow_rounded,
-                                    size: 16,
-                                    color: _isUsableAvailability(availability)
-                                        ? palette.onAccent
-                                        : palette.text,
-                                  ),
-                                  const SizedBox(width: 5),
-                                  Text(
-                                    _isUsableAvailability(availability)
-                                        ? context.tr('Открыть')
-                                        : context.tr('Детали'),
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: _isUsableAvailability(availability)
-                                          ? palette.onAccent
-                                          : palette.text,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
+                  if (selected)
+                    Positioned.fill(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: palette.accent, width: 2),
+                        ),
                       ),
                     ),
-                  ),
+                  if (selected)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: CircleAvatar(
+                        radius: 13,
+                        backgroundColor: palette.accent,
+                        child: Icon(
+                          Icons.check,
+                          size: 18,
+                          color: palette.onAccent,
+                        ),
+                      ),
+                    ),
                 ],
               ),
-              if (isSelected)
-                Positioned(
-                  top: 10,
-                  right: 10,
-                  child: Container(
-                    width: 30,
-                    height: 30,
-                    decoration: BoxDecoration(
-                      color: palette.accent,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.25),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Icon(
-                      Icons.check_rounded,
-                      color: palette.onAccent,
-                      size: 20,
-                    ),
-                  ),
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              height: MediaQuery.textScalerOf(context).scale(14) * 2.6,
+              child: Text(
+                title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: palette.text,
+                  fontSize: 14,
+                  height: 1.3,
+                  fontWeight: FontWeight.w600,
                 ),
-            ],
-          ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              author,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: palette.mutedText, fontSize: 12),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              [
+                _availabilityLabel(availability),
+                if (rating > 0) '${rating.toStringAsFixed(1)} ★',
+              ].join(' · '),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: palette.mutedText, fontSize: 11),
+            ),
+          ],
         ),
       ),
     );
@@ -1824,32 +1634,8 @@ class _HomeScreenState extends State<HomeScreen>
     return int.tryParse(raw.toString()) ?? 0;
   }
 
-  String _formatRatingsCount(int count) {
-    if (count >= 1000000) {
-      final short = (count / 1000000).toStringAsFixed(
-        count >= 10000000 ? 0 : 1,
-      );
-      return context.appLanguage.isEnglish
-          ? '${short}M ratings'
-          : '${short}M оценок';
-    }
-    if (count >= 1000) {
-      final short = (count / 1000).toStringAsFixed(count >= 10000 ? 0 : 1);
-      return context.appLanguage.isEnglish
-          ? '${short}K ratings'
-          : '${short}K оценок';
-    }
-    return context.ratingsCount(count);
-  }
-
   String _bookAvailability(Map<String, dynamic> book) {
     return (book['availability'] ?? 'METADATA_ONLY').toString();
-  }
-
-  bool _isUsableAvailability(String availability) {
-    return availability == 'TEXT' ||
-        availability == 'AUDIO' ||
-        availability == 'SYNCED';
   }
 
   bool _hasTextAvailability(String availability) {
@@ -1875,59 +1661,15 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  Color _availabilityColor(String availability) {
-    final palette = context.palette;
-    switch (availability) {
-      case 'TEXT':
-        return palette.accent;
-      case 'AUDIO':
-        return const Color(0xFFFFD166);
-      case 'SYNCED':
-        return palette.success;
-      case 'PDF_ONLY':
-        return const Color(0xFFFF7A7A);
-      default:
-        return palette.mutedText;
-    }
-  }
-
-  Widget _buildTag(String text, {bool selected = false, Color? color}) {
-    final palette = context.palette;
-    final accentColor = color ?? palette.mutedText;
-    final background = selected
-        ? palette.accent
-        : accentColor.withValues(alpha: palette.isDark ? 0.18 : 0.14);
-    final foreground = selected
-        ? palette.onAccent
-        : palette.isDark
-        ? accentColor
-        : Color.lerp(accentColor, Colors.black, 0.30)!;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Text(text, style: TextStyle(fontSize: 11, color: foreground)),
-    );
-  }
-
   Widget _buildPlaceholder() {
     final palette = context.palette;
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            palette.text.withValues(alpha: palette.isDark ? 0.05 : 0.14),
-            palette.text.withValues(alpha: palette.isDark ? 0.02 : 0.06),
-          ],
-        ),
-      ),
+    return ColoredBox(
+      color: palette.surface,
       child: Center(
         child: Icon(
-          Icons.book_rounded,
-          size: 80,
-          color: palette.mutedText.withValues(alpha: 0.7),
+          Icons.menu_book_outlined,
+          size: 32,
+          color: palette.mutedText,
         ),
       ),
     );

@@ -154,7 +154,7 @@ class _RecommendationOnboardingScreenState
     return Scaffold(
       backgroundColor: palette.background,
       body: Container(
-        decoration: BoxDecoration(gradient: palette.pageGradient),
+        decoration: BoxDecoration(color: palette.background),
         child: SafeArea(
           child: Column(
             children: [

@@ -91,11 +91,11 @@ class _UserHomeState extends State<UserHome> {
             BottomNavigationBarItem(
               icon: const Padding(
                 padding: EdgeInsets.all(8),
-                child: Icon(Icons.auto_awesome_outlined, size: 26),
+                child: Icon(Icons.explore_outlined, size: 26),
               ),
               activeIcon: const Padding(
                 padding: EdgeInsets.all(8),
-                child: Icon(Icons.auto_awesome, size: 26),
+                child: Icon(Icons.explore, size: 26),
               ),
               label: context.tr('Для вас'),
             ),
